@@ -210,7 +210,7 @@
     <string name="show_tags">Tags anzeigen</string>
     <string name="recentMsg_enable">Letzte Nachrichten laden</string>
     <string name="recentMsg_limit">Anzahl der zu ladenden letzten Nachrichten</string>
-    <string name="last_broadcast_date">Letze Übertragung am %s</string>
+    <string name="last_broadcast_date">Letzte Übertragung am %s</string>
     <string name="followed_at">Gefolgt am %s</string>
     <string name="show_usernotice">Nutzerbenachrichtigungen anzeigen(Subs, Raids)</string>
     <string name="show_clearmsg">Löschung einzelner Nachrichten anzeigen</string>
