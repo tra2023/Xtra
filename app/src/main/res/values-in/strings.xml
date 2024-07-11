@@ -382,8 +382,6 @@
     <string name="player_viewerlist">Buka daftar penonton dari jumlah penonton</string>
     <string name="use_followpager">Gunakan susunan tab untuk halaman mengikuti</string>
     <string name="default_follow_tab">Default tab mengikuti</string>
-    <string name="sleep_timer_lock">Kunci layar setelah</string>
-    <string name="sleep_timer_lock_permissions">Kunci layar setelah (memerlukan izin admin)</string>
     <string name="admin_settings">Aktifkan/nonaktifkan sebagai aplikasi admin perangkat</string>
     <string name="disable_chat">Nonaktifkan chat</string>
     <string name="disconnected">Sambungan terputus</string>

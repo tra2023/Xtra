@@ -384,8 +384,6 @@
     <string name="player_viewerlist">Открывать список зрителей из счётчика просмотров</string>
     <string name="use_followpager">Использовать вкладки на странице отслеживания</string>
     <string name="default_follow_tab">Стандартная вкладка отслеживания</string>
-    <string name="sleep_timer_lock">Блокировать экран</string>
-    <string name="sleep_timer_lock_permissions">Блокировать экран (нужны права админа)</string>
     <string name="admin_settings">Вкл/откл права администратора устройства в приложении</string>
     <string name="disable_chat">Отключить чат</string>
     <string name="disconnected">Отсоединено</string>

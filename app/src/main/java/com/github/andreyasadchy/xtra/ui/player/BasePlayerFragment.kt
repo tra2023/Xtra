@@ -1,9 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.player
 
 import android.app.PictureInPictureParams
-import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
-import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -11,17 +9,14 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.trackPipAnimationHintView
-import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.os.bundleOf
 import androidx.core.view.ViewCompat
@@ -245,7 +240,7 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
         slidingLayout.addListener(this)
         slidingLayout.maximizedSecondViewVisibility = if (prefs.getBoolean(C.KEY_CHAT_OPENED, true)) View.VISIBLE else View.GONE //TODO
         playerView = view.findViewById(R.id.playerView)
-        if (activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
             viewLifecycleOwner.lifecycleScope.launch {
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
                     requireActivity().trackPipAnimationHintView(playerView)
@@ -334,7 +329,7 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
                 }
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && prefs.getBoolean(C.PLAYER_AUDIO_COMPRESSOR_BUTTON, false)) {
+        if (prefs.getBoolean(C.PLAYER_AUDIO_COMPRESSOR_BUTTON, false)) {
             view.findViewById<ImageButton>(R.id.playerAudioCompressor)?.apply {
                 visible()
                 setImageResource(if (prefs.getBoolean(C.PLAYER_AUDIO_COMPRESSOR, false)) R.drawable.baseline_audio_compressor_on_24dp else R.drawable.baseline_audio_compressor_off_24dp)
@@ -394,9 +389,6 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
                 onMinimize()
                 onClose()
                 activity.closePlayer()
-                if (prefs.getBoolean(C.SLEEP_TIMER_LOCK, true)) {
-                    lockScreen()
-                }
             }
             if (prefs.getBoolean(C.PLAYER_SLEEP, false)) {
                 view.findViewById<ImageButton>(R.id.playerSleepTimer)?.apply {
@@ -414,7 +406,7 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         isPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !requireActivity().isInPictureInPictureMode) {
+        if (!requireActivity().isInPictureInPictureMode) {
             chatLayout.hideKeyboard()
             chatLayout.clearFocus()
             initLayout()
@@ -455,10 +447,6 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
         playerView.useController = false
         if (isPortrait) {
             if (prefs.getBoolean(C.UI_THEME_EDGE_TO_EDGE, true)) {
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-                    @Suppress("DEPRECATION")
-                    requireActivity().window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-                }
                 requireActivity().window.statusBarColor = Color.TRANSPARENT
             }
         } else {
@@ -482,17 +470,10 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
         }
         if (isPortrait) {
             if (prefs.getBoolean(C.UI_THEME_EDGE_TO_EDGE, true)) {
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-                    @Suppress("DEPRECATION")
-                    requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-                    requireActivity().window.statusBarColor = if (!isLightTheme) {
-                        MaterialColors.getColor(requireView(), com.google.android.material.R.attr.colorSurface)
-                    } else {
-                        ContextCompat.getColor(requireContext(), R.color.darkScrimOnLightSurface)
-                    }
-                } else {
-                    requireActivity().window.statusBarColor = MaterialColors.getColor(requireView(), com.google.android.material.R.attr.colorSurface)
-                }
+                requireActivity().window.statusBarColor = MaterialColors.getColor(
+                    requireView(),
+                    com.google.android.material.R.attr.colorSurface
+                )
             }
         } else {
             hideStatusBar()
@@ -505,7 +486,7 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
         releaseController()
     }
 
-    override fun onSleepTimerChanged(durationMs: Long, hours: Int, minutes: Int, lockScreen: Boolean) {
+    override fun onSleepTimerChanged(durationMs: Long, hours: Int, minutes: Int) {
         val context = requireContext()
         if (durationMs > 0L) {
             context.toast(when {
@@ -515,9 +496,6 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
             })
         } else if (viewModel.timerTimeLeft > 0L) {
             context.toast(R.string.timer_canceled)
-        }
-        if (lockScreen != prefs.getBoolean(C.SLEEP_TIMER_LOCK, true)) {
-            prefs.edit { putBoolean(C.SLEEP_TIMER_LOCK, lockScreen) }
         }
         viewModel.setTimer(durationMs)
     }
@@ -641,17 +619,7 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
                 }
             }
             if (slidingLayout.isMaximized && prefs.getBoolean(C.UI_THEME_EDGE_TO_EDGE, true)) {
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-                    @Suppress("DEPRECATION")
-                    requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-                    requireActivity().window.statusBarColor = if (!isLightTheme) {
-                        MaterialColors.getColor(requireView(), com.google.android.material.R.attr.colorSurface)
-                    } else {
-                        ContextCompat.getColor(requireContext(), R.color.darkScrimOnLightSurface)
-                    }
-                } else {
-                    requireActivity().window.statusBarColor = MaterialColors.getColor(requireView(), com.google.android.material.R.attr.colorSurface)
-                }
+                requireActivity().window.statusBarColor = MaterialColors.getColor(requireView(), com.google.android.material.R.attr.colorSurface)
             }
             showStatusBar()
             aspectRatioFrameLayout.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
@@ -694,10 +662,6 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
                 }
             }
             if (slidingLayout.isMaximized && prefs.getBoolean(C.UI_THEME_EDGE_TO_EDGE, true)) {
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-                    @Suppress("DEPRECATION")
-                    requireActivity().window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
-                }
                 requireActivity().window.statusBarColor = Color.TRANSPARENT
             }
             slidingLayout.post {
@@ -781,14 +745,6 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
         WindowCompat.getInsetsController(requireActivity().window, requireActivity().window.decorView).hide(WindowInsetsCompat.Type.systemBars())
     }
 
-    private fun lockScreen() {
-        if ((requireContext().getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive) {
-            try {
-                (requireContext().getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager).lockNow()
-            } catch (e: SecurityException) {}
-        }
-    }
-
     fun setSubtitles(available: Boolean = null ?: subtitlesAvailable(), enabled: Boolean = null ?: subtitlesEnabled()) {
         requireView().findViewById<ImageButton>(R.id.playerSubtitleToggle)?.apply {
             if (available && prefs.getBoolean(C.PLAYER_SUBTITLES, false)) {
@@ -846,7 +802,7 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), LifecycleListener, Sl
 
     override fun onResume() {
         super.onResume()
-        viewModel.pipMode = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && requireActivity().isInPictureInPictureMode)
+        viewModel.pipMode = (requireActivity().isInPictureInPictureMode)
     }
 
     override fun onMovedToForeground() {}

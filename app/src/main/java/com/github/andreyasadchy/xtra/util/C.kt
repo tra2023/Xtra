@@ -45,7 +45,6 @@ object C {
     const val LANDSCAPE_CHAT_WIDTH = "landscape_chat_width"
     const val KEY_CHAT_OPENED = "key_chat_opened"
     const val KEY_CHAT_BAR_VISIBLE = "key_chat_bar_visible"
-    const val SLEEP_TIMER_LOCK = "sleep_timer_lock"
     const val SORT_DEFAULT_GAME_VIDEOS = "sort_default_game_videos"
     const val SORT_DEFAULT_GAME_CLIPS = "sort_default_game_clips"
     const val SORT_DEFAULT_CHANNEL_VIDEOS = "sort_default_channel_videos"

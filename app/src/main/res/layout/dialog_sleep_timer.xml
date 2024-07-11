@@ -48,16 +48,5 @@
 
         </LinearLayout>
 
-        <CheckBox
-            android:id="@+id/lockCheckbox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_marginTop="7dp"
-            android:layout_marginEnd="10dp"
-            android:layout_marginBottom="7dp"
-            android:textSize="16sp"
-            tools:text="@string/sleep_timer_lock_permissions" />
-
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

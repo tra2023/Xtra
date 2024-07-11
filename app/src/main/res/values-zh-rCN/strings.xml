@@ -384,8 +384,6 @@
     <string name="player_viewerlist">从观看次数中开启观众清单</string>
     <string name="use_followpager">对于追随页面使用分页布局</string>
     <string name="default_follow_tab">默认的追随分页</string>
-    <string name="sleep_timer_lock">之后锁定画面</string>
-    <string name="sleep_timer_lock_permissions">之后锁定画面（需要管理员权限）</string>
     <string name="admin_settings">启用/禁用为设备管理员</string>
     <string name="disable_chat">禁用聊天室</string>
     <string name="disconnected">已断开连接</string>

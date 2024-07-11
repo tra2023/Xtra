@@ -384,8 +384,6 @@
     <string name="player_viewerlist">Görüntülenme sayısından izleyici listesini aç</string>
     <string name="use_followpager">Takip sayfası için sekme düzenini kullan</string>
     <string name="default_follow_tab">Varsayılan takip sekmesi</string>
-    <string name="sleep_timer_lock">Sonra ekranı kilitle</string>
-    <string name="sleep_timer_lock_permissions">Sonra ekranı kilitle (yönetici izinleri gerektirir)</string>
     <string name="admin_settings">Cihaz yönetici uygulaması olarak etkinleştir/devre dışı bırak</string>
     <string name="disable_chat">Sohbeti devre dışı bırak</string>
     <string name="disconnected">Bağlantı kesildi</string>

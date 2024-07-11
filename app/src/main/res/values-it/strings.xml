@@ -384,8 +384,6 @@
     <string name="player_viewerlist">Apri elenco spettatori dalla visualizzazione conteggio</string>
     <string name="use_followpager">Usa layout a schede per la pagina di seguito</string>
     <string name="default_follow_tab">Scheda predefinita di seguito</string>
-    <string name="sleep_timer_lock">Blocca schermo dopo</string>
-    <string name="sleep_timer_lock_permissions">Blocca schermo dopo (richiede autorizzazioni di amministratore)</string>
     <string name="admin_settings">Abilita/disabilita come app di amministratore del dispositivo</string>
     <string name="disable_chat">Disabilita chat</string>
     <string name="disconnected">Disconnesso</string>

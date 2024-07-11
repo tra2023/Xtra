@@ -1,26 +1,20 @@
 package com.github.andreyasadchy.xtra.ui.player
 
 import android.app.Dialog
-import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.DialogInterface
-import android.content.Intent
 import android.os.Bundle
 import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentManager
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.DialogSleepTimerBinding
-import com.github.andreyasadchy.xtra.util.AdminReceiver
-import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
-import com.github.andreyasadchy.xtra.util.prefs
 
 class SleepTimerDialog : DialogFragment() {
 
     interface OnSleepTimerStartedListener {
-        fun onSleepTimerChanged(durationMs: Long, hours: Int, minutes: Int, lockScreen: Boolean)
+        fun onSleepTimerChanged(durationMs: Long, hours: Int, minutes: Int)
     }
 
     private var _binding: DialogSleepTimerBinding? = null
@@ -48,7 +42,7 @@ class SleepTimerDialog : DialogFragment() {
                 maxValue = 59
             }
             val positiveListener: (dialog: DialogInterface, which: Int) -> Unit = { _, _ ->
-                listener.onSleepTimerChanged(hours.value * 3600_000L + minutes.value * 60_000L,  hours.value, minutes.value, lockCheckbox.isChecked)
+                listener.onSleepTimerChanged(hours.value * 3600_000L + minutes.value * 60_000L,  hours.value, minutes.value)
                 dismiss()
             }
             val timeLeft = requireArguments().getLong(KEY_TIME_LEFT)
@@ -62,31 +56,10 @@ class SleepTimerDialog : DialogFragment() {
                 minutes.value = ((timeLeft - hours * 3600_000L) / 60_000L).toInt()
                 builder.setPositiveButton(getString(R.string.set), positiveListener)
                 builder.setNegativeButton(getString(R.string.stop)) { _, _ ->
-                    listener.onSleepTimerChanged(-1L, 0, 0, lockCheckbox.isChecked)
+                    listener.onSleepTimerChanged(-1L, 0, 0)
                     dismiss()
                 }
                 builder.setNeutralButton(android.R.string.cancel) { _, _ -> dismiss() }
-            }
-            val admin = ComponentName(requireContext(), AdminReceiver::class.java)
-            if ((requireContext().getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager).isAdminActive(admin)) {
-                lockCheckbox.apply {
-                    isChecked = requireContext().prefs().getBoolean(C.SLEEP_TIMER_LOCK, true)
-                    text = context.getString(R.string.sleep_timer_lock)
-                }
-            } else {
-                lockCheckbox.apply {
-                    isChecked = false
-                    text = context.getString(R.string.sleep_timer_lock_permissions)
-                    setOnClickListener {
-                        val intent = Intent(
-                            DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN
-                        ).putExtra(
-                            DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin
-                        )
-                        requireContext().startActivity(intent)
-                        dismiss()
-                    }
-                }
             }
         }
         return builder.create()

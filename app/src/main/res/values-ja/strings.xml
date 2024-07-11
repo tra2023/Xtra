@@ -384,8 +384,6 @@
     <string name="player_viewerlist">視聴者数から視聴者リストを開く</string>
     <string name="use_followpager">[フォロー中] ページにタブ UI を使用 </string>
     <string name="default_follow_tab">デフォルトの [フォロー中] タブ</string>
-    <string name="sleep_timer_lock">終了時に画面をロック</string>
-    <string name="sleep_timer_lock_permissions">終了時に画面をロック (要デバイス管理アプリ権限)</string>
     <string name="admin_settings">デバイス管理アプリを有効化/無効化</string>
     <string name="disable_chat">チャットを無効化</string>
     <string name="disconnected">切断されました</string>

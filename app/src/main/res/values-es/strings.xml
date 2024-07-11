@@ -384,8 +384,6 @@
     <string name="player_viewerlist">Abrir lista de espectadores a partir del recuento de vistas</string>
     <string name="use_followpager">Utilizar el diseño de pestañas para la página "Siguiendo"</string>
     <string name="default_follow_tab">Pestaña en "Siguiendo" por defecto</string>
-    <string name="sleep_timer_lock">Bloquear pantalla tras detener reproducción </string>
-    <string name="sleep_timer_lock_permissions">Bloquear pantalla tras detener reproducción (requiere permisos de administrador)</string>
     <string name="admin_settings">Habilitar/deshabilitar como aplicación de administración del dispositivo</string>
     <string name="disable_chat">Desactivar el chat</string>
     <string name="disconnected">Desconectado</string>

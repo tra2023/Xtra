@@ -384,8 +384,6 @@
     <string name="player_viewerlist">Zuschauerliste öffnen über Zuschauerzahl</string>
     <string name="use_followpager">Use tabs layout for following page</string>
     <string name="default_follow_tab">Default following tab</string>
-    <string name="sleep_timer_lock">Danach Display sperren</string>
-    <string name="sleep_timer_lock_permissions">Danach Display sperren (benötigt Admin Berechtigungen)</string>
     <string name="admin_settings">Als Geräte Admin App aktivieren/deaktivieren</string>
     <string name="disable_chat">Chat deaktivieren</string>
     <string name="disconnected">Getrennt</string>
