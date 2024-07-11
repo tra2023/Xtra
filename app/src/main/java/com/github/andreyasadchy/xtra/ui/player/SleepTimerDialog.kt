@@ -53,7 +53,7 @@ class SleepTimerDialog : DialogFragment() {
             }
             val timeLeft = requireArguments().getLong(KEY_TIME_LEFT)
             if (timeLeft < 0L) {
-                minutes.value = 15
+                hours.value = 1
                 builder.setPositiveButton(getString(R.string.start), positiveListener)
                 builder.setNegativeButton(android.R.string.cancel) { _, _ -> dismiss() }
             } else {
