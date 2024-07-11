@@ -25,8 +25,8 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.github.andreyasadchy.xtra"
-        minSdk = 21
+        applicationId = "com.tra2023.xtra"
+        minSdk = 30
         targetSdk = 34
         versionCode = 121
         versionName = "2.33.1"
