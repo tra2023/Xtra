@@ -52,7 +52,6 @@ class SlidingLayout : LinearLayout {
     private val isPortrait: Boolean
         get() = orientation == 1
     var isMaximized = true
-        private set
     private var isAnimating = false
     private var shouldUpdateDragLayout = false
 
