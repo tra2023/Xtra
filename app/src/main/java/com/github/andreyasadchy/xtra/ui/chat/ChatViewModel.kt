@@ -1002,9 +1002,7 @@ class ChatViewModel(
                 Triple(message, chatMessages.lastIndex, removeCount)
             } else {
                 if (removeCount > 0) {
-                    repeat(removeCount) {
-                        chatMessages.removeAt(0)
-                    }
+                    chatMessages.subList(0, removeCount).clear()
                 }
                 null
             }
