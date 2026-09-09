@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface RecentSearchesDao {
 
-    @Query("SELECT * FROM recent_search WHERE type = :type ORDER BY lastSearched DESC")
+    @Query("SELECT * FROM recent_search WHERE type = :type ORDER BY lastSearched DESC, id DESC LIMIT 20")
     fun getAll(type: String): Flow<List<RecentSearch>>
 
     @Query("SELECT * FROM recent_search WHERE `query` = :query AND type = :type")
@@ -23,7 +23,7 @@ interface RecentSearchesDao {
     @Delete
     fun delete(item: RecentSearch)
 
-    @Query("DELETE FROM recent_search WHERE `query` NOT IN (SELECT `query` FROM recent_search WHERE type = :type ORDER BY lastSearched DESC LIMIT 20) AND type = :type")
+    @Query("DELETE FROM recent_search WHERE id NOT IN (SELECT id FROM recent_search WHERE type = :type ORDER BY lastSearched DESC, id DESC LIMIT 20) AND type = :type")
     fun deleteOld(type: String)
 
     @Transaction
