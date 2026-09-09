@@ -115,21 +115,17 @@ class VideoSearchFragment : PagedListFragment(), Searchable {
                 }
             }
         }
-        if (requireContext().prefs().getBoolean(C.UI_STORE_RECENT_SEARCHES, true)) {
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.recentSearches.collectLatest {
-                        recentSearchAdapter.submitList(it)
-                    }
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.recentSearches.collectLatest {
+                    recentSearchAdapter.submitList(it)
                 }
             }
         }
-        if (requireContext().prefs().getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true)) {
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.positions.collectLatest {
-                        (pagingAdapter as VideosAdapter).setVideoPositions(it)
-                    }
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.positions.collectLatest {
+                    (pagingAdapter as VideosAdapter).setVideoPositions(it)
                 }
             }
         }

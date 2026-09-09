@@ -30,8 +30,11 @@ import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
@@ -42,9 +45,9 @@ import java.io.FileOutputStream
 import java.util.concurrent.ExecutorService
 
 class VideoSearchViewModel(
-    applicationContext: Context,
+    private val applicationContext: Context,
     private val recentSearchesRepository: RecentSearchesRepository,
-    playerRepository: PlayerRepository,
+    private val playerRepository: PlayerRepository,
     private val bookmarksRepository: BookmarksRepository,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
@@ -56,9 +59,33 @@ class VideoSearchViewModel(
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
-    val recentSearches = recentSearchesRepository.getAll(RecentSearch.TYPE_VIDEO)
-    val positions = playerRepository.loadVideoPositions()
-    val bookmarks = bookmarksRepository.getAllFlow()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val recentSearches: StateFlow<List<RecentSearch>> = _query.flatMapLatest { q ->
+        if (q.isBlank() && applicationContext.prefs().getBoolean(C.UI_STORE_RECENT_SEARCHES, true)) {
+            recentSearchesRepository.getAll(RecentSearch.TYPE_VIDEO)
+        } else {
+            flowOf(emptyList())
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val positions = _query.flatMapLatest { q ->
+        if (q.isNotBlank() && applicationContext.prefs().getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true)) {
+            playerRepository.loadVideoPositions()
+        } else {
+            flowOf(emptyList())
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val bookmarks: StateFlow<List<Bookmark>> = _query.flatMapLatest { q ->
+        if (q.isNotBlank()) {
+            bookmarksRepository.getAllFlow()
+        } else {
+            flowOf(emptyList())
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = _query.flatMapLatest { query ->
