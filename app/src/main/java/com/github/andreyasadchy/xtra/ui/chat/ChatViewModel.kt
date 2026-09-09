@@ -1942,11 +1942,12 @@ class ChatViewModel(
     }
 
     fun send(message: CharSequence, replyId: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, accountId: String?, channelId: String?, channelLogin: String?, useApiCommands: Boolean, useApiChatMessages: Boolean, enableIntegrity: Boolean) {
+        val text = message.toString()
         if (replyId != null) {
             sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity, replyId)
         } else {
             if (useApiCommands) {
-                if (message.toString().startsWith("/")) {
+                if (text.startsWith("/")) {
                     try {
                         sendCommand(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, channelLogin, useApiChatMessages, enableIntegrity)
                     } catch (e: Exception) {
@@ -1956,7 +1957,7 @@ class ChatViewModel(
                     sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
                 }
             } else {
-                if (message.toString() == "/dc" || message.toString() == "/disconnect") {
+                if (text == "/dc" || text == "/disconnect") {
                     disconnect()
                 } else {
                     sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
@@ -1966,11 +1967,12 @@ class ChatViewModel(
     }
 
     private fun sendMessage(message: CharSequence, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, accountId: String?, channelId: String?, useApiChatMessages: Boolean, enableIntegrity: Boolean, replyId: String? = null) {
+        val text = message.toString()
         try {
             viewModelScope.launch {
                 if (useApiChatMessages) {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        graphQLRepository.sendMessage(networkLibrary, gqlHeaders, channelId, message.toString(), replyId).also { response ->
+                        graphQLRepository.sendMessage(networkLibrary, gqlHeaders, channelId, text, replyId).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -1980,7 +1982,7 @@ class ChatViewModel(
                         }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.sendMessage(networkLibrary, helixHeaders, accountId, channelId, message.toString(), replyId)
+                            helixRepository.sendMessage(networkLibrary, helixHeaders, accountId, channelId, text, replyId)
                         } else null
                     }?.let {
                         onMessage(ChatMessage(systemMsg = it))
@@ -1995,7 +1997,7 @@ class ChatViewModel(
         val usedEmotes = hashSetOf<RecentEmote>()
         val currentTime = System.currentTimeMillis()
         synchronized(allEmotes) {
-            message.split(' ').forEach { word ->
+            text.split(' ').forEach { word ->
                 allEmotes.find { it == word }?.let { usedEmotes.add(RecentEmote(word, currentTime)) }
             }
         }
@@ -2007,10 +2009,11 @@ class ChatViewModel(
     }
 
     private fun sendCommand(message: CharSequence, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, accountId: String?, channelId: String?, channelLogin: String?, useApiChatMessages: Boolean, enableIntegrity: Boolean) {
-        val command = message.toString().substringBefore(" ")
+        val text = message.toString()
+        val command = text.substringBefore(" ")
         when {
             command.startsWith("/announce", true) -> {
-                val splits = message.split(" ", limit = 2)
+                val splits = text.split(" ", limit = 2)
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2033,7 +2036,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/ban", true) -> {
-                val splits = message.split(" ", limit = 3)
+                val splits = text.split(" ", limit = 3)
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2065,7 +2068,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/unban", true) -> {
-                val splits = message.split(" ")
+                val splits = text.split(" ")
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2106,7 +2109,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/color", true) -> {
-                val splits = message.split(" ")
+                val splits = text.split(" ")
                 viewModelScope.launch {
                     if (splits.size >= 2) {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2134,7 +2137,7 @@ class ChatViewModel(
             }
             command.equals("/commercial", true) -> {
                 if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                    val splits = message.split(" ")
+                    val splits = text.split(" ")
                     if (splits.size >= 2) {
                         viewModelScope.launch {
                             helixRepository.startCommercial(networkLibrary, helixHeaders, channelId, splits[1])?.let {
@@ -2150,7 +2153,7 @@ class ChatViewModel(
             }
             command.equals("/delete", true) -> {
                 if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                    val splits = message.split(" ")
+                    val splits = text.split(" ")
                     if (splits.size >= 2) {
                         viewModelScope.launch {
                             helixRepository.deleteMessages(networkLibrary, helixHeaders, channelId, accountId, splits[1])?.let {
@@ -2206,7 +2209,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/followers", true) -> {
-                val splits = message.split(" ")
+                val splits = text.split(" ")
                 val duration = if (splits.size >= 2) splits[1].toIntOrNull() else null
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2251,7 +2254,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/marker", true) -> {
-                val splits = message.split(" ", limit = 2)
+                val splits = text.split(" ", limit = 2)
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                         graphQLRepository.createStreamMarker(networkLibrary, gqlHeaders, channelLogin).also { response ->
@@ -2272,7 +2275,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/mod", true) -> {
-                val splits = message.split(" ")
+                val splits = text.split(" ")
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2300,7 +2303,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/unmod", true) -> {
-                val splits = message.split(" ")
+                val splits = text.split(" ")
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2342,7 +2345,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/raid", true) -> {
-                val splits = message.split(" ")
+                val splits = text.split(" ")
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2406,7 +2409,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/slow", true) -> {
-                val splits = message.split(" ")
+                val splits = text.split(" ")
                 val duration = if (splits.size >= 2) splits[1].toIntOrNull() else null
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2477,7 +2480,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/timeout", true) -> {
-                val splits = message.split(" ", limit = 4)
+                val splits = text.split(" ", limit = 4)
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2511,7 +2514,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/untimeout", true) -> {
-                val splits = message.split(" ")
+                val splits = text.split(" ")
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2565,7 +2568,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/vip", true) -> {
-                val splits = message.split(" ")
+                val splits = text.split(" ")
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2593,7 +2596,7 @@ class ChatViewModel(
                 }
             }
             command.equals("/unvip", true) -> {
-                val splits = message.split(" ")
+                val splits = text.split(" ")
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -2636,7 +2639,7 @@ class ChatViewModel(
             }
             command.equals("/w", true) -> {
                 if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                    val splits = message.split(" ", limit = 3)
+                    val splits = text.split(" ", limit = 3)
                     if (splits.size >= 3) {
                         viewModelScope.launch {
                             val targetId = helixRepository.getUsers(
