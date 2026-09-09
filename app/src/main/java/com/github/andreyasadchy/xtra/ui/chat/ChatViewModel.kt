@@ -314,13 +314,13 @@ class ChatViewModel(
                                 }
                                 if (online) {
                                     val directory = File(applicationContext.cacheDir, "emote_responses")
-                                    directory.mkdir()
+                                    directory.mkdirs()
                                     val compressedStream = ByteArrayOutputStream()
                                     DeflaterOutputStream(compressedStream).use {
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/global.stv").use {
+                                    FileOutputStream(File(directory, "global.stv")).use {
                                         it.write(compressedBytes)
                                     }
                                 }
@@ -403,7 +403,7 @@ class ChatViewModel(
                                 }
                                 if (online) {
                                     val directory = File(applicationContext.cacheDir, "emote_responses")
-                                    directory.mkdir()
+                                    directory.mkdirs()
                                     val files = directory.listFiles()
                                     if (files != null && files.size >= 100) {
                                         files.minBy { it.lastModified() }.delete()
@@ -413,7 +413,7 @@ class ChatViewModel(
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.stv").use {
+                                    FileOutputStream(File(directory, "${channelId}.stv")).use {
                                         it.write(compressedBytes)
                                     }
                                 } else {
@@ -491,13 +491,13 @@ class ChatViewModel(
                                 }
                                 if (online) {
                                     val directory = File(applicationContext.cacheDir, "emote_responses")
-                                    directory.mkdir()
+                                    directory.mkdirs()
                                     val compressedStream = ByteArrayOutputStream()
                                     DeflaterOutputStream(compressedStream).use {
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/global.bttv").use {
+                                    FileOutputStream(File(directory, "global.bttv")).use {
                                         it.write(compressedBytes)
                                     }
                                 } else {
@@ -550,7 +550,7 @@ class ChatViewModel(
                                 }
                                 if (online) {
                                     val directory = File(applicationContext.cacheDir, "emote_responses")
-                                    directory.mkdir()
+                                    directory.mkdirs()
                                     val files = directory.listFiles()
                                     if (files != null && files.size >= 100) {
                                         files.minBy { it.lastModified() }.delete()
@@ -560,7 +560,7 @@ class ChatViewModel(
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.bttv").use {
+                                    FileOutputStream(File(directory, "${channelId}.bttv")).use {
                                         it.write(compressedBytes)
                                     }
                                 } else {
@@ -638,13 +638,13 @@ class ChatViewModel(
                                 }
                                 if (online) {
                                     val directory = File(applicationContext.cacheDir, "emote_responses")
-                                    directory.mkdir()
+                                    directory.mkdirs()
                                     val compressedStream = ByteArrayOutputStream()
                                     DeflaterOutputStream(compressedStream).use {
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/global.ffz").use {
+                                    FileOutputStream(File(directory, "global.ffz")).use {
                                         it.write(compressedBytes)
                                     }
                                 }
@@ -695,7 +695,7 @@ class ChatViewModel(
                                 }
                                 if (online) {
                                     val directory = File(applicationContext.cacheDir, "emote_responses")
-                                    directory.mkdir()
+                                    directory.mkdirs()
                                     val files = directory.listFiles()
                                     if (files != null && files.size >= 100) {
                                         files.minBy { it.lastModified() }.delete()
@@ -705,7 +705,7 @@ class ChatViewModel(
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.ffz").use {
+                                    FileOutputStream(File(directory, "${channelId}.ffz")).use {
                                         it.write(compressedBytes)
                                     }
                                 }
