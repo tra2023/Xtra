@@ -1093,9 +1093,9 @@ class ChatViewModel(
                     } else null
                 },
                 collectPoints = collectPoints,
-                showRaids = applicationContext.prefs().getBoolean(C.CHAT_RAIDS_SHOW, true),
-                showPolls = applicationContext.prefs().getBoolean(C.CHAT_POLLS_SHOW, true),
-                showPredictions = applicationContext.prefs().getBoolean(C.CHAT_PREDICTIONS_SHOW, true),
+                showRaids = showRaids,
+                showPolls = showPolls,
+                showPredictions = showPredictions,
                 trustManager = trustManager,
                 listener = PubSubListener(channelLogin, collectPoints, notifyPoints, showRaids, showPolls, showPredictions, networkLibrary, gqlHeaders, isLoggedIn, accountId, channelId, enableIntegrity, showWebSocketDebugInfo)
             )
