@@ -32,6 +32,12 @@ interface OfflineVideosDao {
     @Query("SELECT * FROM videos WHERE channel_id = :id")
     fun getByUserId(id: String): List<OfflineVideo>
 
+    @Query("SELECT COUNT(*) FROM videos WHERE videoId = :id")
+    fun countByVideoId(id: String): Int
+
+    @Query("SELECT COUNT(*) FROM videos WHERE channel_id = :id")
+    fun countByUserId(id: String): Int
+
     @Query("SELECT * FROM videos WHERE lower(url) LIKE '%.m3u8'")
     fun getPlaylists(): List<OfflineVideo>
 

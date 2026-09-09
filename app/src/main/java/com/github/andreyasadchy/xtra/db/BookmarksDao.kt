@@ -23,6 +23,18 @@ interface BookmarksDao {
     @Query("SELECT * FROM bookmarks WHERE userId = :id")
     fun getByUserId(id: String): List<Bookmark>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM bookmarks WHERE videoId = :id)")
+    fun existsByVideoId(id: String): Boolean
+
+    @Query("SELECT id, videoId, userId, thumbnail, userLogo FROM bookmarks WHERE videoId = :id LIMIT 1")
+    fun getDeleteInfoByVideoId(id: String): BookmarkDeleteInfo?
+
+    @Query("SELECT COUNT(*) FROM bookmarks WHERE userId = :userId AND id != :excludeId")
+    fun countByUserIdExcluding(userId: String, excludeId: Int): Int
+
+    @Query("DELETE FROM bookmarks WHERE videoId = :id")
+    fun deleteByVideoId(id: String): Int
+
     @Insert
     fun insert(item: Bookmark)
 

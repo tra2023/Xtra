@@ -100,9 +100,10 @@ class VideoSearchViewModel(
 
     fun saveBookmark(filesDir: String, video: Video, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
         viewModelScope.launch {
-            val item = video.id?.let { bookmarksRepository.getByVideoId(it) }
-            if (item != null) {
-                bookmarksRepository.delete(item)
+            val videoId = video.id.takeIf { !it.isNullOrBlank() } ?: return@launch
+            // Toggle-off: narrow SELECT (id + file paths) + DELETE by videoId + COUNTs. No SELECT *.
+            if (bookmarksRepository.deleteByVideoId(videoId)) {
+                return@launch
             } else {
                 val downloadedThumbnail = video.id.takeIf { !it.isNullOrBlank() }?.let { id ->
                     video.thumbnail.takeIf { !it.isNullOrBlank() }?.let { url ->
