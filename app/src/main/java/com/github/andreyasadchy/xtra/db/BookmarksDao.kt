@@ -14,6 +14,9 @@ interface BookmarksDao {
     @Query("SELECT * FROM bookmarks")
     fun getAllFlow(): Flow<List<Bookmark>>
 
+    @Query("SELECT videoId FROM bookmarks WHERE videoId IS NOT NULL AND videoId != ''")
+    fun getAllVideoIdsFlow(): Flow<List<String>>
+
     @Query("SELECT * FROM bookmarks")
     fun getAll(): List<Bookmark>
 

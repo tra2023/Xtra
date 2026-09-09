@@ -135,8 +135,8 @@ class VideoSearchFragment : PagedListFragment(), Searchable {
         }
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.bookmarks.collectLatest {
-                    (pagingAdapter as VideosAdapter).setBookmarksList(it)
+                viewModel.bookmarkedVideoIds.collectLatest {
+                    (pagingAdapter as VideosAdapter).setBookmarkedVideoIds(it)
                 }
             }
         }

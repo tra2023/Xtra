@@ -59,19 +59,29 @@ class VideosAdapter(
         holder.bind(getItem(position))
     }
 
-    private var positions: List<VideoPosition>? = null
+    private var positions: Map<Long, Long> = emptyMap()
 
-    fun setVideoPositions(positions: List<VideoPosition>) {
+    fun setVideoPositions(positions: Map<Long, Long>) {
+        if (this.positions == positions) return
         this.positions = positions
         if (itemCount != 0) {
-            notifyDataSetChanged()
+            notifyItemRangeChanged(0, itemCount, Unit)
         }
     }
 
-    private var bookmarks: List<Bookmark>? = null
+    fun setVideoPositions(positions: List<VideoPosition>) {
+        setVideoPositions(positions.associate { it.id to it.position })
+    }
+
+    private var bookmarkedVideoIds: Set<String> = emptySet()
+
+    fun setBookmarkedVideoIds(ids: Set<String>) {
+        if (this.bookmarkedVideoIds == ids) return
+        this.bookmarkedVideoIds = ids
+    }
 
     fun setBookmarksList(list: List<Bookmark>) {
-        this.bookmarks = list
+        setBookmarkedVideoIds(list.mapNotNullTo(HashSet(list.size)) { it.videoId })
     }
 
     inner class PagingViewHolder(
@@ -84,7 +94,7 @@ class VideosAdapter(
             with(binding) {
                 if (item != null) {
                     val context = fragment.requireContext()
-                    val position = item.id?.toLongOrNull()?.let { id -> positions?.find { it.id == id }?.position }
+                    val position = item.id?.toLongOrNull()?.let { id -> positions[id] }
                     val startFromBeginning = position != null && item.durationSeconds != null && item.durationSeconds > 0 && position >= (item.durationSeconds * 1000)
                     root.setOnClickListener {
                         (fragment.activity as MainActivity).startVideo(
@@ -237,7 +247,7 @@ class VideosAdapter(
                             inflate(R.menu.media_item)
                             if (!item.id.isNullOrBlank()) {
                                 menu.findItem(R.id.bookmark).isVisible = true
-                                if (bookmarks?.find { it.videoId == item.id } != null) {
+                                if (bookmarkedVideoIds.contains(item.id)) {
                                     menu.findItem(R.id.bookmark).title = context.getString(R.string.remove_bookmark)
                                 } else {
                                     menu.findItem(R.id.bookmark).title = context.getString(R.string.add_bookmark)

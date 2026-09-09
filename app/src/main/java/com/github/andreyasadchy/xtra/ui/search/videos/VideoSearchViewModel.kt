@@ -30,8 +30,13 @@ import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
@@ -42,7 +47,7 @@ import java.io.FileOutputStream
 import java.util.concurrent.ExecutorService
 
 class VideoSearchViewModel(
-    applicationContext: Context,
+    private val applicationContext: Context,
     private val recentSearchesRepository: RecentSearchesRepository,
     playerRepository: PlayerRepository,
     private val bookmarksRepository: BookmarksRepository,
@@ -57,7 +62,30 @@ class VideoSearchViewModel(
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
     val recentSearches = recentSearchesRepository.getAll(RecentSearch.TYPE_VIDEO)
-    val positions = playerRepository.loadVideoPositions()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val positions: StateFlow<Map<Long, Long>> = _query.flatMapLatest { q ->
+        if (q.isNotBlank() && applicationContext.prefs().getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true)) {
+            playerRepository.loadVideoPositions()
+        } else {
+            flowOf(emptyList())
+        }
+    }.map { list -> list.associate { it.id to it.position } }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val bookmarkedVideoIds: StateFlow<Set<String>> = _query.flatMapLatest { q ->
+        if (q.isNotBlank()) {
+            bookmarksRepository.getBookmarkedVideoIdsFlow()
+        } else {
+            flowOf(emptyList())
+        }
+    }.map { it.toSet() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    // Kept for compatibility; prefer bookmarkedVideoIds (lightweight SELECT videoId only).
     val bookmarks = bookmarksRepository.getAllFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)

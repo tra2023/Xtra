@@ -17,6 +17,8 @@ class BookmarksRepository(
 
     fun getAllFlow() = bookmarksDao.getAllFlow()
 
+    fun getBookmarkedVideoIdsFlow() = bookmarksDao.getAllVideoIdsFlow()
+
     suspend fun getAll() = withContext(Dispatchers.IO) {
         bookmarksDao.getAll()
     }
