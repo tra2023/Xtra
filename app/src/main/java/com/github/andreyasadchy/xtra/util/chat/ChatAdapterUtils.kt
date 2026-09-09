@@ -630,44 +630,31 @@ object ChatAdapterUtils {
                     }
                 }
                 if (twitchEmote != null) {
-                    twitchEmotes.remove(twitchEmote)
                     builder.replace(builderIndex, builderIndex + value.length, ".")
                     builder.setSpan(ForegroundColorSpan(Color.TRANSPARENT), builderIndex, builderIndex + 1, SPAN_EXCLUSIVE_EXCLUSIVE)
-                    val emote = localTwitchEmotes.find { emote -> emote.id == twitchEmote.id }?.let { emote ->
-                        TwitchEmote(
-                            id = emote.id,
-                            name = emote.name,
-                            localData = emote.localData,
-                            format = emote.format,
-                            isAnimated = emote.isAnimated,
-                            begin = builderIndex,
-                            end = builderIndex + 1,
-                            setId = emote.setId,
-                            ownerId = emote.ownerId
-                        )
-                    } ?: TwitchEmote(id = twitchEmote.id)
                     if (imageClick != null) {
                         builder.setSpan(object : ClickableSpan() {
                             override fun onClick(widget: View) {
-                                imageClick(emote.url4x ?: emote.url3x ?: emote.url2x ?: emote.url1x, value, emote.format, emote.isAnimated, null, null, emote.id)
+                                imageClick(twitchEmote.url4x ?: twitchEmote.url3x ?: twitchEmote.url2x ?: twitchEmote.url1x, value, twitchEmote.format, twitchEmote.isAnimated, null, null, twitchEmote.id)
                             }
 
                             override fun updateDrawState(ds: TextPaint) {}
                         }, builderIndex, builderIndex + 1, SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
                     val image = Image(
-                        localData = emote.localData?.let { getLocalEmoteData(emote.id!!, it, savedLocalTwitchEmotes, chatUrl, getEmoteBytes) },
-                        url1x = emote.url1x,
-                        url2x = emote.url2x,
-                        url3x = emote.url3x,
-                        url4x = emote.url4x,
-                        format = emote.format,
-                        isAnimated = emote.isAnimated,
+                        localData = twitchEmote.localData?.let { getLocalEmoteData(twitchEmote.id!!, it, savedLocalTwitchEmotes, chatUrl, getEmoteBytes) },
+                        url1x = twitchEmote.url1x,
+                        url2x = twitchEmote.url2x,
+                        url3x = twitchEmote.url3x,
+                        url4x = twitchEmote.url4x,
+                        format = twitchEmote.format,
+                        isAnimated = twitchEmote.isAnimated,
                         size = Image.IMAGE_SIZE_EMOTE,
                         start = builderIndex,
                         end = builderIndex + 1
                     )
                     images.add(image)
+                    twitchEmotes.remove(twitchEmote)
                     if (twitchEmotes.isNotEmpty()) {
                         val removed = value.length - 1
                         twitchEmotes.forEach {
