@@ -143,15 +143,6 @@ class MainActivity : AppCompatActivity() {
                 putLong(C.UPDATE_LAST_CHECKED, System.currentTimeMillis())
             }
         }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.integrity.collect {
-                    if (prefs.getBoolean(C.USE_WEBVIEW_INTEGRITY, true)) {
-                        getNewIntegrityToken(null, supportFragmentManager)
-                    }
-                }
-            }
-        }
         applyTheme()
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -198,206 +189,6 @@ class MainActivity : AppCompatActivity() {
             if (!isNetworkAvailable) {
                 initialized = true
                 Toast.makeText(this, R.string.no_connection, Toast.LENGTH_SHORT).show()
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.checkNetworkStatus.collectLatest {
-                    if (it) {
-                        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                        val isNetworkAvailable = networkCapabilities != null
-                                && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                                && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                        if (viewModel.isNetworkAvailable.value != isNetworkAvailable) {
-                            viewModel.isNetworkAvailable.value = isNetworkAvailable
-                            if (initialized) {
-                                Toast.makeText(this@MainActivity, if (isNetworkAvailable) R.string.connection_restored else R.string.no_connection, Toast.LENGTH_SHORT).show()
-                            } else {
-                                initialized = true
-                            }
-                            if (isNetworkAvailable) {
-                                if (!TwitchApiHelper.checkedValidation && prefs.getBoolean(C.VALIDATE_TOKENS, true)) {
-                                    viewModel.validate(
-                                        prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
-                                        TwitchApiHelper.getGQLHeaders(this@MainActivity, true),
-                                        prefs.getString(C.GQL_CLIENT_ID_WEB, "kimne78kx3ncx6brgo4mv6wki5h1ko"),
-                                        tokenPrefs().getString(C.GQL_TOKEN_WEB, null)?.takeIf { it.isNotBlank() }?.let { TwitchApiHelper.addTokenPrefixGQL(it) },
-                                        TwitchApiHelper.getHelixHeaders(this@MainActivity),
-                                        this@MainActivity.tokenPrefs().getString(C.USER_ID, null),
-                                        this@MainActivity.tokenPrefs().getString(C.USERNAME, null),
-                                        this@MainActivity
-                                    )
-                                }
-                                if (!TwitchApiHelper.checkedUpdates &&
-                                    prefs.getBoolean(C.UPDATE_CHECK_ENABLED, false) &&
-                                    (prefs.getString(C.UPDATE_CHECK_FREQUENCY, "7")?.toIntOrNull() ?: 7) * 86400000 + tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0) < System.currentTimeMillis()
-                                ) {
-                                    viewModel.checkUpdates(
-                                        prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
-                                        prefs.getString(C.UPDATE_URL, null) ?: "https://api.github.com/repos/crackededed/xtra/releases/tags/latest",
-                                        tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0)
-                                    )
-                                }
-                            }
-                        }
-                        viewModel.checkNetworkStatus.value = false
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.checkCellularStatus.collectLatest {
-                    if (it) {
-                        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                        val cellular = networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-                        if (!cellular) {
-                            if (prefs.getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
-                                val downloads = viewModel.getWaitingDownloads()
-                                if (downloads.isNotEmpty()) {
-                                    downloads.forEach {
-                                        val intent = if (it.live) {
-                                            Intent(this@MainActivity, StreamDownloadService::class.java).apply {
-                                                action = StreamDownloadService.INTENT_START
-                                                putExtra(StreamDownloadService.KEY_VIDEO_ID, it.id)
-                                            }
-                                        } else {
-                                            Intent(this@MainActivity, VideoDownloadService::class.java).apply {
-                                                action = VideoDownloadService.INTENT_START
-                                                putExtra(VideoDownloadService.KEY_VIDEO_ID, it.id)
-                                            }
-                                        }
-                                        startService(intent)
-                                    }
-                                    val currentFragment = supportFragmentManager.findFragmentById(R.id.navHostFragment)?.childFragmentManager?.fragments?.getOrNull(0)
-                                    if (currentFragment is SavedPagerFragment || currentFragment is SavedMediaFragment) {
-                                        val fragment = currentFragment.childFragmentManager.fragments.find { it is DownloadsFragment }
-                                        if (downloads.any { it.live }) {
-                                            (fragment as? DownloadsFragment)?.bindStreamDownloadService(true)
-                                        }
-                                        if (downloads.any { !it.live }) {
-                                            (fragment as? DownloadsFragment)?.bindVideoDownloadService(true)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        viewModel.checkCellularStatus.value = false
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.startDownloadService.collect {
-                    val videoId = it.first
-                    val live = it.second
-                    if (live) {
-                        val intent = Intent(this@MainActivity, StreamDownloadService::class.java).apply {
-                            action = StreamDownloadService.INTENT_START
-                            putExtra(StreamDownloadService.KEY_VIDEO_ID, videoId)
-                        }
-                        startService(intent)
-                    } else {
-                        val intent = Intent(this@MainActivity, VideoDownloadService::class.java).apply {
-                            action = VideoDownloadService.INTENT_START
-                            putExtra(VideoDownloadService.KEY_VIDEO_ID, videoId)
-                        }
-                        startService(intent)
-                    }
-                    val currentFragment = supportFragmentManager.findFragmentById(R.id.navHostFragment)?.childFragmentManager?.fragments?.getOrNull(0)
-                    if (currentFragment is SavedPagerFragment || currentFragment is SavedMediaFragment) {
-                        val fragment = currentFragment.childFragmentManager.fragments.find { it is DownloadsFragment }
-                        if (live) {
-                            (fragment as? DownloadsFragment)?.bindStreamDownloadService(true)
-                        } else {
-                            (fragment as? DownloadsFragment)?.bindVideoDownloadService(true)
-                        }
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.updateUrl.collectLatest {
-                    if (it != null) {
-                        getAlertDialogBuilder()
-                            .setTitle(getString(R.string.update_available))
-                            .setMessage(getString(R.string.update_message))
-                            .setPositiveButton(getString(R.string.yes)) { _, _ ->
-                                if (prefs.getBoolean(C.UPDATE_USE_BROWSER, false)) {
-                                    try {
-                                        val intent = Intent(Intent.ACTION_VIEW, it.toUri()).apply {
-                                            addCategory(Intent.CATEGORY_BROWSABLE)
-                                        }
-                                        startActivity(intent)
-                                        tokenPrefs().edit {
-                                            putLong(C.UPDATE_LAST_CHECKED, System.currentTimeMillis())
-                                        }
-                                    } catch (e: ActivityNotFoundException) {
-                                        Toast.makeText(this@MainActivity, R.string.no_browser_found, Toast.LENGTH_LONG).show()
-                                    }
-                                } else {
-                                    val binding = DialogUpdateDownloadBinding.inflate(layoutInflater)
-                                    updateDownloadDialogBinding = binding
-                                    val size = viewModel.updateSize
-                                    if (size != null) {
-                                        binding.textView.text = getString(
-                                            R.string.downloading_update_progress,
-                                            Formatter.formatFileSize(this@MainActivity, 0),
-                                            Formatter.formatFileSize(this@MainActivity, size),
-                                        )
-                                    } else {
-                                        binding.textView.text = getString(R.string.downloading_update)
-                                        binding.progressBar.visibility = View.GONE
-                                    }
-                                    viewModel.downloadUpdate(prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP), it)
-                                    val dialog = getAlertDialogBuilder()
-                                        .setView(binding.root)
-                                        .setNegativeButton(getString(android.R.string.cancel), null)
-                                        .setOnDismissListener {
-                                            viewModel.updateJob?.cancel()
-                                            updateDownloadDialogBinding = null
-                                            updateDownloadDialog = null
-                                        }
-                                        .show()
-                                    updateDownloadDialog = dialog
-                                }
-                            }
-                            .setNegativeButton(getString(R.string.no)) { _, _ ->
-                                tokenPrefs().edit {
-                                    putLong(C.UPDATE_LAST_CHECKED, System.currentTimeMillis())
-                                }
-                            }
-                            .show()
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.updateProgress.collectLatest {
-                    updateDownloadDialogBinding?.let { binding ->
-                        val size = viewModel.updateSize
-                        if (size != null) {
-                            binding.textView.text = getString(
-                                R.string.downloading_update_progress,
-                                Formatter.formatFileSize(this@MainActivity, it.toLong()),
-                                Formatter.formatFileSize(this@MainActivity, size),
-                            )
-                            binding.progressBar.progress = (((it.toFloat() / size) * 100)).toInt()
-                        }
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.closeUpdateDialog.collectLatest {
-                    updateDownloadDialog?.dismiss()
-                }
             }
         }
         val callback = object : ConnectivityManager.NetworkCallback() {
@@ -451,149 +242,9 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
         pipActionReceiver = pipReceiver
-        if (prefs.getString(C.PLAYER, C.EXOPLAYER) == C.MEDIA_PLAYER || prefs.getBoolean(C.DEBUG_USE_CUSTOM_PLAYBACK_SERVICE, true)) {
-            lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.playbackStates.collectLatest { states ->
-                        val savedState = states.firstOrNull()
-                        if (savedState != null) {
-                            (playerFragment as? Media3PlayerFragment)?.close() ?: (playerFragment as? PlayerFragment)?.close()
-                            val fragment = when (prefs.getString(C.PLAYER, C.EXOPLAYER)) {
-                                C.MEDIA_PLAYER -> MediaPlayerFragment()
-                                else -> ExoPlayerFragment()
-                            }.apply {
-                                if (savedState.type == BasePlaybackService.OFFLINE_VIDEO) {
-                                    arguments = Bundle().apply {
-                                        putBoolean(PlayerFragment.KEY_OFFLINE, true)
-                                    }
-                                }
-                            }
-                            startPlayer(fragment)
-                        }
-                    }
-                }
-            }
-        }
         restorePlayerFragment()
         handleIntent(intent)
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.videoUrl.collectLatest { videoUrl ->
-                    if (videoUrl != null) {
-                        if (videoUrl == "") {
-                            Toast.makeText(this@MainActivity, R.string.video_not_found, Toast.LENGTH_SHORT).show()
-                        } else {
-                            startVideo(Video(), 0, videoUrl = videoUrl)
-                        }
-                        viewModel.videoUrl.value = null
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.video.collectLatest { pair ->
-                    val video = pair?.first
-                    val offset = pair?.second
-                    if (video != null) {
-                        if (!video.id.isNullOrBlank()) {
-                            (playerFragment as? Media3PlayerFragment)?.also {
-                                it.minimize()
-                                it.close()
-                                closePlayer()
-                            } ?:
-                            (playerFragment as? PlayerFragment)?.also {
-                                it.minimize()
-                                it.close()
-                                closePlayer()
-                            }
-                            startVideo(video, offset, offset != null)
-                        }
-                        viewModel.video.value = null
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.clip.collectLatest { clip ->
-                    if (clip != null) {
-                        if (!clip.id.isNullOrBlank()) {
-                            startClip(clip)
-                        }
-                        viewModel.clip.value = null
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.user.collectLatest { user ->
-                    if (user != null) {
-                        if (!user.id.isNullOrBlank() || !user.login.isNullOrBlank()) {
-                            (playerFragment as? Media3PlayerFragment)?.minimize() ?: (playerFragment as? PlayerFragment)?.minimize()
-                            navController.navigate(
-                                ChannelPagerFragmentDirections.actionGlobalChannelPagerFragment(
-                                    channelId = user.id,
-                                    channelLogin = user.login,
-                                    channelName = user.name,
-                                    channelImage = user.profileImage,
-                                )
-                            )
-                        }
-                        viewModel.user.value = null
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.game.collectLatest { pair ->
-                    if (pair != null) {
-                        val game = pair.first
-                        val tag = pair.second
-                        if (game != null) {
-                            (playerFragment as? Media3PlayerFragment)?.minimize() ?: (playerFragment as? PlayerFragment)?.minimize()
-                            navController.navigate(
-                                if (prefs.getBoolean(C.UI_GAME_PAGER, true)) {
-                                    GamePagerFragmentDirections.actionGlobalGamePagerFragment(
-                                        gameId = game.id,
-                                        gameSlug = game.slug,
-                                        gameName = game.name,
-                                        boxArt = game.boxArt,
-                                        tags = tag?.let { arrayOf(it) },
-                                    )
-                                } else {
-                                    GameMediaFragmentDirections.actionGlobalGameMediaFragment(
-                                        gameId = game.id,
-                                        gameSlug = game.slug,
-                                        gameName = game.name,
-                                        boxArt = game.boxArt,
-                                        tags = tag?.let { arrayOf(it) },
-                                    )
-                                }
-                            )
-                        }
-                        viewModel.game.value = null
-                    }
-                }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.tag.collectLatest { tag ->
-                    if (tag != null) {
-                        (playerFragment as? Media3PlayerFragment)?.minimize() ?: (playerFragment as? PlayerFragment)?.minimize()
-                        navController.navigate(
-                            GamesFragmentDirections.actionGlobalGamesFragment(
-                                tags = arrayOf(tag)
-                            )
-                        )
-                        viewModel.tag.value = null
-                    }
-                }
-            }
-        }
+        observeViewModelFlows(initializedHolder = { initialized }, onInitialized = { initialized = true })
         if (prefs.getBoolean(C.ENABLE_INTEGRITY, false) && TwitchApiHelper.isIntegrityTokenExpired(this)) {
             getNewIntegrityToken(null, supportFragmentManager)
         }
@@ -609,6 +260,319 @@ class MainActivity : AppCompatActivity() {
                     )
                     .build()
             )
+        }
+    }
+
+    private fun observeViewModelFlows(initializedHolder: () -> Boolean, onInitialized: () -> Unit) {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.integrity.collect {
+                        if (prefs.getBoolean(C.USE_WEBVIEW_INTEGRITY, true)) {
+                            getNewIntegrityToken(null, supportFragmentManager)
+                        }
+                    }
+                }
+                launch {
+                    viewModel.checkNetworkStatus.collectLatest {
+                        if (it) {
+                            val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                            val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                            val isNetworkAvailable = networkCapabilities != null
+                                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                            if (viewModel.isNetworkAvailable.value != isNetworkAvailable) {
+                                viewModel.isNetworkAvailable.value = isNetworkAvailable
+                                if (initializedHolder()) {
+                                    Toast.makeText(this@MainActivity, if (isNetworkAvailable) R.string.connection_restored else R.string.no_connection, Toast.LENGTH_SHORT).show()
+                                } else {
+                                    onInitialized()
+                                }
+                                if (isNetworkAvailable) {
+                                    if (!TwitchApiHelper.checkedValidation && prefs.getBoolean(C.VALIDATE_TOKENS, true)) {
+                                        viewModel.validate(
+                                            prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
+                                            TwitchApiHelper.getGQLHeaders(this@MainActivity, true),
+                                            prefs.getString(C.GQL_CLIENT_ID_WEB, "kimne78kx3ncx6brgo4mv6wki5h1ko"),
+                                            tokenPrefs().getString(C.GQL_TOKEN_WEB, null)?.takeIf { it.isNotBlank() }?.let { TwitchApiHelper.addTokenPrefixGQL(it) },
+                                            TwitchApiHelper.getHelixHeaders(this@MainActivity),
+                                            this@MainActivity.tokenPrefs().getString(C.USER_ID, null),
+                                            this@MainActivity.tokenPrefs().getString(C.USERNAME, null),
+                                            this@MainActivity
+                                        )
+                                    }
+                                    if (!TwitchApiHelper.checkedUpdates &&
+                                        prefs.getBoolean(C.UPDATE_CHECK_ENABLED, false) &&
+                                        (prefs.getString(C.UPDATE_CHECK_FREQUENCY, "7")?.toIntOrNull() ?: 7) * 86400000 + tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0) < System.currentTimeMillis()
+                                    ) {
+                                        viewModel.checkUpdates(
+                                            prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
+                                            prefs.getString(C.UPDATE_URL, null) ?: "https://api.github.com/repos/crackededed/xtra/releases/tags/latest",
+                                            tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0)
+                                        )
+                                    }
+                                }
+                            }
+                            viewModel.checkNetworkStatus.value = false
+                        }
+                    }
+                }
+                launch {
+                    viewModel.checkCellularStatus.collectLatest {
+                        if (it) {
+                            val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                            val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                            val cellular = networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                            if (!cellular && prefs.getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
+                                val downloads = viewModel.getWaitingDownloads()
+                                downloads.forEach { download ->
+                                    startDownloadById(download.id, download.live)
+                                }
+                                if (downloads.isNotEmpty()) {
+                                    notifyDownloadsChanged(downloads.any { it.live }, downloads.any { !it.live })
+                                }
+                            }
+                            viewModel.checkCellularStatus.value = false
+                        }
+                    }
+                }
+                launch {
+                    viewModel.startDownloadService.collect {
+                        startDownloadById(it.first, it.second)
+                        notifyDownloadsChanged(it.second, !it.second)
+                    }
+                }
+                launch {
+                    viewModel.updateUrl.collectLatest {
+                        if (it != null) {
+                            getAlertDialogBuilder()
+                                .setTitle(getString(R.string.update_available))
+                                .setMessage(getString(R.string.update_message))
+                                .setPositiveButton(getString(R.string.yes)) { _, _ ->
+                                    if (prefs.getBoolean(C.UPDATE_USE_BROWSER, false)) {
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, it.toUri()).apply {
+                                                addCategory(Intent.CATEGORY_BROWSABLE)
+                                            }
+                                            startActivity(intent)
+                                            tokenPrefs().edit {
+                                                putLong(C.UPDATE_LAST_CHECKED, System.currentTimeMillis())
+                                            }
+                                        } catch (e: ActivityNotFoundException) {
+                                            Toast.makeText(this@MainActivity, R.string.no_browser_found, Toast.LENGTH_LONG).show()
+                                        }
+                                    } else {
+                                        val binding = DialogUpdateDownloadBinding.inflate(layoutInflater)
+                                        updateDownloadDialogBinding = binding
+                                        val size = viewModel.updateSize
+                                        if (size != null) {
+                                            binding.textView.text = getString(
+                                                R.string.downloading_update_progress,
+                                                Formatter.formatFileSize(this@MainActivity, 0),
+                                                Formatter.formatFileSize(this@MainActivity, size),
+                                            )
+                                        } else {
+                                            binding.textView.text = getString(R.string.downloading_update)
+                                            binding.progressBar.visibility = View.GONE
+                                        }
+                                        viewModel.downloadUpdate(prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP), it)
+                                        val dialog = getAlertDialogBuilder()
+                                            .setView(binding.root)
+                                            .setNegativeButton(getString(android.R.string.cancel), null)
+                                            .setOnDismissListener {
+                                                viewModel.updateJob?.cancel()
+                                                updateDownloadDialogBinding = null
+                                                updateDownloadDialog = null
+                                            }
+                                            .show()
+                                        updateDownloadDialog = dialog
+                                    }
+                                }
+                                .setNegativeButton(getString(R.string.no)) { _, _ ->
+                                    tokenPrefs().edit {
+                                        putLong(C.UPDATE_LAST_CHECKED, System.currentTimeMillis())
+                                    }
+                                }
+                                .show()
+                        }
+                    }
+                }
+                launch {
+                    viewModel.updateProgress.collectLatest {
+                        updateDownloadDialogBinding?.let { binding ->
+                            val size = viewModel.updateSize
+                            if (size != null) {
+                                binding.textView.text = getString(
+                                    R.string.downloading_update_progress,
+                                    Formatter.formatFileSize(this@MainActivity, it.toLong()),
+                                    Formatter.formatFileSize(this@MainActivity, size),
+                                )
+                                binding.progressBar.progress = (((it.toFloat() / size) * 100)).toInt()
+                            }
+                        }
+                    }
+                }
+                launch {
+                    viewModel.closeUpdateDialog.collectLatest {
+                        updateDownloadDialog?.dismiss()
+                    }
+                }
+                if (prefs.getString(C.PLAYER, C.EXOPLAYER) == C.MEDIA_PLAYER || prefs.getBoolean(C.DEBUG_USE_CUSTOM_PLAYBACK_SERVICE, true)) {
+                    launch {
+                        viewModel.playbackStates.collectLatest { states ->
+                            val savedState = states.firstOrNull()
+                            if (savedState != null) {
+                                (playerFragment as? Media3PlayerFragment)?.close() ?: (playerFragment as? PlayerFragment)?.close()
+                                val fragment = when (prefs.getString(C.PLAYER, C.EXOPLAYER)) {
+                                    C.MEDIA_PLAYER -> MediaPlayerFragment()
+                                    else -> ExoPlayerFragment()
+                                }.apply {
+                                    if (savedState.type == BasePlaybackService.OFFLINE_VIDEO) {
+                                        arguments = Bundle().apply {
+                                            putBoolean(PlayerFragment.KEY_OFFLINE, true)
+                                        }
+                                    }
+                                }
+                                startPlayer(fragment)
+                            }
+                        }
+                    }
+                }
+                launch {
+                    viewModel.videoUrl.collectLatest { videoUrl ->
+                        if (videoUrl != null) {
+                            if (videoUrl == "") {
+                                Toast.makeText(this@MainActivity, R.string.video_not_found, Toast.LENGTH_SHORT).show()
+                            } else {
+                                startVideo(Video(), 0, videoUrl = videoUrl)
+                            }
+                            viewModel.videoUrl.value = null
+                        }
+                    }
+                }
+                launch {
+                    viewModel.video.collectLatest { pair ->
+                        val video = pair?.first
+                        val offset = pair?.second
+                        if (video != null) {
+                            if (!video.id.isNullOrBlank()) {
+                                (playerFragment as? Media3PlayerFragment)?.also {
+                                    it.minimize()
+                                    it.close()
+                                    closePlayer()
+                                } ?:
+                                (playerFragment as? PlayerFragment)?.also {
+                                    it.minimize()
+                                    it.close()
+                                    closePlayer()
+                                }
+                                startVideo(video, offset, offset != null)
+                            }
+                            viewModel.video.value = null
+                        }
+                    }
+                }
+                launch {
+                    viewModel.clip.collectLatest { clip ->
+                        if (clip != null) {
+                            if (!clip.id.isNullOrBlank()) {
+                                startClip(clip)
+                            }
+                            viewModel.clip.value = null
+                        }
+                    }
+                }
+                launch {
+                    viewModel.user.collectLatest { user ->
+                        if (user != null) {
+                            if (!user.id.isNullOrBlank() || !user.login.isNullOrBlank()) {
+                                (playerFragment as? Media3PlayerFragment)?.minimize() ?: (playerFragment as? PlayerFragment)?.minimize()
+                                navController.navigate(
+                                    ChannelPagerFragmentDirections.actionGlobalChannelPagerFragment(
+                                        channelId = user.id,
+                                        channelLogin = user.login,
+                                        channelName = user.name,
+                                        channelImage = user.profileImage,
+                                    )
+                                )
+                            }
+                            viewModel.user.value = null
+                        }
+                    }
+                }
+                launch {
+                    viewModel.game.collectLatest { pair ->
+                        if (pair != null) {
+                            val game = pair.first
+                            val tag = pair.second
+                            if (game != null) {
+                                (playerFragment as? Media3PlayerFragment)?.minimize() ?: (playerFragment as? PlayerFragment)?.minimize()
+                                navController.navigate(
+                                    if (prefs.getBoolean(C.UI_GAME_PAGER, true)) {
+                                        GamePagerFragmentDirections.actionGlobalGamePagerFragment(
+                                            gameId = game.id,
+                                            gameSlug = game.slug,
+                                            gameName = game.name,
+                                            boxArt = game.boxArt,
+                                            tags = tag?.let { arrayOf(it) },
+                                        )
+                                    } else {
+                                        GameMediaFragmentDirections.actionGlobalGameMediaFragment(
+                                            gameId = game.id,
+                                            gameSlug = game.slug,
+                                            gameName = game.name,
+                                            boxArt = game.boxArt,
+                                            tags = tag?.let { arrayOf(it) },
+                                        )
+                                    }
+                                )
+                            }
+                            viewModel.game.value = null
+                        }
+                    }
+                }
+                launch {
+                    viewModel.tag.collectLatest { tag ->
+                        if (tag != null) {
+                            (playerFragment as? Media3PlayerFragment)?.minimize() ?: (playerFragment as? PlayerFragment)?.minimize()
+                            navController.navigate(
+                                GamesFragmentDirections.actionGlobalGamesFragment(
+                                    tags = arrayOf(tag)
+                                )
+                            )
+                            viewModel.tag.value = null
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun startDownloadById(videoId: Int, live: Boolean) {
+        val intent = Intent(
+            this,
+            if (live) StreamDownloadService::class.java else VideoDownloadService::class.java
+        ).apply {
+            action = if (live) StreamDownloadService.INTENT_START else VideoDownloadService.INTENT_START
+            putExtra(
+                if (live) StreamDownloadService.KEY_VIDEO_ID else VideoDownloadService.KEY_VIDEO_ID,
+                videoId
+            )
+        }
+        startService(intent)
+    }
+
+    private fun notifyDownloadsChanged(hasLive: Boolean, hasVod: Boolean) {
+        if (!hasLive && !hasVod) return
+        val currentFragment = supportFragmentManager.findFragmentById(R.id.navHostFragment)?.childFragmentManager?.fragments?.getOrNull(0)
+        if (currentFragment is SavedPagerFragment || currentFragment is SavedMediaFragment) {
+            val fragment = currentFragment.childFragmentManager.fragments.find { it is DownloadsFragment }
+            if (hasLive) {
+                (fragment as? DownloadsFragment)?.bindStreamDownloadService(true)
+            }
+            if (hasVod) {
+                (fragment as? DownloadsFragment)?.bindVideoDownloadService(true)
+            }
         }
     }
 
