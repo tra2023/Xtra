@@ -26,6 +26,7 @@ import okio.source
 import org.chromium.net.apihelpers.UploadDataProviders
 import org.conscrypt.Conscrypt
 import java.security.Security
+import java.util.concurrent.Executors
 
 class XtraApp : Application(), SingletonImageLoader.Factory {
 
@@ -39,9 +40,23 @@ class XtraApp : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         INSTANCE = this
         xtraModule = XtraModule(this)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            val conscrypt = Conscrypt.newProvider()
-            Security.insertProviderAt(conscrypt, 1)
+        // Off the critical path: Conscrypt loads native crypto (~50-200ms on API < 29)
+        // and Room.openHelper verifies/migrates the DB. Warm both in parallel with
+        // Activity inflation instead of blocking Application.onCreate.
+        val warmup = Executors.newSingleThreadExecutor()
+        warmup.execute {
+            try {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    Security.insertProviderAt(Conscrypt.newProvider(), 1)
+                }
+            } catch (_: Throwable) {
+            }
+            try {
+                xtraModule.database
+            } catch (_: Throwable) {
+            } finally {
+                warmup.shutdown()
+            }
         }
     }
 

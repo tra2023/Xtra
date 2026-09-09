@@ -95,6 +95,7 @@ import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.color.MaterialColors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.chromium.net.CronetProvider
@@ -571,21 +572,27 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        if (prefs.getBoolean(C.ENABLE_INTEGRITY, false) && TwitchApiHelper.isIntegrityTokenExpired(this)) {
-            getNewIntegrityToken(null, supportFragmentManager)
+        // Post-critical-path: WebView init (~200ms+) must not block the first frame.
+        // Defer until after layout; WorkManager init (own Room DB) goes to IO.
+        binding.root.post {
+            if (!isFinishing && !isDestroyed && prefs.getBoolean(C.ENABLE_INTEGRITY, false) && TwitchApiHelper.isIntegrityTokenExpired(this)) {
+                getNewIntegrityToken(null, supportFragmentManager)
+            }
         }
         if (prefs.getBoolean(C.LIVE_NOTIFICATIONS_ENABLED, false)) {
-            WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-                "live_notifications",
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<LiveNotificationWorker>(15, TimeUnit.MINUTES)
-                    .setConstraints(
-                        Constraints.Builder()
-                            .setRequiredNetworkType(NetworkType.CONNECTED)
-                            .build()
-                    )
-                    .build()
-            )
+            lifecycleScope.launch(Dispatchers.IO) {
+                WorkManager.getInstance(this@MainActivity).enqueueUniquePeriodicWork(
+                    "live_notifications",
+                    ExistingPeriodicWorkPolicy.KEEP,
+                    PeriodicWorkRequestBuilder<LiveNotificationWorker>(15, TimeUnit.MINUTES)
+                        .setConstraints(
+                            Constraints.Builder()
+                                .setRequiredNetworkType(NetworkType.CONNECTED)
+                                .build()
+                        )
+                        .build()
+                )
+            }
         }
     }
 
@@ -1239,15 +1246,23 @@ class MainActivity : AppCompatActivity() {
         }
         if (version < 6) {
             prefs.edit {
-                when {
-                    MediaCodecSelector.DEFAULT.getDecoderInfos(MimeTypes.VIDEO_H265, false, false).none { it.hardwareAccelerated } -> {
-                        putString(C.TOKEN_SUPPORTED_CODECS, "h264")
-                    }
-                    MediaCodecSelector.DEFAULT.getDecoderInfos(MimeTypes.VIDEO_AV1, false, false).none { it.hardwareAccelerated } -> {
-                        putString(C.TOKEN_SUPPORTED_CODECS, "h265,h264")
-                    }
-                }
                 putInt(C.SETTINGS_VERSION, 6)
+            }
+            // MediaCodecList queries mediaserver via IPC (~50-200ms). One-time
+            // migration: run off the main thread, result applied async.
+            lifecycleScope.launch(Dispatchers.Default) {
+                val codecs = try {
+                    when {
+                        MediaCodecSelector.DEFAULT.getDecoderInfos(MimeTypes.VIDEO_H265, false, false).none { it.hardwareAccelerated } -> "h264"
+                        MediaCodecSelector.DEFAULT.getDecoderInfos(MimeTypes.VIDEO_AV1, false, false).none { it.hardwareAccelerated } -> "h265,h264"
+                        else -> null
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+                if (codecs != null && prefs.getString(C.TOKEN_SUPPORTED_CODECS, null).isNullOrBlank()) {
+                    prefs.edit { putString(C.TOKEN_SUPPORTED_CODECS, codecs) }
+                }
             }
         }
         if (version < 7) {
@@ -1340,14 +1355,22 @@ class MainActivity : AppCompatActivity() {
             }
         }
         if (version < 13) {
-            prefs.edit {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && SdkExtensions.getExtensionVersion(Build.VERSION_CODES.S) >= 7) {
-                    putString(C.NETWORK_LIBRARY, C.HTTP_ENGINE)
-                } else {
-                    if (CronetProvider.getAllProviders(this@MainActivity).any { it.isEnabled }) {
-                        putString(C.NETWORK_LIBRARY, C.CRONET)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && SdkExtensions.getExtensionVersion(Build.VERSION_CODES.S) >= 7) {
+                prefs.edit { putString(C.NETWORK_LIBRARY, C.HTTP_ENGINE) }
+            } else {
+                // PackageManager scan (~50-150ms). Defer; default stays OKHTTP until resolved.
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val hasCronet = try {
+                        CronetProvider.getAllProviders(this@MainActivity).any { it.isEnabled }
+                    } catch (_: Exception) {
+                        false
+                    }
+                    if (hasCronet) {
+                        prefs.edit { putString(C.NETWORK_LIBRARY, C.CRONET) }
                     }
                 }
+            }
+            prefs.edit {
                 prefs.getString("playerRewind", null)?.toLongOrNull()?.let {
                     putString(C.PLAYER_REWIND, (it / 1000).toString())
                 }
