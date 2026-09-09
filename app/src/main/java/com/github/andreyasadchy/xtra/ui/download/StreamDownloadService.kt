@@ -49,7 +49,7 @@ import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -449,8 +449,10 @@ class StreamDownloadService : LifecycleService() {
                         Log.e("StreamDownloadService", "Download failed", e)
                         false
                     } finally {
-                        MainScope().launch(Dispatchers.IO) {
-                            downloadJob.chatReadWebSocket?.disconnect(null)
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            withContext(NonCancellable) {
+                                downloadJob.chatReadWebSocket?.disconnect(null)
+                            }
                         }
                     }
                     val waitForWifi = if (prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
