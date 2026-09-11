@@ -155,7 +155,7 @@ class XtraModule(application: Application) {
     }
 
     val helixRepository by lazy {
-        HelixRepository(httpEngine, cronetEngine, cronetExecutor, okHttpClient, json)
+        HelixRepository(xtraHttpClient, json)
     }
 
     val localChannelFollowsRepository by lazy {

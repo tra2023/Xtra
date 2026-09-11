@@ -43,6 +43,12 @@ class AppXtraHttpClient(
                 NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
             ).apply {
                 request.headers.forEach { (key, value) -> addHeader(key, value) }
+                if (request.method == XtraHttpRequest.DELETE ||
+                    request.method == XtraHttpRequest.PUT ||
+                    request.method == XtraHttpRequest.PATCH
+                ) {
+                    setHttpMethod(request.method)
+                }
                 request.body?.let {
                     setUploadDataProvider(NetworkUtils.ByteArrayUploadProvider(it), cronetExecutor.value)
                 }
@@ -66,6 +72,12 @@ class AppXtraHttpClient(
                 cronetExecutor.value
             ).apply {
                 request.headers.forEach { (key, value) -> addHeader(key, value) }
+                if (request.method == XtraHttpRequest.DELETE ||
+                    request.method == XtraHttpRequest.PUT ||
+                    request.method == XtraHttpRequest.PATCH
+                ) {
+                    setHttpMethod(request.method)
+                }
                 request.body?.let {
                     setUploadDataProvider(UploadDataProviders.create(it), cronetExecutor.value)
                 }
@@ -84,8 +96,11 @@ class AppXtraHttpClient(
         val builder = Request.Builder().url(request.url)
         request.headers.forEach { (key, value) -> builder.header(key, value) }
         val body = request.body
-        if (body != null) {
-            builder.post(body.toRequestBody())
+        when (request.method) {
+            XtraHttpRequest.POST -> builder.post(requireNotNull(body).toRequestBody())
+            XtraHttpRequest.DELETE -> builder.method("DELETE", null)
+            XtraHttpRequest.PUT -> builder.method("PUT", null)
+            XtraHttpRequest.PATCH -> builder.method("PATCH", requireNotNull(body).toRequestBody())
         }
         return okHttpClient.value.newCall(builder.build()).executeAsync().use { response ->
             XtraHttpResponse(response.code, response.body.bytes())

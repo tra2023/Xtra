@@ -11,6 +11,9 @@ class XtraHttpRequest(
     companion object {
         const val GET = "GET"
         const val POST = "POST"
+        const val DELETE = "DELETE"
+        const val PUT = "PUT"
+        const val PATCH = "PATCH"
     }
 }
 
