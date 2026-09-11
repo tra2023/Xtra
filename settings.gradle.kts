@@ -23,3 +23,4 @@ rootProject.name = "Xtra"
 include(":app")
 include(":core:database")
 include(":core:models")
+include(":core:network")

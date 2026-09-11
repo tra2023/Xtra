@@ -21,6 +21,7 @@ import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.repository.RecentSearchesRepository
 import com.github.andreyasadchy.xtra.repository.SavedFiltersRepository
+import com.github.andreyasadchy.xtra.util.AppXtraHttpClient
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -129,8 +130,12 @@ class XtraModule(application: Application) {
         getRoomDatabase(getDatabaseBuilder(application))
     }
 
+    val xtraHttpClient by lazy {
+        AppXtraHttpClient(httpEngine, cronetEngine, cronetExecutor, okHttpClient)
+    }
+
     val authRepository by lazy {
-        AuthRepository(httpEngine, cronetEngine, cronetExecutor, okHttpClient, json)
+        AuthRepository(xtraHttpClient, json)
     }
 
     val bookmarksRepository by lazy {

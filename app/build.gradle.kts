@@ -119,6 +119,7 @@ dependencies {
     implementation(libs.coroutines)
     implementation(project(":core:database"))
     implementation(project(":core:models"))
+    implementation(project(":core:network"))
 }
 
 apollo {
