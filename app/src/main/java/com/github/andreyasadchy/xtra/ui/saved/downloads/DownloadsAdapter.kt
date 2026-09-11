@@ -231,9 +231,10 @@ class DownloadsAdapter(
                     } else {
                         date.visibility = View.GONE
                     }
-                    if (item.downloadDate != null) {
+                    val downloadDateValue = item.downloadDate
+                    if (downloadDateValue != null) {
                         downloadDate.visibility = View.VISIBLE
-                        downloadDate.text = context.getString(R.string.downloaded_date, TwitchApiHelper.formatDate(context, item.downloadDate))
+                        downloadDate.text = context.getString(R.string.downloaded_date, TwitchApiHelper.formatDate(context, downloadDateValue))
                     } else {
                         downloadDate.visibility = View.GONE
                     }

@@ -36,11 +36,12 @@ class LocalChannelFollowsRepository(
 
     suspend fun deleteOldImages() = withContext(Dispatchers.IO) {
         localChannelFollowsDao.getAll().forEach { item ->
+            val userId = item.userId
             item.channelLogo?.let {
                 if (it.isNotBlank()
-                    && !item.userId.isNullOrBlank()
-                    && bookmarksDao.getByUserId(item.userId).isEmpty()
-                    && offlineVideosDao.getByUserId(item.userId).isEmpty()
+                    && !userId.isNullOrBlank()
+                    && bookmarksDao.getByUserId(userId).isEmpty()
+                    && offlineVideosDao.getByUserId(userId).isEmpty()
                 ) {
                     File(it).delete()
                 }

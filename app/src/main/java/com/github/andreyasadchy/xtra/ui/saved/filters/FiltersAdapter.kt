@@ -89,15 +89,17 @@ class FiltersAdapter(
                     } else {
                         gameName.visibility = View.GONE
                     }
-                    if (item.tags != null) {
-                        val list = item.tags.split(',')
+                    val tagsValue = item.tags
+                    if (tagsValue != null) {
+                        val list = tagsValue.split(',')
                         tags.visibility = View.VISIBLE
                         tags.text = context.resources.getQuantityString(R.plurals.tags, list.size, list.joinToString())
                     } else {
                         tags.visibility = View.GONE
                     }
-                    if (item.languages != null) {
-                        val list = item.languages.split(',')
+                    val languagesValue = item.languages
+                    if (languagesValue != null) {
+                        val list = languagesValue.split(',')
                         languages.visibility = View.VISIBLE
                         languages.text = context.resources.getQuantityString(R.plurals.languages, list.size, list.joinToString())
                     } else {

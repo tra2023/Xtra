@@ -54,6 +54,8 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Request
@@ -189,7 +191,7 @@ class VideoDownloadService : LifecycleService() {
                                         Intent(this@VideoDownloadService, MainActivity::class.java).apply {
                                             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
                                             action = MainActivity.INTENT_OPEN_DOWNLOADED_VIDEO
-                                            putExtra(MainActivity.KEY_VIDEO, offlineVideo)
+                                            putExtra(MainActivity.KEY_VIDEO, Json.encodeToString(offlineVideo))
                                         },
                                         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                                     )

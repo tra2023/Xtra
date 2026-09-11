@@ -97,6 +97,8 @@ import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import org.chromium.net.CronetProvider
 import java.util.Timer
 import java.util.concurrent.TimeUnit
@@ -840,11 +842,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             INTENT_OPEN_DOWNLOADED_VIDEO -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra(KEY_VIDEO, OfflineVideo::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra(KEY_VIDEO)
+                intent.getStringExtra(KEY_VIDEO)?.let {
+                    runCatching { Json.decodeFromString<OfflineVideo>(it) }.getOrNull()
                 }?.let {
                     startOfflineVideo(it)
                 }

@@ -156,8 +156,9 @@ class BookmarksAdapter(
                             target(thumbnail)
                         }.build()
                     )
-                    if (item.createdAt != null) {
-                        val text = Instant.parseOrNull(item.createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
+                    val createdAt = item.createdAt
+                    if (createdAt != null) {
+                        val text = Instant.parseOrNull(createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
                             TwitchApiHelper.formatDate(context, it)
                         }
                         if (text != null) {
@@ -169,8 +170,8 @@ class BookmarksAdapter(
                     } else {
                         date.visibility = View.GONE
                     }
-                    if (item.type?.lowercase() == "archive" && item.createdAt != null && context.prefs().getBoolean(C.UI_BOOKMARK_TIME_LEFT, true) && !ignore) {
-                        val text = Instant.parseOrNull(item.createdAt)?.takeIf { time -> time.toEpochMilliseconds() > 0 }?.let { createdAt ->
+                    if (item.type?.lowercase() == "archive" && createdAt != null && context.prefs().getBoolean(C.UI_BOOKMARK_TIME_LEFT, true) && !ignore) {
+                        val text = Instant.parseOrNull(createdAt)?.takeIf { time -> time.toEpochMilliseconds() > 0 }?.let { createdAt ->
                             val userType = item.userType ?: item.userBroadcasterType
                             val days = if (userType.isNullOrBlank()) {
                                 7
@@ -249,9 +250,10 @@ class BookmarksAdapter(
                     } else {
                         progressBar.visibility = View.GONE
                     }
-                    if (!item.title.isNullOrBlank()) {
+                    val titleText = item.title
+                    if (!titleText.isNullOrBlank()) {
                         title.visibility = View.VISIBLE
-                        title.text = item.title.trim()
+                        title.text = titleText.trim()
                     } else {
                         title.visibility = View.GONE
                     }

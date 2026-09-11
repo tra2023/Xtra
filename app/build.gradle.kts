@@ -117,6 +117,7 @@ dependencies {
     implementation(libs.glide.webpdecoder)
 
     implementation(libs.coroutines)
+    implementation(project(":core:database"))
 }
 
 apollo {
