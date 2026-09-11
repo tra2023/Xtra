@@ -151,7 +151,7 @@ class XtraModule(application: Application) {
     }
 
     val graphQLRepository by lazy {
-        GraphQLRepository(httpEngine, cronetEngine, cronetExecutor, okHttpClient, json)
+        GraphQLRepository(xtraHttpClient, json)
     }
 
     val helixRepository by lazy {

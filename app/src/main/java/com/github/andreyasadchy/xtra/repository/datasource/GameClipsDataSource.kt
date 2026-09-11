@@ -100,10 +100,14 @@ class GameClipsDataSource(
                     viewCount = it.viewCount,
                     durationSeconds = it.durationSeconds,
                     videoId = it.video?.id,
-                    videoOffsetSeconds = if (it.videoOffsetSeconds != null && it.durationSeconds != null) {
-                        max(it.videoOffsetSeconds - it.durationSeconds, 0)
-                    } else {
-                        it.videoOffsetSeconds
+                    videoOffsetSeconds = run {
+                        val videoOffsetSeconds = it.videoOffsetSeconds
+                        val durationSeconds = it.durationSeconds
+                        if (videoOffsetSeconds != null && durationSeconds != null) {
+                            max(videoOffsetSeconds - durationSeconds, 0)
+                        } else {
+                            videoOffsetSeconds
+                        }
                     },
                     videoCreatedAt = it.video?.createdAt?.toString(),
                     videoAnimatedPreviewURL = it.video?.animatedPreviewURL,

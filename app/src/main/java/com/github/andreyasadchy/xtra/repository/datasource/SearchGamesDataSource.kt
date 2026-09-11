@@ -70,7 +70,8 @@ class SearchGamesDataSource(
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
         val data = response.data!!.searchCategories!!
-        val list = data.edges!!.mapNotNull { item ->
+        val edges = data.edges
+        val list = edges!!.mapNotNull { item ->
             item.node?.let {
                 Game(
                     id = it.id,
@@ -88,7 +89,7 @@ class SearchGamesDataSource(
                 )
             }
         }
-        offset = data.edges.lastOrNull()?.cursor?.toString()
+        offset = edges.lastOrNull()?.cursor?.toString()
         val nextPage = data.pageInfo?.hasNextPage != false
         return LoadResult.Page(
             data = list,

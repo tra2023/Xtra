@@ -7,6 +7,8 @@ class XtraHttpRequest(
     val body: ByteArray? = null,
     /** Engine hint from user prefs: C.HTTP_ENGINE / C.CRONET / C.OKHTTP, null = default. */
     val engine: String? = null,
+    /** Per-request timeout override in ms (e.g. large VOD chat downloads), null = default. */
+    val timeoutMs: Long? = null,
 ) {
     companion object {
         const val GET = "GET"

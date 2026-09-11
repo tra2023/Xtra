@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.navigation.safeargs)
-    alias(libs.plugins.apollo)
 }
 
 kotlin {
@@ -120,13 +119,6 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:models"))
     implementation(project(":core:network"))
-}
-
-apollo {
-    @Suppress("ApolloEndpointNotConfigured")
-    service("service") {
-        packageName.set("com.github.andreyasadchy.xtra.graphql")
-    }
 }
 
 // Delete large build log files from ~/.gradle/daemon/X.X/daemon-XXX.out.log

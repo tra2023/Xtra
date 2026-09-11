@@ -220,21 +220,22 @@ class FollowedStreamsDataSource(
         }.flatMap { it.data!!.users!! }
         val list = items.mapNotNull { item ->
             item?.let {
-                if (it.stream?.viewersCount != null) {
+                val stream = it.stream
+                if (stream?.viewersCount != null) {
                     Stream(
-                        id = it.stream.id,
+                        id = stream.id,
                         channelId = it.id,
                         channelLogin = it.login,
                         channelName = it.displayName,
                         channelImageURL = it.profileImageURL,
-                        gameId = it.stream.game?.id,
-                        gameSlug = it.stream.game?.slug,
-                        gameName = it.stream.game?.displayName,
-                        title = it.stream.broadcaster?.broadcastSettings?.title,
-                        thumbnailURL = it.stream.previewImageURL,
-                        createdAt = it.stream.createdAt?.toString(),
-                        viewerCount = it.stream.viewersCount,
-                        tags = it.stream.freeformTags?.mapNotNull { tag -> tag.name },
+                        gameId = stream.game?.id,
+                        gameSlug = stream.game?.slug,
+                        gameName = stream.game?.displayName,
+                        title = stream.broadcaster?.broadcastSettings?.title,
+                        thumbnailURL = stream.previewImageURL,
+                        createdAt = stream.createdAt?.toString(),
+                        viewerCount = stream.viewersCount,
+                        tags = stream.freeformTags?.mapNotNull { tag -> tag.name },
                     )
                 } else null
             }

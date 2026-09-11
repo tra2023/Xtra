@@ -1296,9 +1296,9 @@ class VideoDownloadService : LifecycleService() {
                 var cursor: String? = null
                 while (true) {
                     val response = if (cursor == null) {
-                        xtraModule.graphQLRepository.loadQueryVideoCommentsDownload(networkLibrary, CRONET_TIMEOUT, okHttpClient, gqlHeaders, videoId, offset = startOffset)
+                        xtraModule.graphQLRepository.loadQueryVideoCommentsDownload(networkLibrary, CRONET_TIMEOUT, gqlHeaders, videoId, offset = startOffset)
                     } else {
-                        xtraModule.graphQLRepository.loadQueryVideoCommentsDownload(networkLibrary, CRONET_TIMEOUT, okHttpClient, gqlHeaders, videoId, cursor = cursor)
+                        xtraModule.graphQLRepository.loadQueryVideoCommentsDownload(networkLibrary, CRONET_TIMEOUT, gqlHeaders, videoId, cursor = cursor)
                     }
                     val comments = response.data!!.video.comments
                     val messages = if (cursor == null && resumed) {

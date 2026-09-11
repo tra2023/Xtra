@@ -36,9 +36,10 @@ class SearchPagerViewModel(
                             }
                         }
                         response.data!!.userResultByID?.let {
+                            val onUserDoesNotExist = it.onUserDoesNotExist
                             when {
                                 it.onUser != null -> Pair(null, null)
-                                it.onUserDoesNotExist != null -> Pair(it.__typename, it.onUserDoesNotExist.reason)
+                                onUserDoesNotExist != null -> Pair(it.__typename, onUserDoesNotExist.reason)
                                 it.onUserError != null -> Pair(it.__typename, null)
                                 else -> null
                             }
@@ -53,9 +54,10 @@ class SearchPagerViewModel(
                             }
                         }
                         response.data!!.userResultByLogin?.let {
+                            val onUserDoesNotExist = it.onUserDoesNotExist
                             when {
                                 it.onUser != null -> Pair(null, null)
-                                it.onUserDoesNotExist != null -> Pair(it.__typename, it.onUserDoesNotExist.reason)
+                                onUserDoesNotExist != null -> Pair(it.__typename, onUserDoesNotExist.reason)
                                 it.onUserError != null -> Pair(it.__typename, null)
                                 else -> null
                             }

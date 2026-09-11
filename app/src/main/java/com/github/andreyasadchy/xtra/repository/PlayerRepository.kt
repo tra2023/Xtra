@@ -637,18 +637,20 @@ class PlayerRepository(
             val accessToken = response.data?.clip?.playbackAccessToken
             response.data?.clip?.assets?.let { assets ->
                 (assets.find { it?.portraitMetadata?.portraitClipLayout.isNullOrBlank() } ?: assets.firstOrNull())?.videoQualities?.mapIndexedNotNull { index, quality ->
-                    if (!quality?.sourceURL.isNullOrBlank()) {
-                        val name = if (!quality.quality.isNullOrBlank()) {
-                            val frameRate = quality.frameRate?.roundToInt() ?: ""
-                            "${quality.quality}p${frameRate}"
+                    val sourceURL = quality?.sourceURL
+                    if (!sourceURL.isNullOrBlank()) {
+                        val qualityValue = quality?.quality
+                        val name = if (!qualityValue.isNullOrBlank()) {
+                            val frameRate = quality?.frameRate?.roundToInt() ?: ""
+                            "${qualityValue}p${frameRate}"
                         } else {
                             index.toString()
                         }
-                        val url = quality.sourceURL.toUri().buildUpon().apply {
+                        val url = sourceURL.toUri().buildUpon().apply {
                             appendQueryParameter("sig", accessToken?.signature)
                             appendQueryParameter("token", accessToken?.value)
                         }.build().toString()
-                        VideoQuality(name, quality.quality?.toIntOrNull(), quality.frameRate?.toFloat(), quality.bitrate, quality.codecs, url)
+                        VideoQuality(name, qualityValue?.toIntOrNull(), quality?.frameRate?.toFloat(), quality?.bitrate, quality?.codecs, url)
                     } else null
                 }
             }
@@ -1645,21 +1647,23 @@ class PlayerRepository(
                     group.nodes?.mapNotNull { emote ->
                         emote.tiers?.mapNotNull { tier ->
                             config.colors?.find { it.bits == tier?.bits }?.let { item ->
+                                val prefix = emote.prefix!!
+                                val bits = item.bits!!
                                 val url = group.templateURL!!
-                                    .replaceFirst("PREFIX", emote.prefix!!.lowercase())
-                                    .replaceFirst("TIER", item.bits!!.toString())
+                                    .replaceFirst("PREFIX", prefix.lowercase())
+                                    .replaceFirst("TIER", bits.toString())
                                     .replaceFirst("BACKGROUND", background)
                                     .replaceFirst("ANIMATION", format?.animation ?: "")
                                     .replaceFirst("EXTENSION", format?.extension ?: "")
                                 CheerEmote(
-                                    name = emote.prefix,
+                                    name = prefix,
                                     url1x = url.replaceFirst("SCALE", scale1x),
                                     url2x = url.replaceFirst("SCALE", scale2x),
                                     url3x = url.replaceFirst("SCALE", scale3x),
                                     url4x = url.replaceFirst("SCALE", scale4x),
                                     format = if (format?.animation == "animated") "gif" else null,
                                     isAnimated = format?.animation == "animated",
-                                    minBits = item.bits,
+                                    minBits = bits,
                                     color = item.color
                                 )
                             }
@@ -1670,21 +1674,23 @@ class PlayerRepository(
                     group.nodes?.mapNotNull { emote ->
                         emote.tiers?.mapNotNull { tier ->
                             config.colors?.find { it.bits == tier?.bits }?.let { item ->
+                                val prefix = emote.prefix!!
+                                val bits = item.bits!!
                                 val url = group.templateURL!!
-                                    .replaceFirst("PREFIX", emote.prefix!!.lowercase())
-                                    .replaceFirst("TIER", item.bits!!.toString())
+                                    .replaceFirst("PREFIX", prefix.lowercase())
+                                    .replaceFirst("TIER", bits.toString())
                                     .replaceFirst("BACKGROUND", background)
                                     .replaceFirst("ANIMATION", format?.animation ?: "")
                                     .replaceFirst("EXTENSION", format?.extension ?: "")
                                 CheerEmote(
-                                    name = emote.prefix,
+                                    name = prefix,
                                     url1x = url.replaceFirst("SCALE", scale1x),
                                     url2x = url.replaceFirst("SCALE", scale2x),
                                     url3x = url.replaceFirst("SCALE", scale3x),
                                     url4x = url.replaceFirst("SCALE", scale4x),
                                     format = if (format?.animation == "animated") "gif" else null,
                                     isAnimated = format?.animation == "animated",
-                                    minBits = item.bits,
+                                    minBits = bits,
                                     color = item.color
                                 )
                             }
@@ -1839,17 +1845,19 @@ class PlayerRepository(
                 }
                 response.data!!.user?.emoteSets?.mapNotNull { set ->
                     set.emotes?.mapNotNull { emote ->
-                        if (emote?.token != null && (!emote.type?.toString().equals("follower", true) || (emote.owner?.id == null || emote.owner.id == channelId))) {
+                        val token = emote?.token
+                        val owner = emote?.owner
+                        if (token != null && (!emote?.type?.toString().equals("follower", true) || (owner?.id == null || owner.id == channelId))) {
                             TwitchEmote(
-                                id = emote.id,
-                                name = if (emote.type == EmoteType.SMILIES) {
-                                    emote.token.replace("\\", "").replace("?", "")
+                                id = emote?.id,
+                                name = if (emote?.type == EmoteType.SMILIES) {
+                                    token.replace("\\", "").replace("?", "")
                                         .replace("&lt;", "<").replace("&gt;", ">")
                                         .replace(Regex("\\((.)\\|.\\)")) { it.groups[1]?.value ?: "" }
                                         .replace(Regex("\\[(.).*?]")) { it.groups[1]?.value ?: "" }
-                                } else emote.token,
-                                setId = emote.setID,
-                                ownerId = emote.owner?.id
+                                } else token,
+                                setId = emote?.setID,
+                                ownerId = owner?.id
                             )
                         } else null
                     }

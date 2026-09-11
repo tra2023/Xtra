@@ -78,7 +78,8 @@ class ChatReplayManager(
                     }
                 }
                 val comments = response.data!!.video!!.comments!!
-                val messages = comments.edges!!.mapNotNull { comment ->
+                val edges = comments.edges
+                val messages = edges!!.mapNotNull { comment ->
                     comment?.node.let { item ->
                         item?.message?.let { message ->
                             val chatMessage = StringBuilder()
@@ -121,7 +122,7 @@ class ChatReplayManager(
                 }
                 messageJob?.cancel()
                 list.addAll(messages)
-                cursor = if (comments.pageInfo?.hasNextPage != false) comments.edges.lastOrNull()?.cursor?.toString() else null
+                cursor = if (comments.pageInfo?.hasNextPage != false) edges.lastOrNull()?.cursor?.toString() else null
                 isLoading = false
                 startJob()
             } catch (e: Exception) {

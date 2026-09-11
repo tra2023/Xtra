@@ -68,7 +68,8 @@ class ChannelClipsDataSource(
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
         val data = response.data!!.user!!
-        val items = data.clips!!.edges!!
+        val clips = data.clips
+        val items = clips!!.edges!!
         val list = items.mapNotNull { item ->
             item?.node?.let {
                 Clip(
@@ -86,10 +87,14 @@ class ChannelClipsDataSource(
                     viewCount = it.viewCount,
                     durationSeconds = it.durationSeconds,
                     videoId = it.video?.id,
-                    videoOffsetSeconds = if (it.videoOffsetSeconds != null && it.durationSeconds != null) {
-                        max(it.videoOffsetSeconds - it.durationSeconds, 0) // api is returning wrong offset
-                    } else {
-                        it.videoOffsetSeconds
+                    videoOffsetSeconds = run {
+                        val videoOffsetSeconds = it.videoOffsetSeconds
+                        val durationSeconds = it.durationSeconds
+                        if (videoOffsetSeconds != null && durationSeconds != null) {
+                            max(videoOffsetSeconds - durationSeconds, 0) // api is returning wrong offset
+                        } else {
+                            videoOffsetSeconds
+                        }
                     },
                     videoCreatedAt = it.video?.createdAt?.toString(),
                     videoAnimatedPreviewURL = it.video?.animatedPreviewURL,
@@ -97,7 +102,7 @@ class ChannelClipsDataSource(
             }
         }
         offset = items.lastOrNull()?.cursor?.toString()
-        val nextPage = data.clips.pageInfo?.hasNextPage != false
+        val nextPage = clips.pageInfo?.hasNextPage != false
         return LoadResult.Page(
             data = list,
             prevKey = null,

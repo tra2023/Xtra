@@ -13,6 +13,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.chromium.net.CronetEngine
 import org.chromium.net.apihelpers.UploadDataProviders
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.TimeUnit
 
 /**
  * Android [XtraHttpClient] covering the user-selectable engines.
@@ -36,7 +37,7 @@ class AppXtraHttpClient(
     @SuppressLint("NewApi")
     private suspend fun executeHttpEngine(request: XtraHttpRequest): XtraHttpResponse {
         val response = suspendCancellableCoroutine { continuation ->
-            val timeout = NetworkUtils.HttpEngineTimeout()
+            val timeout = request.timeoutMs?.let { NetworkUtils.HttpEngineTimeout(it) } ?: NetworkUtils.HttpEngineTimeout()
             val urlRequest = httpEngine.value!!.newUrlRequestBuilder(
                 request.url,
                 cronetExecutor.value,
@@ -65,7 +66,7 @@ class AppXtraHttpClient(
 
     private suspend fun executeCronet(request: XtraHttpRequest): XtraHttpResponse {
         val response = suspendCancellableCoroutine { continuation ->
-            val timeout = NetworkUtils.CronetTimeout()
+            val timeout = request.timeoutMs?.let { NetworkUtils.CronetTimeout(it) } ?: NetworkUtils.CronetTimeout()
             val urlRequest = cronetEngine.value!!.newUrlRequestBuilder(
                 request.url,
                 NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
@@ -102,7 +103,17 @@ class AppXtraHttpClient(
             XtraHttpRequest.PUT -> builder.method("PUT", null)
             XtraHttpRequest.PATCH -> builder.method("PATCH", requireNotNull(body).toRequestBody())
         }
-        return okHttpClient.value.newCall(builder.build()).executeAsync().use { response ->
+        val timeoutMs = request.timeoutMs
+        val client = if (timeoutMs != null) {
+            okHttpClient.value.newBuilder().apply {
+                connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                writeTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+            }.build()
+        } else {
+            okHttpClient.value
+        }
+        return client.newCall(builder.build()).executeAsync().use { response ->
             XtraHttpResponse(response.code, response.body.bytes())
         }
     }

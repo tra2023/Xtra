@@ -1,7 +1,5 @@
 package com.github.andreyasadchy.xtra.repository
 
-import android.annotation.SuppressLint
-import android.net.http.HttpEngine
 import com.apollographql.apollo.api.ApolloResponse
 import com.apollographql.apollo.api.CustomScalarAdapters
 import com.apollographql.apollo.api.Optional
@@ -99,10 +97,7 @@ import com.github.andreyasadchy.xtra.model.gql.tag.TagResponse
 import com.github.andreyasadchy.xtra.model.gql.video.VideoGamesResponse
 import com.github.andreyasadchy.xtra.model.gql.video.VideoMessagesResponse
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.add
@@ -110,22 +105,11 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import okhttp3.Headers.Companion.toHeaders
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okio.buffer
-import okio.source
-import org.chromium.net.CronetEngine
-import org.chromium.net.apihelpers.UploadDataProviders
-import java.util.concurrent.ExecutorService
+import okio.Buffer
 import kotlin.uuid.Uuid
 
 class GraphQLRepository(
-    private val httpEngine: Lazy<HttpEngine?>,
-    private val cronetEngine: Lazy<CronetEngine?>,
-    private val cronetExecutor: Lazy<ExecutorService>,
-    private val okHttpClient: Lazy<OkHttpClient>,
+    private val client: XtraHttpClient,
     private val json: Json,
 ) {
 
@@ -143,124 +127,32 @@ class GraphQLRepository(
                 }
             }
         }
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        headers.forEach { addHeader(it.key, it.value) }
-                        addHeader("Content-Type", "application/json")
-                        setUploadDataProvider(NetworkUtils.ByteArrayUploadProvider(body.toByteArray()), cronetExecutor.value)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.inputStream().source().buffer().jsonReader().use {
-                    query.parseResponse(it)
-                }
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        headers.forEach { addHeader(it.key, it.value) }
-                        addHeader("Content-Type", "application/json")
-                        setUploadDataProvider(UploadDataProviders.create(body.toByteArray()), cronetExecutor.value)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.inputStream().source().buffer().jsonReader().use {
-                    query.parseResponse(it)
-                }
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    headers(headers.toHeaders())
-                    header("Content-Type", "application/json")
-                    post(body.toRequestBody())
-                }.build()).executeAsync().use { response ->
-                    response.body.byteStream().source().buffer().jsonReader().use {
-                        query.parseResponse(it)
-                    }
-                }
-            }
+        val response = client.execute(
+            XtraHttpRequest(
+                method = XtraHttpRequest.POST,
+                url = url,
+                headers = headers + ("Content-Type" to "application/json"),
+                body = body.toByteArray(),
+                engine = networkLibrary,
+            )
+        )
+        Buffer().write(response.body).jsonReader().use {
+            query.parseResponse(it)
         }
     }
 
     private suspend fun sendPersistedQuery(networkLibrary: String?, headers: Map<String, String>, body: String): String = withContext(Dispatchers.IO) {
         val url = "https://gql.twitch.tv/gql"
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        headers.forEach { addHeader(it.key, it.value) }
-                        addHeader("Content-Type", "application/json")
-                        setUploadDataProvider(NetworkUtils.ByteArrayUploadProvider(body.toByteArray()), cronetExecutor.value)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        headers.forEach { addHeader(it.key, it.value) }
-                        addHeader("Content-Type", "application/json")
-                        setUploadDataProvider(UploadDataProviders.create(body.toByteArray()), cronetExecutor.value)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    headers(headers.toHeaders())
-                    header("Content-Type", "application/json")
-                    post(body.toRequestBody())
-                }.build()).executeAsync().use { response ->
-                    response.body.string()
-                }
-            }
-        }
+        val response = client.execute(
+            XtraHttpRequest(
+                method = XtraHttpRequest.POST,
+                url = url,
+                headers = headers + ("Content-Type" to "application/json"),
+                body = body.toByteArray(),
+                engine = networkLibrary,
+            )
+        )
+        response.bodyAsString()
     }
 
     suspend fun loadQueryBadges(networkLibrary: String?, headers: Map<String, String>, quality: BadgeImageSize): ApolloResponse<BadgesQuery.Data> = withContext(Dispatchers.IO) {
@@ -635,7 +527,7 @@ class GraphQLRepository(
         sendQuery(networkLibrary, headers, query)
     }
 
-    suspend fun loadQueryVideoCommentsDownload(networkLibrary: String?, timeout: Long, okHttpClient: Lazy<OkHttpClient>, headers: Map<String, String>, videoId: String?, offset: Int? = null, cursor: String? = null): VideoMessagesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadQueryVideoCommentsDownload(networkLibrary: String?, timeout: Long, headers: Map<String, String>, videoId: String?, offset: Int? = null, cursor: String? = null): VideoMessagesResponse = withContext(Dispatchers.IO) {
         val url = "https://gql.twitch.tv/gql"
         val query = VideoCommentsQuery(
             id = Optional.Present(videoId),
@@ -655,61 +547,17 @@ class GraphQLRepository(
                 }
             }
         }
-        val response = when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout(timeout)
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        headers.forEach { addHeader(it.key, it.value) }
-                        addHeader("Content-Type", "application/json")
-                        setUploadDataProvider(NetworkUtils.ByteArrayUploadProvider(body.toByteArray()), cronetExecutor.value)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout(timeout)
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        headers.forEach { addHeader(it.key, it.value) }
-                        addHeader("Content-Type", "application/json")
-                        setUploadDataProvider(UploadDataProviders.create(body.toByteArray()), cronetExecutor.value)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    headers(headers.toHeaders())
-                    header("Content-Type", "application/json")
-                    post(body.toRequestBody())
-                }.build()).executeAsync().use { response ->
-                    response.body.string()
-                }
-            }
-        }
-        json.decodeFromString<VideoMessagesResponse>(response)
+        val response = client.execute(
+            XtraHttpRequest(
+                method = XtraHttpRequest.POST,
+                url = url,
+                headers = headers + ("Content-Type" to "application/json"),
+                body = body.toByteArray(),
+                engine = networkLibrary,
+                timeoutMs = timeout,
+            )
+        )
+        json.decodeFromString<VideoMessagesResponse>(response.bodyAsString())
     }
 
     suspend fun loadQueryVideoMoments(networkLibrary: String?, headers: Map<String, String>, videoId: String?): ApolloResponse<VideoMomentsQuery.Data> = withContext(Dispatchers.IO) {

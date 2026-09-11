@@ -72,7 +72,8 @@ class ChannelVideosDataSource(
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
         val data = response.data!!.user!!
-        val items = data.videos!!.edges!!
+        val videos = data.videos
+        val items = videos!!.edges!!
         val list = items.mapNotNull { item ->
             item?.node?.let {
                 Video(
@@ -95,7 +96,7 @@ class ChannelVideosDataSource(
             }
         }
         offset = items.lastOrNull()?.cursor?.toString()
-        val nextPage = data.videos.pageInfo?.hasNextPage != false
+        val nextPage = videos.pageInfo?.hasNextPage != false
         return LoadResult.Page(
             data = list,
             prevKey = null,
