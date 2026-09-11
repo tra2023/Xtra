@@ -18,6 +18,7 @@ import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.m3u8.DownloadPlaylists
 import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.Segment
@@ -107,9 +108,8 @@ class DownloadsViewModel(
                         PlaylistUtils.parseMediaPlaylist(it)
                     }
                     val videoFileName = "${video.videoId ?: ""}${video.quality ?: ""}${video.downloadDate}.${oldPlaylist.segments.first().uri.substringAfterLast(".")}"
-                    val newVideoFileUri = oldDirectoryUri + (if (!oldDirectoryUri.endsWith("%3A")) "%2F" else "") + videoFileName
-                    val tracksToDelete = mutableListOf<String>()
-                    oldPlaylist.segments.forEach { tracksToDelete.add(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
+                    val newVideoFileUri = DownloadPlaylists.joinDirectory(oldDirectoryUri, videoFileName)
+                    val tracksToDelete = DownloadPlaylists.basenames(oldPlaylist.segments).toMutableList()
                     val playlists = offlineVideosRepository.getPlaylists().mapNotNull { video ->
                         video.url?.takeIf {
                             it.toUri().scheme == ContentResolver.SCHEME_CONTENT
@@ -122,7 +122,7 @@ class DownloadsViewModel(
                             val p = applicationContext.contentResolver.openInputStream(uri.toUri())!!.use {
                                 PlaylistUtils.parseMediaPlaylist(it)
                             }
-                            p.segments.forEach { tracksToDelete.remove(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
+                            tracksToDelete.removeAll(DownloadPlaylists.basenames(p.segments))
                         } catch (e: Exception) {
 
                         }
@@ -148,7 +148,7 @@ class DownloadsViewModel(
                     })
                     oldPlaylist.segments.forEach { track ->
                         val oldFileUri = track.uri
-                        val oldFileName = oldFileUri.substringAfterLast("%2F").substringAfterLast("/")
+                        val oldFileName = DownloadPlaylists.basename(oldFileUri)
                         applicationContext.contentResolver.openOutputStream(newVideoFileUri.toUri(), "wa")!!.use { outputStream ->
                             applicationContext.contentResolver.openInputStream(oldFileUri.toUri())!!.use { inputStream ->
                                 inputStream.copyTo(outputStream)
@@ -197,16 +197,15 @@ class DownloadsViewModel(
                             }
                             val videoFileName = "${video.videoId ?: ""}${video.quality ?: ""}${video.downloadDate}.${oldPlaylist.segments.first().uri.substringAfterLast(".")}"
                             val newVideoFileUri = "${oldDirectory.path}${File.separator}$videoFileName"
-                            val tracksToDelete = mutableListOf<String>()
-                            oldPlaylist.segments.forEach { tracksToDelete.add(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
+                            val tracksToDelete = DownloadPlaylists.basenames(oldPlaylist.segments).toMutableList()
                             val playlists = oldVideoDirectory.listFiles { it.extension == "m3u8" && it != oldPlaylistFile }
                             playlists?.forEach { file ->
                                 val p = PlaylistUtils.parseMediaPlaylist(file.inputStream())
-                                p.segments.forEach { tracksToDelete.remove(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
+                                tracksToDelete.removeAll(DownloadPlaylists.basenames(p.segments))
                             }
                             val convertFileInitSegmentUri = oldPlaylist.initSegmentUri
                             if (convertFileInitSegmentUri != null && File(newVideoFileUri).length() == 0L) {
-                                val oldFile = File(oldVideoDirectory.path + File.separator + convertFileInitSegmentUri.substringAfterLast("%2F").substringAfterLast("/"))
+                                val oldFile = File(oldVideoDirectory.path + File.separator + DownloadPlaylists.basename(convertFileInitSegmentUri))
                                 if (oldFile.exists()) {
                                     FileOutputStream(newVideoFileUri).use { outputStream ->
                                         oldFile.inputStream().use { inputStream ->
@@ -219,7 +218,7 @@ class DownloadsViewModel(
                                 maxProgress = tracksToDelete.count()
                             })
                             oldPlaylist.segments.forEach { track ->
-                                val oldFile = File(oldVideoDirectory.path + File.separator + track.uri.substringAfterLast("%2F").substringAfterLast("/"))
+                                val oldFile = File(oldVideoDirectory.path + File.separator + DownloadPlaylists.basename(track.uri))
                                 if (oldFile.exists()) {
                                     FileOutputStream(newVideoFileUri).use { outputStream ->
                                         oldFile.inputStream().use { inputStream ->
@@ -278,7 +277,7 @@ class DownloadsViewModel(
                         if (oldVideoDirectory != null) {
                             val documentId = DocumentsContract.getTreeDocumentId(newUri)
                             val newDirectoryUri = DocumentsContract.buildDocumentUriUsingTree(newUri, documentId)
-                            val newVideoDirectoryUri = newDirectoryUri.toString() + (if (!newDirectoryUri.toString().endsWith("%3A")) "%2F" else "") + oldVideoDirectory.name
+                            val newVideoDirectoryUri = DownloadPlaylists.joinDirectory(newDirectoryUri.toString(), oldVideoDirectory.name)
                             try {
                                 applicationContext.contentResolver.openOutputStream(newVideoDirectoryUri.toUri())!!.close()
                             } catch (e: Exception) {
@@ -286,37 +285,31 @@ class DownloadsViewModel(
                                     DocumentsContract.createDocument(applicationContext.contentResolver, newDirectoryUri, DocumentsContract.Document.MIME_TYPE_DIR, oldVideoDirectory.name)
                                 }
                             }
-                            val newPlaylistFileUri = newVideoDirectoryUri + "%2F" + oldPlaylistFile.name
+                            val newPlaylistFileUri = DownloadPlaylists.joinChild(newVideoDirectoryUri, oldPlaylistFile.name)
                             val oldPlaylist = FileInputStream(oldPlaylistFile).use {
                                 PlaylistUtils.parseMediaPlaylist(it)
                             }
-                            val segments = ArrayList<Segment>()
-                            oldPlaylist.segments.forEach { segment ->
-                                segments.add(segment.copy(uri = newVideoDirectoryUri + "%2F" + segment.uri.substringAfterLast("%2F").substringAfterLast("/")))
-                            }
+                            val mapUri = { uri: String -> DownloadPlaylists.joinChild(newVideoDirectoryUri, DownloadPlaylists.basename(uri)) }
+                            val segments = DownloadPlaylists.remapSegments(oldPlaylist.segments, mapUri)
                             try {
                                 applicationContext.contentResolver.openOutputStream(newPlaylistFileUri.toUri())!!
                             } catch (e: IllegalArgumentException) {
                                 DocumentsContract.createDocument(applicationContext.contentResolver, newVideoDirectoryUri.toUri(), "", oldPlaylistFile.name)
                                 applicationContext.contentResolver.openOutputStream(newPlaylistFileUri.toUri())!!
                             }.use {
-                                PlaylistUtils.writeMediaPlaylist(oldPlaylist.copy(
-                                    initSegmentUri = oldPlaylist.initSegmentUri?.let { uri -> newVideoDirectoryUri + "%2F" + uri.substringAfterLast("%2F").substringAfterLast("/") },
-                                    segments = segments
-                                ), it)
+                                PlaylistUtils.writeMediaPlaylist(oldPlaylist.copy(initSegmentUri = oldPlaylist.initSegmentUri?.let(mapUri), segments = segments), it)
                             }
-                            val tracksToDelete = mutableListOf<String>()
-                            oldPlaylist.segments.forEach { tracksToDelete.add(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
+                            val tracksToDelete = DownloadPlaylists.basenames(oldPlaylist.segments).toMutableList()
                             val playlists = oldVideoDirectory.listFiles { it.extension == "m3u8" && it != oldPlaylistFile }
                             playlists?.forEach { file ->
                                 val p = PlaylistUtils.parseMediaPlaylist(file.inputStream())
-                                p.segments.forEach { tracksToDelete.remove(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
+                                tracksToDelete.removeAll(DownloadPlaylists.basenames(p.segments))
                             }
                             val moveSharedInitSegmentUri = oldPlaylist.initSegmentUri
                             if (moveSharedInitSegmentUri != null) {
-                                val oldFile = File(oldVideoDirectory.path + File.separator + moveSharedInitSegmentUri.substringAfterLast("%2F").substringAfterLast("/"))
+                                val oldFile = File(oldVideoDirectory.path + File.separator + DownloadPlaylists.basename(moveSharedInitSegmentUri))
                                 if (oldFile.exists()) {
-                                    val newFileUri = newVideoDirectoryUri + "%2F" + oldFile.name
+                                    val newFileUri = DownloadPlaylists.joinChild(newVideoDirectoryUri, oldFile.name)
                                     try {
                                         applicationContext.contentResolver.openOutputStream(newFileUri.toUri())!!
                                     } catch (e: IllegalArgumentException) {
@@ -333,9 +326,9 @@ class DownloadsViewModel(
                                 maxProgress = tracksToDelete.count()
                             })
                             oldPlaylist.segments.forEach { track ->
-                                val oldFile = File(oldVideoDirectory.path + File.separator + track.uri.substringAfterLast("%2F").substringAfterLast("/"))
+                                val oldFile = File(oldVideoDirectory.path + File.separator + DownloadPlaylists.basename(track.uri))
                                 if (oldFile.exists()) {
-                                    val newFileUri = newVideoDirectoryUri + "%2F" + oldFile.name
+                                    val newFileUri = DownloadPlaylists.joinChild(newVideoDirectoryUri, oldFile.name)
                                     try {
                                         applicationContext.contentResolver.openOutputStream(newFileUri.toUri())!!
                                     } catch (e: IllegalArgumentException) {
@@ -355,7 +348,7 @@ class DownloadsViewModel(
                                 })
                             }
                             val oldChatFile = video.chatUrl?.let { uri -> File(uri).takeIf { it.exists() } }
-                            val newChatFileUri = oldChatFile?.let { newDirectoryUri.toString() + (if (!newDirectoryUri.toString().endsWith("%3A")) "%2F" else "") + it.name }
+                            val newChatFileUri = oldChatFile?.let { DownloadPlaylists.joinDirectory(newDirectoryUri.toString(), it.name) }
                             if (newChatFileUri != null) {
                                 try {
                                     applicationContext.contentResolver.openOutputStream(newChatFileUri.toUri())!!
@@ -373,8 +366,8 @@ class DownloadsViewModel(
                                     if (it == null || it == url || !File(it).exists()) {
                                         oldPlaylist.segments.getOrNull(
                                             max(0, (oldPlaylist.segments.size / 2) - 1)
-                                        )?.uri?.substringAfterLast("%2F")?.substringAfterLast("/")?.let { trackUri ->
-                                            thumbnail = "$newVideoDirectoryUri%2F$trackUri"
+                                        )?.uri?.let { trackUri ->
+                                            thumbnail = DownloadPlaylists.joinChild(newVideoDirectoryUri, DownloadPlaylists.basename(trackUri))
                                         }
                                     }
                                 }
@@ -394,7 +387,7 @@ class DownloadsViewModel(
                     if (oldFile.exists()) {
                         val documentId = DocumentsContract.getTreeDocumentId(newUri)
                         val newDirectoryUri = DocumentsContract.buildDocumentUriUsingTree(newUri, documentId)
-                        val newFileUri = newDirectoryUri.toString() + (if (!newDirectoryUri.toString().endsWith("%3A")) "%2F" else "") + oldFile.name
+                        val newFileUri = DownloadPlaylists.joinDirectory(newDirectoryUri.toString(), oldFile.name)
                         try {
                             applicationContext.contentResolver.openOutputStream(newFileUri.toUri())!!
                         } catch (e: IllegalArgumentException) {
@@ -406,7 +399,7 @@ class DownloadsViewModel(
                             }
                         }
                         val oldChatFile = video.chatUrl?.let { uri -> File(uri).takeIf { it.exists() } }
-                        val newChatFileUri = oldChatFile?.let { newDirectoryUri.toString() + (if (!newDirectoryUri.toString().endsWith("%3A")) "%2F" else "") + it.name }
+                        val newChatFileUri = oldChatFile?.let { DownloadPlaylists.joinDirectory(newDirectoryUri.toString(), it.name) }
                         if (newChatFileUri != null) {
                             try {
                                 applicationContext.contentResolver.openOutputStream(newChatFileUri.toUri())!!
@@ -454,32 +447,25 @@ class DownloadsViewModel(
                     status = OfflineVideo.STATUS_MOVING
                 })
                 if (videoUrl.endsWith(".m3u8")) {
-                    val oldPlaylistFileName = Uri.decode(videoUrl.substringAfterLast("%2F"))
+                    val oldPlaylistFileName = DownloadPlaylists.percentDecode(videoUrl.substringAfterLast("%2F"))
                     val oldVideoDirectoryUri = videoUrl.substringBeforeLast("%2F")
-                    val oldVideoDirectoryName = Uri.decode(oldVideoDirectoryUri.substringAfterLast("%2F").substringAfterLast("%3A"))
+                    val oldVideoDirectoryName = DownloadPlaylists.percentDecode(oldVideoDirectoryUri.substringAfterLast("%2F").substringAfterLast("%3A"))
                     val newVideoDirectoryUri = path + File.separator + oldVideoDirectoryName
                     File(newVideoDirectoryUri).mkdir()
                     val newPlaylistFileUri = newVideoDirectoryUri + File.separator + oldPlaylistFileName
                     val oldPlaylist = applicationContext.contentResolver.openInputStream(videoUrl.toUri())!!.use {
                         PlaylistUtils.parseMediaPlaylist(it)
                     }
-                    val segments = ArrayList<Segment>()
-                    oldPlaylist.segments.forEach { segment ->
-                        segments.add(segment.copy(uri = newVideoDirectoryUri + File.separator + Uri.decode(segment.uri.substringAfterLast("%2F").substringAfterLast("/"))))
-                    }
+                    val mapUri = { uri: String -> newVideoDirectoryUri + File.separator + DownloadPlaylists.percentDecode(DownloadPlaylists.basename(uri)) }
+                    val segments = DownloadPlaylists.remapSegments(oldPlaylist.segments, mapUri)
                     FileOutputStream(newPlaylistFileUri).use {
-                        PlaylistUtils.writeMediaPlaylist(oldPlaylist.copy(
-                            initSegmentUri = oldPlaylist.initSegmentUri?.let { uri -> newVideoDirectoryUri + File.separator + Uri.decode(uri.substringAfterLast("%2F").substringAfterLast("/")) },
-                            segments = segments
-                        ), it)
+                        PlaylistUtils.writeMediaPlaylist(oldPlaylist.copy(initSegmentUri = oldPlaylist.initSegmentUri?.let(mapUri), segments = segments), it)
                     }
-                    val tracksToDelete = mutableListOf<String>()
-                    oldPlaylist.segments.forEach { tracksToDelete.add(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
+                    val tracksToDelete = DownloadPlaylists.basenames(oldPlaylist.segments).toMutableList()
                     val playlists = offlineVideosRepository.getPlaylists().mapNotNull { video ->
                         video.url?.takeIf {
                             it.toUri().scheme == ContentResolver.SCHEME_CONTENT
-                                    && it.substringBeforeLast("%2F") == oldVideoDirectoryUri
-                                    && it != videoUrl
+                                    && DownloadPlaylists.isSiblingPlaylist(it, oldVideoDirectoryUri, videoUrl)
                         }
                     }
                     playlists.forEach { uri ->
@@ -487,16 +473,16 @@ class DownloadsViewModel(
                             val p = applicationContext.contentResolver.openInputStream(uri.toUri())!!.use {
                                 PlaylistUtils.parseMediaPlaylist(it)
                             }
-                            p.segments.forEach { tracksToDelete.remove(Uri.decode(it.uri.substringAfterLast("%2F").substringAfterLast("/"))) }
+                            tracksToDelete.removeAll(DownloadPlaylists.decodedBasenames(p.segments))
                         } catch (e: Exception) {
 
                         }
                     }
                     val moveAppInitSegmentUri = oldPlaylist.initSegmentUri
                     if (moveAppInitSegmentUri != null) {
-                        val oldFileName = moveAppInitSegmentUri.substringAfterLast("%2F").substringAfterLast("/")
-                        val oldFileUri = "$oldVideoDirectoryUri%2F$oldFileName"
-                        val newFileUri = newVideoDirectoryUri + File.separator + Uri.decode(oldFileName)
+                        val oldFileName = DownloadPlaylists.basename(moveAppInitSegmentUri)
+                        val oldFileUri = DownloadPlaylists.joinChild(oldVideoDirectoryUri, oldFileName)
+                        val newFileUri = newVideoDirectoryUri + File.separator + DownloadPlaylists.percentDecode(oldFileName)
                         FileOutputStream(newFileUri).use { outputStream ->
                             applicationContext.contentResolver.openInputStream(oldFileUri.toUri())!!.use { inputStream ->
                                 inputStream.copyTo(outputStream)
@@ -507,15 +493,15 @@ class DownloadsViewModel(
                         maxProgress = tracksToDelete.count()
                     })
                     oldPlaylist.segments.forEach { track ->
-                        val oldFileName = track.uri.substringAfterLast("%2F").substringAfterLast("/")
-                        val oldFileUri = "$oldVideoDirectoryUri%2F$oldFileName"
-                        val newFileUri = newVideoDirectoryUri + File.separator + Uri.decode(oldFileName)
+                        val oldFileName = DownloadPlaylists.basename(track.uri)
+                        val oldFileUri = DownloadPlaylists.joinChild(oldVideoDirectoryUri, oldFileName)
+                        val newFileUri = newVideoDirectoryUri + File.separator + DownloadPlaylists.percentDecode(oldFileName)
                         FileOutputStream(newFileUri).use { outputStream ->
                             applicationContext.contentResolver.openInputStream(oldFileUri.toUri())!!.use { inputStream ->
                                 inputStream.copyTo(outputStream)
                             }
                         }
-                        if (tracksToDelete.contains(Uri.decode(oldFileName))) {
+                        if (tracksToDelete.contains(DownloadPlaylists.percentDecode(oldFileName))) {
                             try {
                                 DocumentsContract.deleteDocument(applicationContext.contentResolver, oldFileUri.toUri())
                             } catch (e: Exception) {
@@ -527,7 +513,7 @@ class DownloadsViewModel(
                         })
                     }
                     val oldChatUri = video.chatUrl
-                    val oldChatFileName = oldChatUri?.substringAfterLast("%2F")?.substringAfterLast("/")?.substringAfterLast("%3A")?.let { Uri.decode(it) }
+                    val oldChatFileName = oldChatUri?.substringAfterLast("%2F")?.substringAfterLast("/")?.substringAfterLast("%3A")?.let { DownloadPlaylists.percentDecode(it) }
                     val newChatFileUri = oldChatFileName?.let { path + File.separator + it }
                     if (oldChatUri != null && newChatFileUri != null) {
                         FileOutputStream(newChatFileUri).use { outputStream ->
@@ -541,7 +527,7 @@ class DownloadsViewModel(
                             if (it == null || it == url || !File(it).exists()) {
                                 thumbnail = newVideoDirectoryUri + File.separator + oldPlaylist.segments.getOrNull(
                                     max(0, (oldPlaylist.segments.size / 2) - 1)
-                                )?.uri?.substringAfterLast("%2F")?.substringAfterLast("/")?.let { Uri.decode(it) }
+                                )?.uri?.let { DownloadPlaylists.percentDecode(DownloadPlaylists.basename(it)) }
                             }
                         }
                         url = newPlaylistFileUri
@@ -568,7 +554,7 @@ class DownloadsViewModel(
                         }
                     }
                 } else {
-                    val oldFileName = Uri.decode(videoUrl.substringAfterLast("%2F").substringAfterLast("/").substringAfterLast("%3A"))
+                    val oldFileName = DownloadPlaylists.percentDecode(videoUrl.substringAfterLast("%2F").substringAfterLast("/").substringAfterLast("%3A"))
                     val newFileUri = path + File.separator + oldFileName
                     FileOutputStream(newFileUri).use { outputStream ->
                         applicationContext.contentResolver.openInputStream(videoUrl.toUri())!!.use { inputStream ->
@@ -576,7 +562,7 @@ class DownloadsViewModel(
                         }
                     }
                     val oldChatUri = video.chatUrl
-                    val oldChatFileName = oldChatUri?.substringAfterLast("%2F")?.substringAfterLast("/")?.substringAfterLast("%3A")?.let { Uri.decode(it) }
+                    val oldChatFileName = oldChatUri?.substringAfterLast("%2F")?.substringAfterLast("/")?.substringAfterLast("%3A")?.let { DownloadPlaylists.percentDecode(it) }
                     val newChatFileUri = oldChatFileName?.let { path + File.separator + it }
                     if (oldChatUri != null && newChatFileUri != null) {
                         FileOutputStream(newChatFileUri).use { outputStream ->

@@ -36,6 +36,7 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.NetworkUtils
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.m3u8.DownloadPlaylists
 import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.Segment
@@ -114,17 +115,11 @@ class SettingsViewModel(
                                             val playlist = FileInputStream(playlistFile).use {
                                                 PlaylistUtils.parseMediaPlaylist(it)
                                             }
-                                            var totalDuration = 0L
-                                            val segments = ArrayList<Segment>()
-                                            playlist.segments.forEach { segment ->
-                                                totalDuration += (segment.duration * 1000f).toLong()
-                                                segments.add(segment.copy(uri = segment.uri.substringAfterLast("%2F").substringAfterLast("/")))
-                                            }
+                                            val totalDuration = DownloadPlaylists.totalDurationMs(playlist.segments)
+                                            val mapUri = DownloadPlaylists::basename
+                                            val segments = DownloadPlaylists.remapSegments(playlist.segments, mapUri)
                                             FileOutputStream(playlistFile).use {
-                                                PlaylistUtils.writeMediaPlaylist(playlist.copy(
-                                                    initSegmentUri = playlist.initSegmentUri?.substringAfterLast("%2F")?.substringAfterLast("/"),
-                                                    segments = segments
-                                                ), it)
+                                                PlaylistUtils.writeMediaPlaylist(playlist.copy(initSegmentUri = playlist.initSegmentUri?.let(mapUri), segments = segments), it)
                                             }
                                             val chatFile = chatFiles[file.name + playlistFile.name.removeSuffix(".m3u8")]
                                             var id: String? = null

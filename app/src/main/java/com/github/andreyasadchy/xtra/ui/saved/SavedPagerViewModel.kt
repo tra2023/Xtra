@@ -14,6 +14,7 @@ import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.m3u8.DownloadPlaylists
 import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.Segment
@@ -84,17 +85,11 @@ class SavedPagerViewModel(
                     val playlist = applicationContext.contentResolver.openInputStream(uri)!!.use {
                         PlaylistUtils.parseMediaPlaylist(it)
                     }
-                    var totalDuration = 0L
-                    val segments = ArrayList<Segment>()
-                    playlist.segments.forEach { segment ->
-                        totalDuration += (segment.duration * 1000f).toLong()
-                        segments.add(segment.copy(uri = videoDirectoryUri + "%2F" + segment.uri.substringAfterLast("%2F").substringAfterLast("/")))
-                    }
+                    val totalDuration = DownloadPlaylists.totalDurationMs(playlist.segments)
+                    val mapUri = { uri: String -> videoDirectoryUri + "%2F" + DownloadPlaylists.basename(uri) }
+                    val segments = DownloadPlaylists.remapSegments(playlist.segments, mapUri)
                     applicationContext.contentResolver.openOutputStream(uri)!!.use {
-                        PlaylistUtils.writeMediaPlaylist(playlist.copy(
-                            initSegmentUri = playlist.initSegmentUri?.let { uri -> videoDirectoryUri + "%2F" + uri.substringAfterLast("%2F").substringAfterLast("/") },
-                            segments = segments
-                        ), it)
+                        PlaylistUtils.writeMediaPlaylist(playlist.copy(initSegmentUri = playlist.initSegmentUri?.let(mapUri), segments = segments), it)
                     }
                     val chatFileUri = chatFiles[videoDirectoryName + uri.toString().substringAfterLast("%2F").removeSuffix(".m3u8")]
                     var id: String? = null

@@ -39,6 +39,7 @@ import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.m3u8.MediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.m3u8.DownloadPlaylists
 import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.Segment
@@ -273,29 +274,10 @@ class VideoDownloadService : LifecycleService() {
                 }
             }
         }
-        val segments = mutableListOf<Segment>()
-        var totalDuration = 0L
-        var downloadDuration = 0L
-        var startPosition = -1L
-        for (segment in playlist.segments) {
-            val startTime = totalDuration
-            val duration = (segment.duration * 1000f).toLong()
-            val endTime = startTime + duration
-            if (endTime <= from) {
-                totalDuration = endTime
-            } else {
-                if (startTime < to) {
-                    segments.add(segment.copy(uri = segment.uri.replace("-unmuted", "-muted")))
-                    totalDuration = endTime
-                    downloadDuration += duration
-                    if (startPosition == -1L) {
-                        startPosition = startTime
-                    }
-                } else {
-                    break
-                }
-            }
-        }
+        val selection = DownloadPlaylists.selectRange(playlist.segments, from, to)
+        val segments = selection.segments
+        val downloadDuration = selection.downloadDurationMs
+        val startPosition = selection.startPositionMs
         if (offlineVideo.duration == null) {
             xtraModule.offlineVideosRepository.update(offlineVideo.apply {
                 duration = downloadDuration
@@ -333,7 +315,7 @@ class VideoDownloadService : LifecycleService() {
             val fileUri = if (isShared) {
                 val documentId = DocumentsContract.getTreeDocumentId(path.toUri())
                 val directoryUri = DocumentsContract.buildDocumentUriUsingTree(path.toUri(), documentId)
-                val fileUri = directoryUri.toString() + (if (!directoryUri.toString().endsWith("%3A")) "%2F" else "") + fileName
+                val fileUri = DownloadPlaylists.joinDirectory(directoryUri.toString(), fileName)
                 try {
                     contentResolver.openOutputStream(fileUri.toUri())!!.close()
                 } catch (e: IllegalArgumentException) {
@@ -560,7 +542,7 @@ class VideoDownloadService : LifecycleService() {
         val videoDirectoryUri = if (isShared) {
             val documentId = DocumentsContract.getTreeDocumentId(path.toUri())
             val directoryUri = DocumentsContract.buildDocumentUriUsingTree(path.toUri(), documentId)
-            val videoDirectoryUri = directoryUri.toString() + (if (!directoryUri.toString().endsWith("%3A")) "%2F" else "") + videoDirectoryName
+            val videoDirectoryUri = DownloadPlaylists.joinDirectory(directoryUri.toString(), videoDirectoryName)
             try {
                 contentResolver.openOutputStream(videoDirectoryUri.toUri())!!.close()
             } catch (e: Exception) {
@@ -579,17 +561,14 @@ class VideoDownloadService : LifecycleService() {
         } else {
             val playlistFileUri = if (isShared) {
                 val fileName = "${offlineVideo.downloadDate}.m3u8"
-                val playlistFileUri = "$videoDirectoryUri%2F$fileName"
+                val playlistFileUri = DownloadPlaylists.joinChild(videoDirectoryUri, fileName)
                 try {
                     contentResolver.openOutputStream(playlistFileUri.toUri())!!
                 } catch (e: IllegalArgumentException) {
                     DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", fileName)
                     contentResolver.openOutputStream(playlistFileUri.toUri())!!
                 }.use {
-                    PlaylistUtils.writeMediaPlaylist(playlist.copy(
-                        initSegmentUri = playlist.initSegmentUri?.let { uri -> "$videoDirectoryUri%2F$uri" },
-                        segments = segments.map { segment -> segment.copy(uri = videoDirectoryUri + "%2F" + segment.uri) }
-                    ), it)
+                    PlaylistUtils.writeMediaPlaylist(DownloadPlaylists.remapForStorage(playlist, segments) { uri -> "$videoDirectoryUri%2F$uri" }, it)
                 }
                 playlistFileUri
             } else {
@@ -694,8 +673,7 @@ class VideoDownloadService : LifecycleService() {
             val playlists = xtraModule.offlineVideosRepository.getPlaylists().mapNotNull { video ->
                 video.url?.takeIf {
                     it.toUri().scheme == ContentResolver.SCHEME_CONTENT
-                            && it.substringBeforeLast("%2F") == videoDirectoryUri
-                            && it != playlistFileUri
+                            && DownloadPlaylists.isSiblingPlaylist(it, videoDirectoryUri, playlistFileUri)
                 }
             }
             playlists.forEach { uri ->
@@ -703,7 +681,7 @@ class VideoDownloadService : LifecycleService() {
                     val p = contentResolver.openInputStream(uri.toUri())!!.use {
                         PlaylistUtils.parseMediaPlaylist(it)
                     }
-                    p.segments.forEach { downloadedSegments.add(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
+                    downloadedSegments.addAll(DownloadPlaylists.basenames(p.segments))
                 } catch (e: Exception) {
 
                 }
@@ -712,7 +690,7 @@ class VideoDownloadService : LifecycleService() {
             val playlists = File(videoDirectoryUri).listFiles { it.extension == "m3u8" && it.path != playlistFileUri }
             playlists?.forEach { file ->
                 val p = PlaylistUtils.parseMediaPlaylist(file.inputStream())
-                p.segments.forEach { downloadedSegments.add(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
+                downloadedSegments.addAll(DownloadPlaylists.basenames(p.segments))
             }
         }
         val requestSemaphore = Semaphore(prefs().getInt(C.DOWNLOAD_CONCURRENT_LIMIT, 10))
@@ -726,7 +704,7 @@ class VideoDownloadService : LifecycleService() {
             requestSemaphore.acquire()
             launch(Dispatchers.IO) {
                 val fileUri = if (isShared) {
-                    videoDirectoryUri + "%2F" + segment.uri
+                    DownloadPlaylists.joinChild(videoDirectoryUri, segment.uri)
                 } else {
                     videoDirectoryUri + segment.uri
                 }
@@ -869,7 +847,7 @@ class VideoDownloadService : LifecycleService() {
             val fileUri = if (isShared) {
                 val documentId = DocumentsContract.getTreeDocumentId(path.toUri())
                 val directoryUri = DocumentsContract.buildDocumentUriUsingTree(path.toUri(), documentId)
-                val fileUri = directoryUri.toString() + (if (!directoryUri.toString().endsWith("%3A")) "%2F" else "") + fileName
+                val fileUri = DownloadPlaylists.joinDirectory(directoryUri.toString(), fileName)
                 try {
                     contentResolver.openOutputStream(fileUri.toUri())!!.close()
                 } catch (e: IllegalArgumentException) {
@@ -976,7 +954,7 @@ class VideoDownloadService : LifecycleService() {
                     val fileUri = if (isShared) {
                         val documentId = DocumentsContract.getTreeDocumentId(path.toUri())
                         val directoryUri = DocumentsContract.buildDocumentUriUsingTree(path.toUri(), documentId)
-                        val fileUri = directoryUri.toString() + (if (!directoryUri.toString().endsWith("%3A")) "%2F" else "") + fileName
+                        val fileUri = DownloadPlaylists.joinDirectory(directoryUri.toString(), fileName)
                         try {
                             contentResolver.openOutputStream(fileUri.toUri())!!.close()
                         } catch (e: IllegalArgumentException) {
