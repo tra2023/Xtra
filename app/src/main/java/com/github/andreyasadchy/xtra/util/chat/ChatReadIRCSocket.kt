@@ -1,6 +1,8 @@
 package com.github.andreyasadchy.xtra.util.chat
 
 import android.os.Build
+import com.github.andreyasadchy.xtra.socket.IrcLineEvent
+import com.github.andreyasadchy.xtra.socket.IrcRouter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -14,7 +16,6 @@ import java.net.Socket
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
-import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 class ChatReadIRCSocket(
@@ -33,19 +34,23 @@ class ChatReadIRCSocket(
                 connect()
                 var line = reader?.readLine()
                 while (line != null) {
-                    if (line.startsWith("PING")) {
-                        write("PONG :tmi.twitch.tv")
-                        writer?.flush()
-                    } else {
-                        val ircMessage = ChatUtils.parseIRCMessage(line)
-                        when (ircMessage.command) {
-                            "PRIVMSG" -> listener.onChatMessage(ircMessage, false)
-                            "USERNOTICE" -> listener.onChatMessage(ircMessage, true)
-                            "CLEARMSG" -> listener.onClearMessage(ircMessage)
-                            "CLEARCHAT" -> listener.onClearChat(ircMessage)
-                            "NOTICE" -> listener.onNotice(ircMessage)
-                            "ROOMSTATE" -> listener.onRoomState(ircMessage)
-                            "USERSTATE" -> listener.onUserState(ircMessage)
+                    when (val event = IrcRouter.routeLine(line)) {
+                        IrcLineEvent.Ping -> {
+                            write("PONG :tmi.twitch.tv")
+                            writer?.flush()
+                        }
+                        is IrcLineEvent.Command -> {
+                            when (event.command) {
+                                "PRIVMSG" -> listener.onChatMessage(event.message, false)
+                                "USERNOTICE" -> listener.onChatMessage(event.message, true)
+                                "CLEARMSG" -> listener.onClearMessage(event.message)
+                                "CLEARCHAT" -> listener.onClearChat(event.message)
+                                "NOTICE" -> listener.onNotice(event.message)
+                                "ROOMSTATE" -> listener.onRoomState(event.message)
+                                "USERSTATE" -> listener.onUserState(event.message)
+                            }
+                        }
+                        IrcLineEvent.Pong, IrcLineEvent.Reconnect -> {
                         }
                     }
                     line = reader?.readLine()
@@ -77,9 +82,9 @@ class ChatReadIRCSocket(
         }
         reader = BufferedReader(InputStreamReader(socket?.inputStream))
         writer = BufferedWriter(OutputStreamWriter(socket?.outputStream))
-        write("CAP REQ :twitch.tv/tags twitch.tv/commands")
-        write("NICK justinfan${Random.nextInt(1000, 10000)}")
-        write("JOIN #$channelLogin")
+        IrcRouter.readConnectWrites(channelLogin, IrcRouter.readNick()).forEach {
+            write(it)
+        }
         writer?.flush()
         listener.onConnect()
     }

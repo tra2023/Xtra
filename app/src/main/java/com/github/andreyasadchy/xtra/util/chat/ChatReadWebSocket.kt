@@ -1,5 +1,7 @@
 package com.github.andreyasadchy.xtra.util.chat
 
+import com.github.andreyasadchy.xtra.socket.IrcLineEvent
+import com.github.andreyasadchy.xtra.socket.IrcRouter
 import com.github.andreyasadchy.xtra.util.WebSocket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -9,7 +11,6 @@ import kotlinx.coroutines.withContext
 import java.util.Timer
 import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.schedule
-import kotlin.random.Random
 
 class ChatReadWebSocket(
     private val channelLogin: String,
@@ -77,9 +78,9 @@ class ChatReadWebSocket(
 
     private inner class WebSocketListener : WebSocket.Listener {
         override suspend fun onConnect(webSocket: WebSocket) {
-            webSocket.write("CAP REQ :twitch.tv/tags twitch.tv/commands")
-            webSocket.write("NICK justinfan${Random.nextInt(1000, 10000)}")
-            webSocket.write("JOIN #$channelLogin")
+            IrcRouter.readConnectWrites(channelLogin, IrcRouter.readNick()).forEach {
+                webSocket.write(it)
+            }
             listener.onConnect()
             pingTimer?.cancel()
             pongTimer?.cancel()
@@ -88,30 +89,29 @@ class ChatReadWebSocket(
 
         override suspend fun onMessage(webSocket: WebSocket, message: String) {
             message.removeSuffix("\r\n").split("\r\n").forEach {
-                when {
-                    it.startsWith("PING") -> {
+                when (val event = IrcRouter.routeLine(it)) {
+                    IrcLineEvent.Ping -> {
                         webSocket.write("PONG")
                     }
-                    it.startsWith("PONG") -> {
+                    IrcLineEvent.Pong -> {
                         pingTimer?.cancel()
                         pongTimer?.cancel()
                         startPingTimer()
                     }
-                    it.startsWith("RECONNECT") -> {
+                    IrcLineEvent.Reconnect -> {
                         pingTimer?.cancel()
                         pongTimer?.cancel()
                         webSocket.disconnect()
                     }
-                    else -> {
-                        val ircMessage = ChatUtils.parseIRCMessage(it)
-                        when (ircMessage.command) {
-                            "PRIVMSG" -> listener.onChatMessage(ircMessage, false)
-                            "USERNOTICE" -> listener.onChatMessage(ircMessage, true)
-                            "CLEARMSG" -> listener.onClearMessage(ircMessage)
-                            "CLEARCHAT" -> listener.onClearChat(ircMessage)
-                            "NOTICE" -> listener.onNotice(ircMessage)
-                            "ROOMSTATE" -> listener.onRoomState(ircMessage)
-                            "USERSTATE" -> listener.onUserState(ircMessage)
+                    is IrcLineEvent.Command -> {
+                        when (event.command) {
+                            "PRIVMSG" -> listener.onChatMessage(event.message, false)
+                            "USERNOTICE" -> listener.onChatMessage(event.message, true)
+                            "CLEARMSG" -> listener.onClearMessage(event.message)
+                            "CLEARCHAT" -> listener.onClearChat(event.message)
+                            "NOTICE" -> listener.onNotice(event.message)
+                            "ROOMSTATE" -> listener.onRoomState(event.message)
+                            "USERSTATE" -> listener.onUserState(event.message)
                         }
                     }
                 }
