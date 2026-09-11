@@ -4,10 +4,10 @@ import com.github.andreyasadchy.xtra.db.LocalGameFollowsDao
 import com.github.andreyasadchy.xtra.model.ui.LocalGameFollow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 
 class LocalGameFollowsRepository(
     private val localGameFollowsDao: LocalGameFollowsDao,
+    private val deleteImage: (String) -> Unit = {},
 ) {
 
     suspend fun getAll() = withContext(Dispatchers.IO) {
@@ -25,7 +25,7 @@ class LocalGameFollowsRepository(
     suspend fun delete(item: LocalGameFollow) = withContext(Dispatchers.IO) {
         item.boxArt?.let {
             if (it.isNotBlank()) {
-                File(it).delete()
+                deleteImage(it)
             }
         }
         localGameFollowsDao.delete(item)

@@ -134,7 +134,7 @@ class XtraModule(application: Application) {
     }
 
     val bookmarksRepository by lazy {
-        BookmarksRepository(database.bookmarks(), database.bookmarkIgnoredUsers(), database.offlineVideos())
+        BookmarksRepository(database.bookmarks(), database.bookmarkIgnoredUsers(), database.offlineVideos(), deleteImage = { java.io.File(it).delete() })
     }
 
     val channelSortRepository by lazy {
@@ -154,11 +154,11 @@ class XtraModule(application: Application) {
     }
 
     val localChannelFollowsRepository by lazy {
-        LocalChannelFollowsRepository(database.localChannelFollows(), database.offlineVideos(), database.bookmarks())
+        LocalChannelFollowsRepository(database.localChannelFollows(), database.offlineVideos(), database.bookmarks(), deleteImage = { java.io.File(it).delete() })
     }
 
     val localGameFollowsRepository by lazy {
-        LocalGameFollowsRepository(database.localGameFollows())
+        LocalGameFollowsRepository(database.localGameFollows(), deleteImage = { java.io.File(it).delete() })
     }
 
     val notificationsRepository by lazy {

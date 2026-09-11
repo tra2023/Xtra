@@ -7,12 +7,12 @@ import com.github.andreyasadchy.xtra.model.ui.Bookmark
 import com.github.andreyasadchy.xtra.model.ui.BookmarkIgnoredUser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 
 class BookmarksRepository(
     private val bookmarksDao: BookmarksDao,
     private val bookmarkIgnoredUsersDao: BookmarkIgnoredUsersDao,
     private val offlineVideosDao: OfflineVideosDao,
+    private val deleteImage: (String) -> Unit = {},
 ) {
 
     fun getAllFlow() = bookmarksDao.getAllFlow()
@@ -38,7 +38,7 @@ class BookmarksRepository(
         if (!videoId.isNullOrBlank() && offlineVideosDao.getByVideoId(videoId).isEmpty()) {
             item.thumbnail?.let {
                 if (it.isNotBlank()) {
-                    File(it).delete()
+                    deleteImage(it)
                 }
             }
         }
@@ -46,7 +46,7 @@ class BookmarksRepository(
         if (!userId.isNullOrBlank() && getByUserId(userId).none { it.id != item.id } && offlineVideosDao.getByUserId(userId).isEmpty()) {
             item.userLogo?.let {
                 if (it.isNotBlank()) {
-                    File(it).delete()
+                    deleteImage(it)
                 }
             }
         }
