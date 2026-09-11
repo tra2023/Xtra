@@ -44,6 +44,8 @@ import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.chat.ChatReadWebSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatUtils
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
+import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -422,10 +424,11 @@ class StreamDownloadService : LifecycleService() {
                                 val targetFps = targetQuality.getOrNull(1)?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 30
                                 val last = qualities.lastOrNull { it.name != VideoQuality.AUDIO_ONLY_QUALITY }
                                 qualities.find { quality ->
-                                    quality.resolution != null
-                                            && ((targetResolution == quality.resolution
+                                    val qualityResolution = quality.resolution
+                                    qualityResolution != null
+                                            && ((targetResolution == qualityResolution
                                             && targetFps >= (quality.frameRate?.let { fps -> floor(fps) } ?: 30f))
-                                            || targetResolution > quality.resolution
+                                            || targetResolution > qualityResolution
                                             || quality == last)
                                 }
                             } ?: qualities.first()
@@ -1734,8 +1737,9 @@ class StreamDownloadService : LifecycleService() {
                 val cheerEmotes = mutableListOf<CheerEmote>()
                 val emotes = mutableListOf<Emote>()
                 chatMessage.emotes?.forEach {
-                    if (it.id != null && !savedTwitchEmotes.contains(it.id)) {
-                        savedTwitchEmotes.add(it.id)
+                    val emoteId = it.id
+                    if (emoteId != null && !savedTwitchEmotes.contains(emoteId)) {
+                        savedTwitchEmotes.add(emoteId)
                         twitchEmotes.add(it)
                     }
                 }

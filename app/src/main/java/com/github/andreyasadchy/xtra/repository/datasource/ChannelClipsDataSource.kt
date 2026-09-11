@@ -134,7 +134,8 @@ class ChannelClipsDataSource(
             }
         }
         offset = items.lastOrNull()?.cursor
-        val nextPage = data.clips.pageInfo?.hasNextPage != false
+        val clips = data.clips
+        val nextPage = clips?.pageInfo?.hasNextPage != false
         return LoadResult.Page(
             data = list,
             prevKey = null,
@@ -162,6 +163,8 @@ class ChannelClipsDataSource(
             ).data
         }
         val list = response.data.map {
+            val vodOffset = it.vodOffset
+            val duration = it.duration
             Clip(
                 id = it.id,
                 channelId = channelId,
@@ -177,10 +180,10 @@ class ChannelClipsDataSource(
                 viewCount = it.viewCount,
                 durationSeconds = it.duration?.toInt(),
                 videoId = it.videoId,
-                videoOffsetSeconds = if (it.vodOffset != null && it.duration != null) {
-                    max(it.vodOffset - it.duration.toInt(), 0)
+                videoOffsetSeconds = if (vodOffset != null && duration != null) {
+                    max(vodOffset - duration.toInt(), 0)
                 } else {
-                    it.vodOffset
+                    vodOffset
                 },
             )
         }

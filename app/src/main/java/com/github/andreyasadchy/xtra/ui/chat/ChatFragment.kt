@@ -329,8 +329,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                         "0" -> textEmote.visibility = View.GONE
                                         "1" -> textEmote.visibility = View.VISIBLE
                                     }
-                                    if (roomState.followers != null) {
-                                        when (roomState.followers) {
+                                    val followers = roomState.followers
+                                    if (followers != null) {
+                                        when (followers) {
                                             "-1" -> textFollowers.visibility = View.GONE
                                             "0" -> {
                                                 textFollowers.text = getString(R.string.room_followers)
@@ -339,7 +340,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                             else -> {
                                                 textFollowers.text = getString(
                                                     R.string.room_followers_min,
-                                                    TwitchApiHelper.getDurationFromSeconds(requireContext(), (roomState.followers.toInt() * 60).toString())
+                                                    TwitchApiHelper.getDurationFromSeconds(requireContext(), (followers.toInt() * 60).toString())
                                                 )
                                                 textFollowers.visibility = View.VISIBLE
                                             }

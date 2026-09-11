@@ -196,8 +196,9 @@ class ChatReplayManager(
         messageJob = coroutineScope.launch {
             while (isActive) {
                 val message = list.firstOrNull() ?: break
-                val messageOffset = if (createdAt != null && !message.createdAt.isNullOrBlank()) {
-                    Instant.parseOrNull(message.createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.minus(createdAt)
+                val messageCreatedAt = message.createdAt
+                val messageOffset = if (createdAt != null && !messageCreatedAt.isNullOrBlank()) {
+                    Instant.parseOrNull(messageCreatedAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.minus(createdAt)
                 } else {
                     null
                 } ?: message.offsetSeconds?.times(1000L)

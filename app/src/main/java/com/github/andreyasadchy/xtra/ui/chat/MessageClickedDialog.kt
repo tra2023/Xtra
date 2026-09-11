@@ -241,10 +241,11 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
                 } else {
                     reply.visibility = View.GONE
                 }
-                if (!chatMessage.message.isNullOrBlank()) {
+                val message = chatMessage.message
+                if (!message.isNullOrBlank()) {
                     copyMessage.visibility = View.VISIBLE
                     copyMessage.setOnClickListener {
-                        listener.onCopyMessageClicked(chatMessage.message)
+                        listener.onCopyMessageClicked(message)
                         dismiss()
                     }
                 } else {

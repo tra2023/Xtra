@@ -79,6 +79,8 @@ import com.github.andreyasadchy.xtra.util.NetworkUtils
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
+import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -1619,7 +1621,9 @@ class ExoPlayerService : BasePlaybackService() {
                                     if (!player.currentTracks.isEmpty) {
                                         player.currentTracks.groups.find { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO }?.let { trackGroup ->
                                             if (trackGroup.mediaTrackGroup.length > 0) {
-                                                if (quality.resolution != null) {
+                                                val qualityResolution = quality.resolution
+                                                val qualityBitrate = quality.bitrate
+                                                if (qualityResolution != null) {
                                                     val formats = mutableListOf<Pair<Int, Format>>()
                                                     for (i in 0 until trackGroup.mediaTrackGroup.length) {
                                                         formats.add(i to trackGroup.mediaTrackGroup.getFormat(i))
@@ -1631,10 +1635,10 @@ class ExoPlayerService : BasePlaybackService() {
                                                                 .thenByDescending { it.second.height }
                                                         )
                                                     list.find {
-                                                        (quality.resolution == it.second.height
+                                                        (qualityResolution == it.second.height
                                                                 && (quality.frameRate?.let { fps -> floor(fps) } ?: 30f) >= floor(it.second.frameRate)
-                                                                && (quality.bitrate == null || quality.bitrate >= it.second.bitrate))
-                                                                || quality.resolution > it.second.height
+                                                                && (qualityBitrate == null || qualityBitrate >= it.second.bitrate))
+                                                                || qualityResolution > it.second.height
                                                                 || it == list.last()
                                                     }?.first?.let { index ->
                                                         setOverrideForType(TrackSelectionOverride(trackGroup.mediaTrackGroup, index))

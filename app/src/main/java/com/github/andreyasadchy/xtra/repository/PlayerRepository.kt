@@ -1443,15 +1443,16 @@ class PlayerRepository(
     private fun parseFFZEmotes(response: List<FFZResponse.Emote>, useWebp: Boolean, source: Int): List<Emote> {
         return response.mapNotNull { emote ->
             emote.name?.takeIf { it.isNotBlank() }?.let { name ->
-                val isAnimated = emote.animated != null
-                if (isAnimated) {
+                val animated = emote.animated
+                val isAnimated = animated != null
+                if (animated != null) {
                     if (useWebp) {
-                        emote.animated
+                        animated
                     } else {
                         FFZResponse.Urls(
-                            url1x = emote.animated.url1x + ".gif",
-                            url2x = emote.animated.url2x + ".gif",
-                            url4x = emote.animated.url4x + ".gif",
+                            url1x = animated.url1x + ".gif",
+                            url2x = animated.url2x + ".gif",
+                            url4x = animated.url4x + ".gif",
                         )
                     }
                 } else {
@@ -1711,7 +1712,8 @@ class PlayerRepository(
                     val scale2x = config.scales?.find { it.startsWith("2") } ?: scale1x
                     val scale3x = config.scales?.find { it.startsWith("3") } ?: scale2x
                     val scale4x = config.scales?.find { it.startsWith("4") } ?: scale3x
-                    response.data.cheerConfig.groups.map { group ->
+                    val cheerConfig = response.data!!.cheerConfig
+                    cheerConfig.groups.map { group ->
                         group.nodes.map { emote ->
                             emote.tiers.mapNotNull { tier ->
                                 config.colors.find { it.bits == tier.bits }?.let { item ->

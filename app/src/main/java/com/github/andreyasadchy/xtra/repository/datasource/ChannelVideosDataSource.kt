@@ -133,7 +133,8 @@ class ChannelVideosDataSource(
             }
         }
         offset = items.lastOrNull()?.cursor
-        val nextPage = data.videos.pageInfo?.hasNextPage != false
+        val videos = data.videos
+        val nextPage = videos?.pageInfo?.hasNextPage != false
         return LoadResult.Page(
             data = list,
             prevKey = null,

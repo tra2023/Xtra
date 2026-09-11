@@ -176,6 +176,8 @@ class GameClipsDataSource(
             ).data
         }
         val list = response.data.map {
+            val vodOffset = it.vodOffset
+            val duration = it.duration
             val user = it.channelId?.let { id ->
                 users.find { user -> user.id == id }
             }
@@ -194,10 +196,10 @@ class GameClipsDataSource(
                 viewCount = it.viewCount,
                 durationSeconds = it.duration?.toInt(),
                 videoId = it.videoId,
-                videoOffsetSeconds = if (it.vodOffset != null && it.duration != null) {
-                    max(it.vodOffset - it.duration.toInt(), 0)
+                videoOffsetSeconds = if (vodOffset != null && duration != null) {
+                    max(vodOffset - duration.toInt(), 0)
                 } else {
-                    it.vodOffset
+                    vodOffset
                 },
             )
         }

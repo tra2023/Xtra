@@ -266,8 +266,9 @@ class MainViewModel(
                             durationSeconds = clip?.durationSeconds,
                             videoId = clip?.video?.id,
                             videoOffsetSeconds = (clip?.videoOffsetSeconds ?: user?.videoOffsetSeconds).let {
-                                if (it != null && clip?.durationSeconds != null) {
-                                    max(it - clip.durationSeconds, 0)
+                                val clipDurationSeconds = clip?.durationSeconds
+                                if (it != null && clipDurationSeconds != null) {
+                                    max(it - clipDurationSeconds, 0)
                                 } else {
                                     it
                                 }
@@ -292,10 +293,14 @@ class MainViewModel(
                                         viewCount = it.viewCount,
                                         durationSeconds = it.duration?.toInt(),
                                         videoId = it.videoId,
-                                        videoOffsetSeconds = if (it.vodOffset != null && it.duration != null) {
-                                            max(it.vodOffset - it.duration.toInt(), 0)
-                                        } else {
-                                            it.vodOffset
+                                        videoOffsetSeconds = run {
+                                            val vodOffset = it.vodOffset
+                                            val vodDuration = it.duration
+                                            if (vodOffset != null && vodDuration != null) {
+                                                max(vodOffset - vodDuration.toInt(), 0)
+                                            } else {
+                                                vodOffset
+                                            }
                                         },
                                     )
                                 }

@@ -39,6 +39,8 @@ import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.m3u8.MediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
+import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.Segment
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
@@ -341,8 +343,9 @@ class VideoDownloadService : LifecycleService() {
             } else {
                 "$path${File.separator}$fileName"
             }
-            val initSegmentBytes = if (playlist.initSegmentUri != null) {
-                val url = urlPath + playlist.initSegmentUri
+            val playlistInitSegmentUri = playlist.initSegmentUri
+            val initSegmentBytes = if (playlistInitSegmentUri != null) {
+                val url = urlPath + playlistInitSegmentUri
                 when {
                     networkLibrary == C.HTTP_ENGINE && xtraModule.httpEngine.value != null -> @SuppressLint("NewApi") {
                         val response = suspendCancellableCoroutine { continuation ->
@@ -596,13 +599,14 @@ class VideoDownloadService : LifecycleService() {
                 }
                 playlistFileUri
             }
-            if (playlist.initSegmentUri != null) {
+            val downloadPlaylistInitSegmentUri = playlist.initSegmentUri
+            if (downloadPlaylistInitSegmentUri != null) {
                 val initSegmentFileUri = if (isShared) {
-                    videoDirectoryUri + "%2F" + playlist.initSegmentUri
+                    videoDirectoryUri + "%2F" + downloadPlaylistInitSegmentUri
                 } else {
-                    videoDirectoryUri + playlist.initSegmentUri
+                    videoDirectoryUri + downloadPlaylistInitSegmentUri
                 }
-                val url = urlPath + playlist.initSegmentUri
+                val url = urlPath + downloadPlaylistInitSegmentUri
                 when {
                     networkLibrary == C.HTTP_ENGINE && xtraModule.httpEngine.value != null -> @SuppressLint("NewApi") {
                         val response = suspendCancellableCoroutine { continuation ->
@@ -623,7 +627,7 @@ class VideoDownloadService : LifecycleService() {
                             try {
                                 contentResolver.openOutputStream(initSegmentFileUri.toUri())!!
                             } catch (e: IllegalArgumentException) {
-                                DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", playlist.initSegmentUri)
+                                DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", downloadPlaylistInitSegmentUri)
                                 contentResolver.openOutputStream(initSegmentFileUri.toUri())!!
                             }
                         } else {
@@ -651,7 +655,7 @@ class VideoDownloadService : LifecycleService() {
                             try {
                                 contentResolver.openOutputStream(initSegmentFileUri.toUri())!!
                             } catch (e: IllegalArgumentException) {
-                                DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", playlist.initSegmentUri)
+                                DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", downloadPlaylistInitSegmentUri)
                                 contentResolver.openOutputStream(initSegmentFileUri.toUri())!!
                             }
                         } else {
@@ -666,7 +670,7 @@ class VideoDownloadService : LifecycleService() {
                                 try {
                                     contentResolver.openOutputStream(initSegmentFileUri.toUri())!!
                                 } catch (e: IllegalArgumentException) {
-                                    DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", playlist.initSegmentUri)
+                                    DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", downloadPlaylistInitSegmentUri)
                                     contentResolver.openOutputStream(initSegmentFileUri.toUri())!!
                                 }
                             } else {

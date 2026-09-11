@@ -18,6 +18,8 @@ import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
+import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.Segment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -132,8 +134,9 @@ class DownloadsViewModel(
                         DocumentsContract.createDocument(applicationContext.contentResolver, oldDirectoryUri.toUri(), "", videoFileName)
                         true
                     }
-                    if (oldPlaylist.initSegmentUri != null && new) {
-                        val oldFileUri = oldPlaylist.initSegmentUri
+                    val convertInitSegmentUri = oldPlaylist.initSegmentUri
+                    if (convertInitSegmentUri != null && new) {
+                        val oldFileUri = convertInitSegmentUri
                         applicationContext.contentResolver.openOutputStream(newVideoFileUri.toUri(), "wa")!!.use { outputStream ->
                             applicationContext.contentResolver.openInputStream(oldFileUri.toUri())!!.use { inputStream ->
                                 inputStream.copyTo(outputStream)
@@ -201,8 +204,9 @@ class DownloadsViewModel(
                                 val p = PlaylistUtils.parseMediaPlaylist(file.inputStream())
                                 p.segments.forEach { tracksToDelete.remove(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
                             }
-                            if (oldPlaylist.initSegmentUri != null && File(newVideoFileUri).length() == 0L) {
-                                val oldFile = File(oldVideoDirectory.path + File.separator + oldPlaylist.initSegmentUri.substringAfterLast("%2F").substringAfterLast("/"))
+                            val convertFileInitSegmentUri = oldPlaylist.initSegmentUri
+                            if (convertFileInitSegmentUri != null && File(newVideoFileUri).length() == 0L) {
+                                val oldFile = File(oldVideoDirectory.path + File.separator + convertFileInitSegmentUri.substringAfterLast("%2F").substringAfterLast("/"))
                                 if (oldFile.exists()) {
                                     FileOutputStream(newVideoFileUri).use { outputStream ->
                                         oldFile.inputStream().use { inputStream ->
@@ -308,8 +312,9 @@ class DownloadsViewModel(
                                 val p = PlaylistUtils.parseMediaPlaylist(file.inputStream())
                                 p.segments.forEach { tracksToDelete.remove(it.uri.substringAfterLast("%2F").substringAfterLast("/")) }
                             }
-                            if (oldPlaylist.initSegmentUri != null) {
-                                val oldFile = File(oldVideoDirectory.path + File.separator + oldPlaylist.initSegmentUri.substringAfterLast("%2F").substringAfterLast("/"))
+                            val moveSharedInitSegmentUri = oldPlaylist.initSegmentUri
+                            if (moveSharedInitSegmentUri != null) {
+                                val oldFile = File(oldVideoDirectory.path + File.separator + moveSharedInitSegmentUri.substringAfterLast("%2F").substringAfterLast("/"))
                                 if (oldFile.exists()) {
                                     val newFileUri = newVideoDirectoryUri + "%2F" + oldFile.name
                                     try {
@@ -487,8 +492,9 @@ class DownloadsViewModel(
 
                         }
                     }
-                    if (oldPlaylist.initSegmentUri != null) {
-                        val oldFileName = oldPlaylist.initSegmentUri.substringAfterLast("%2F").substringAfterLast("/")
+                    val moveAppInitSegmentUri = oldPlaylist.initSegmentUri
+                    if (moveAppInitSegmentUri != null) {
+                        val oldFileName = moveAppInitSegmentUri.substringAfterLast("%2F").substringAfterLast("/")
                         val oldFileUri = "$oldVideoDirectoryUri%2F$oldFileName"
                         val newFileUri = newVideoDirectoryUri + File.separator + Uri.decode(oldFileName)
                         FileOutputStream(newFileUri).use { outputStream ->

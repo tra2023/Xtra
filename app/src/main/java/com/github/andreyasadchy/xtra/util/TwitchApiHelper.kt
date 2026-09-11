@@ -24,7 +24,6 @@ import java.util.Locale
 
 object TwitchApiHelper {
 
-    private val imageSizeRegex = Regex("-\\d+x\\d+.")
     var checkedValidation = false
     var checkedUpdates = false
     val defaultQualityList = listOf("chunked", "1080p60", "1080p30", "720p60", "720p30", "480p30", "360p30", "160p30", "144p30", "high", "medium", "low", "mobile", "audio_only")
@@ -52,40 +51,15 @@ object TwitchApiHelper {
         "https://d1ndex63qxojbr.cloudfront.net",
     )
 
-    fun getStreamThumbnail(url: String?): String? {
-        return when {
-            url.isNullOrBlank() -> "https://static-cdn.jtvnw.net/ttv-static/404_preview-440x248.jpg"
-            url.contains("{width}x{height}") -> url.replace("{width}", "1280").replace("{height}", "720")
-            else -> url.replace(imageSizeRegex, "-1280x720.")
-        }
-    }
+    fun getStreamThumbnail(url: String?): String? = TwitchImageUrls.getStreamThumbnail(url)
 
-    fun getVideoThumbnail(url: String?): String? {
-        return when {
-            url.isNullOrBlank() || url.startsWith("https://vod-secure.twitch.tv/_404/404_processing") -> {
-                "https://vod-secure.twitch.tv/_404/404_processing_320x180.png"
-            }
-            url.contains("{width}x{height}") -> url.replace("{width}", "1280").replace("{height}", "720")
-            url.contains("%{width}x%{height}") -> url.replace("%{width}", "1280").replace("%{height}", "720")
-            else -> url.replace(imageSizeRegex, "-1280x720.")
-        }
-    }
+    fun getVideoThumbnail(url: String?): String? = TwitchImageUrls.getVideoThumbnail(url)
 
-    fun getClipThumbnail(url: String?): String? {
-        return url?.replace(imageSizeRegex, "-1280x720.")
-    }
+    fun getClipThumbnail(url: String?): String? = TwitchImageUrls.getClipThumbnail(url)
 
-    fun getGameBoxArt(url: String?): String? {
-        return when {
-            url.isNullOrBlank() -> "https://static-cdn.jtvnw.net/ttv-static/404_boxart.jpg"
-            url.contains("{width}x{height}") -> url.replace("{width}", "285").replace("{height}", "380")
-            else -> url.replace(imageSizeRegex, "-285x380.")
-        }
-    }
+    fun getGameBoxArt(url: String?): String? = TwitchImageUrls.getGameBoxArt(url)
 
-    fun getProfileImage(url: String?): String? {
-        return url?.replace(imageSizeRegex, "-300x300.")
-    }
+    fun getProfileImage(url: String?): String? = TwitchImageUrls.getProfileImage(url)
 
     fun getType(context: Context, type: String?): String? {
         return when (type?.lowercase()) {
@@ -96,12 +70,7 @@ object TwitchApiHelper {
         }
     }
 
-    fun getDuration(duration: String): Int {
-        val h = duration.substringBefore("h", "0").takeLastWhile { it.isDigit() }.toIntOrNull() ?: 0
-        val m = duration.substringBefore("m", "0").takeLastWhile { it.isDigit() }.toIntOrNull() ?: 0
-        val s = duration.substringBefore("s", "0").takeLastWhile { it.isDigit() }.toIntOrNull() ?: 0
-        return (h * 3600) + (m * 60) + s
-    }
+    fun getDuration(duration: String): Int = TwitchImageUrls.getDuration(duration)
 
     fun getDurationFromSeconds(context: Context, input: String?): String? {
         return input?.toIntOrNull()?.let { duration ->
@@ -242,8 +211,8 @@ object TwitchApiHelper {
         }
     }
 
-    fun addTokenPrefixGQL(token: String) = "OAuth $token"
-    fun addTokenPrefixHelix(token: String) = "Bearer $token"
+    fun addTokenPrefixGQL(token: String) = TwitchImageUrls.addTokenPrefixGQL(token)
+    fun addTokenPrefixHelix(token: String) = TwitchImageUrls.addTokenPrefixHelix(token)
 
     fun getGQLHeaders(context: Context, includeToken: Boolean = false): Map<String, String> {
         return mutableMapOf<String, String>().apply {

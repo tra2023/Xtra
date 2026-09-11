@@ -83,8 +83,9 @@ class ChatReplayManagerLocal(
                     liveMessages?.let { messages ->
                         liveList.addAll(
                             messages.filter { message ->
-                                val messageOffset = if (createdAt != null && message.timestamp != null) {
-                                    message.timestamp - createdAt
+                                val messageTimestamp = message.timestamp
+                                val messageOffset = if (createdAt != null && messageTimestamp != null) {
+                                    messageTimestamp - createdAt
                                 } else {
                                     null
                                 }
@@ -96,8 +97,9 @@ class ChatReplayManagerLocal(
                     messages?.let { messages ->
                         list.addAll(
                             messages.filter { message ->
-                                val messageOffset = if (createdAt != null && !message.createdAt.isNullOrBlank()) {
-                                    Instant.parseOrNull(message.createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.minus(createdAt)
+                                val messageCreatedAt = message.createdAt
+                                val messageOffset = if (createdAt != null && !messageCreatedAt.isNullOrBlank()) {
+                                    Instant.parseOrNull(messageCreatedAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.minus(createdAt)
                                 } else {
                                     null
                                 } ?: message.offsetSeconds?.times(1000L)
@@ -119,8 +121,9 @@ class ChatReplayManagerLocal(
             while (isActive) {
                 if (!liveMessages.isNullOrEmpty()) {
                     val message = liveList.firstOrNull() ?: break
-                    val messageOffset = if (createdAt != null && message.timestamp != null) {
-                        message.timestamp - createdAt
+                    val messageTimestamp = message.timestamp
+                    val messageOffset = if (createdAt != null && messageTimestamp != null) {
+                        messageTimestamp - createdAt
                     } else {
                         null
                     }
@@ -147,8 +150,9 @@ class ChatReplayManagerLocal(
                     liveList.remove(message)
                 } else {
                     val message = list.firstOrNull() ?: break
-                    val messageOffset = if (createdAt != null && !message.createdAt.isNullOrBlank()) {
-                        Instant.parseOrNull(message.createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.minus(createdAt)
+                    val messageCreatedAt = message.createdAt
+                    val messageOffset = if (createdAt != null && !messageCreatedAt.isNullOrBlank()) {
+                        Instant.parseOrNull(messageCreatedAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.minus(createdAt)
                     } else {
                         null
                     } ?: message.offsetSeconds?.times(1000L)

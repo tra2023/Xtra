@@ -184,10 +184,11 @@ abstract class BasePlaybackService : LifecycleService() {
             val targetFps = targetQuality.getOrNull(1)?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 30
             val last = qualities?.lastOrNull { it.name != VideoQuality.AUDIO_ONLY_QUALITY && it.name != VideoQuality.CHAT_ONLY_QUALITY }
             qualities?.find { quality ->
-                quality.resolution != null
-                        && ((targetResolution == quality.resolution
+                val qualityResolution = quality.resolution
+                qualityResolution != null
+                        && ((targetResolution == qualityResolution
                         && targetFps >= (quality.frameRate?.let { fps -> floor(fps) } ?: 30f))
-                        || targetResolution > quality.resolution
+                        || targetResolution > qualityResolution
                         || quality == last)
             }
         }

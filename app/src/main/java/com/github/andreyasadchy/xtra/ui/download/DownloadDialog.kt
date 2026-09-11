@@ -344,15 +344,16 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
             }
             val qualityMap = mutableListOf<Pair<String?, VideoQuality>>()
             qualities.forEach { quality ->
-                val name = when (quality.name) {
+                val qualityNameProp = quality.name
+                val name = when (qualityNameProp) {
                     VideoQuality.SOURCE_QUALITY -> getString(R.string.source)
                     VideoQuality.AUDIO_ONLY_QUALITY -> getString(R.string.audio_only)
                     else -> {
-                        val frameRate = quality.name?.substringAfter("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                        val qualityName = if (frameRate != null && frameRate <= 30) {
-                            quality.name.substring(0, quality.name.indexOf('p') + 1)
+                        val frameRate = qualityNameProp?.substringAfter("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
+                        val qualityName = if (qualityNameProp != null && frameRate != null && frameRate <= 30) {
+                            qualityNameProp.substring(0, qualityNameProp.indexOf('p') + 1)
                         } else {
-                            quality.name.toString()
+                            qualityNameProp.toString()
                         }
                         if (hideCodecs) {
                             qualityName
@@ -505,7 +506,9 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     )?.second
                     else -> null
                 }
-                if (quality?.name != null && quality.url != null && !path.isNullOrBlank()) {
+                val qualityName = quality?.name
+                val qualityUrl = quality?.url
+                if (qualityName != null && qualityUrl != null && !path.isNullOrBlank()) {
                     val downloadChat = downloadChat.isChecked
                     val downloadChatEmotes = downloadChatEmotes.isChecked
                     when (type) {
@@ -524,7 +527,7 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                                 gameSlug = requireArguments().getString(KEY_GAME_SLUG),
                                 gameName = requireArguments().getString(KEY_GAME_NAME),
                                 downloadPath = path,
-                                quality = quality.name,
+                                quality = qualityName,
                                 downloadChat = downloadChat,
                                 downloadChatEmotes = downloadChatEmotes,
                                 wifiOnly = requireContext().prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)
@@ -570,9 +573,9 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                                         gameId = requireArguments().getString(KEY_GAME_ID),
                                         gameSlug = requireArguments().getString(KEY_GAME_SLUG),
                                         gameName = requireArguments().getString(KEY_GAME_NAME),
-                                        url = quality.url,
+                                        url = qualityUrl,
                                         downloadPath = path,
-                                        quality = quality.name,
+                                        quality = qualityName,
                                         from = from,
                                         to = to,
                                         downloadChat = downloadChat,
@@ -611,9 +614,9 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                                 gameId = requireArguments().getString(KEY_GAME_ID),
                                 gameSlug = requireArguments().getString(KEY_GAME_SLUG),
                                 gameName = requireArguments().getString(KEY_GAME_NAME),
-                                url = quality.url,
+                                url = qualityUrl,
                                 downloadPath = path,
-                                quality = quality.name,
+                                quality = qualityName,
                                 downloadChat = downloadChat,
                                 downloadChatEmotes = downloadChatEmotes,
                                 wifiOnly = requireContext().prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)

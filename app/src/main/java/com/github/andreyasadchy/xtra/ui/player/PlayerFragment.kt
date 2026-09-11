@@ -1325,17 +1325,18 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 codec == "avc1" || codec == "mp4a" || codec.isNullOrBlank()
             }
             qualities.map { quality ->
-                when (quality.name) {
+                val qualityNameProp = quality.name
+                when (qualityNameProp) {
                     VideoQuality.AUTO_QUALITY -> getString(R.string.auto)
                     VideoQuality.SOURCE_QUALITY -> getString(R.string.source)
                     VideoQuality.AUDIO_ONLY_QUALITY -> getString(R.string.audio_only)
                     VideoQuality.CHAT_ONLY_QUALITY -> getString(R.string.chat_only)
                     else -> {
-                        val frameRate = quality.name?.substringAfter("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                        val qualityName = if (frameRate != null && frameRate <= 30) {
-                            quality.name.substring(0, quality.name.indexOf('p') + 1)
+                        val frameRate = qualityNameProp?.substringAfter("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
+                        val qualityName = if (qualityNameProp != null && frameRate != null && frameRate <= 30) {
+                            qualityNameProp.substring(0, qualityNameProp.indexOf('p') + 1)
                         } else {
-                            quality.name.toString()
+                            qualityNameProp.toString()
                         }
                         if (hideCodecs) {
                             qualityName

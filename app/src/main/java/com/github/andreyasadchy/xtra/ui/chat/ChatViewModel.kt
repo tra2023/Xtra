@@ -1234,7 +1234,8 @@ class ChatViewModel(
                         replyParent = chatMessage,
                     ))
                 }
-                if (usePubSub && chatMessage.reward != null && !chatMessage.reward.id.isNullOrBlank()) {
+                val reward = chatMessage.reward
+                if (usePubSub && reward != null && !reward.id.isNullOrBlank()) {
                     onRewardMessage(chatMessage, networkLibrary, isLoggedIn, accountId, channelId)
                 } else {
                     onChatMessage(chatMessage, networkLibrary, isLoggedIn, accountId, channelId)
@@ -1360,7 +1361,8 @@ class ChatViewModel(
 
         override suspend fun onChatMessage(event: JSONObject, timestamp: String?) {
             val chatMessage = EventSubUtils.parseChatMessage(event, timestamp)
-            if (usePubSub && chatMessage.reward != null && !chatMessage.reward.id.isNullOrBlank()) {
+            val reward = chatMessage.reward
+            if (usePubSub && reward != null && !reward.id.isNullOrBlank()) {
                 onRewardMessage(chatMessage, networkLibrary, isLoggedIn, accountId, channelId)
             } else {
                 onChatMessage(chatMessage, networkLibrary, isLoggedIn, accountId, channelId)
@@ -1534,8 +1536,9 @@ class ChatViewModel(
                         usedPollId = it.id
                         pollClosed = false
                         pollTimeoutJob?.cancel()
-                        if (it.remainingMilliseconds != null) {
-                            val secondsLeft = it.remainingMilliseconds / 1000
+                        val remainingMilliseconds = it.remainingMilliseconds
+                        if (remainingMilliseconds != null) {
+                            val secondsLeft = remainingMilliseconds / 1000
                             if (secondsLeft > 0) {
                                 pollSecondsLeft.value = secondsLeft
                                 pollTimer?.cancel()
@@ -1569,8 +1572,10 @@ class ChatViewModel(
                         usedPredictionId = it.id
                         predictionClosed = false
                         predictionTimeoutJob?.cancel()
-                        if (it.createdAt != null && it.predictionWindowSeconds != null) {
-                            val secondsLeft = ((((it.createdAt + (it.predictionWindowSeconds * 1000)) - System.currentTimeMillis())) / 1000).toInt()
+                        val createdAt = it.createdAt
+                        val predictionWindowSeconds = it.predictionWindowSeconds
+                        if (createdAt != null && predictionWindowSeconds != null) {
+                            val secondsLeft = ((((createdAt + (predictionWindowSeconds * 1000)) - System.currentTimeMillis())) / 1000).toInt()
                             if (secondsLeft > 0) {
                                 predictionSecondsLeft.value = secondsLeft
                                 predictionTimer?.cancel()
@@ -1822,9 +1827,10 @@ class ChatViewModel(
     }
 
     private suspend fun onRewardMessage(message: ChatMessage, networkLibrary: String?, isLoggedIn: Boolean, accountId: String?, channelId: String?) {
-        if (message.reward?.id != null) {
+        val messageReward = message.reward
+        if (messageReward?.id != null) {
             synchronized(rewardList) {
-                val item = rewardList.find { it.reward?.id == message.reward.id && it.userId == message.userId }
+                val item = rewardList.find { it.reward?.id == messageReward.id && it.userId == message.userId }
                 if (item != null) {
                     rewardList.remove(item)
                     item
@@ -1850,12 +1856,12 @@ class ChatViewModel(
                         systemMsg = message.systemMsg ?: item.systemMsg,
                         msgId = message.msgId ?: item.msgId,
                         reward = ChannelPointReward(
-                            id = message.reward.id,
-                            title = message.reward.title ?: item.reward?.title,
-                            cost = message.reward.cost ?: item.reward?.cost,
-                            url1x = message.reward.url1x ?: item.reward?.url1x,
-                            url2x = message.reward.url2x ?: item.reward?.url2x,
-                            url4x = message.reward.url4x ?: item.reward?.url4x,
+                            id = messageReward.id,
+                            title = messageReward.title ?: item.reward?.title,
+                            cost = messageReward.cost ?: item.reward?.cost,
+                            url1x = messageReward.url1x ?: item.reward?.url1x,
+                            url2x = messageReward.url2x ?: item.reward?.url2x,
+                            url4x = messageReward.url4x ?: item.reward?.url4x,
                         ),
                         timestamp = message.timestamp ?: item.timestamp,
                         fullMsg = message.fullMsg ?: item.fullMsg,
