@@ -59,13 +59,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import okhttp3.Credentials
 import okhttp3.Request
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.net.InetSocketAddress
-import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.floor
@@ -199,28 +196,13 @@ class StreamDownloadService : LifecycleService() {
         val platform = prefs().getString(C.TOKEN_PLATFORM, "web")
         val playerType = prefs().getString(C.TOKEN_PLAYER_TYPE, "site")
         val supportedCodecs = prefs().getString(C.TOKEN_SUPPORTED_CODECS, "av1,h265,h264")
-        val useCustomProxy = prefs().getBoolean(C.PLAYER_USE_CUSTOM_PROXY, true)
-        val customProxyList = if (useCustomProxy) {
-            xtraModule.playerRepository.getCustomProxies().filter {
-                it.enabled && !it.url.isNullOrBlank()
-            }.sortedBy { it.position }
-        } else null
-        var currentCustomProxy = 0
-        val useStreamProxy = prefs().getBoolean(C.PLAYER_USE_STREAM_PROXY, false)
-        val streamProxyList = if (useStreamProxy) {
-            xtraModule.playerRepository.getStreamProxies().filter {
-                it.enabled && !it.host.isNullOrBlank() && it.port != null
-                        && (it.proxyPlaybackAccessToken || it.proxyMultivariantPlaylist)
-            }.sortedBy { it.position }
-        } else null
-        var currentStreamProxy = 0
         var offlineVideo = currentOfflineVideo
         var downloadProgress = currentDownloadProgress
         val path = offlineVideo.downloadPath!!
         val quality = offlineVideo.quality
         var startTime = System.currentTimeMillis()
         var endTime = startWait?.let { System.currentTimeMillis() + it }
-        var playlistUrl = xtraModule.playerRepository.loadStreamPlaylistUrl(gqlHeaders, channelLogin, platform, playerType, supportedCodecs, false, null, null, null, null, false)
+        var playlistUrl = xtraModule.playerRepository.loadStreamPlaylistUrl(gqlHeaders, channelLogin, platform, playerType, supportedCodecs, false)
         while (true) {
             val playlist = okHttpClient.value.newCall(Request.Builder().url(playlistUrl).build()).executeAsync().use { response ->
                         if (response.isSuccessful) {
@@ -228,138 +210,7 @@ class StreamDownloadService : LifecycleService() {
                         } else null
                     }
             if (!playlist.isNullOrBlank()) {
-                var proxyUrl = if (useCustomProxy) {
-                    customProxyList?.getOrNull(currentCustomProxy)?.let { proxy ->
-                        proxy.url?.let { proxyUrl ->
-                            (proxyUrl.toUri().takeIf { it.host != null } ?: "https://$proxyUrl".toUri()).let { uri ->
-                                if (proxy.addQueryParams) {
-                                    val source = uri.getQueryParameter("allow_source") == null
-                                    val audio = uri.getQueryParameter("allow_audio_only") == null
-                                    val lowLatency = uri.getQueryParameter("fast_bread") == null
-                                    if (source || audio || lowLatency) {
-                                        uri.buildUpon().apply {
-                                            if (source) {
-                                                appendQueryParameter("allow_source", "true")
-                                            }
-                                            if (audio) {
-                                                appendQueryParameter("allow_audio_only", "true")
-                                            }
-                                            if (lowLatency) {
-                                                appendQueryParameter("fast_bread", "true")
-                                            }
-                                        }.build()
-                                    } else uri
-                                } else uri
-                            }.toString().replace("\$channel", channelLogin)
-                        }
-                    }
-                } else null
-                val qualities = if (proxyUrl != null) {
-                    var result: List<VideoQuality>
-                    while (true) {
-                        val newPlaylist = loadPlaylist(proxyUrl!!, false, null, null, null, null)
-                        if (!newPlaylist.isNullOrBlank()) {
-                            result = getQualities(newPlaylist).ifEmpty { getQualities(playlist) }
-                            break
-                        } else {
-                            currentCustomProxy += 1
-                            proxyUrl = customProxyList?.getOrNull(currentCustomProxy)?.let { proxy ->
-                                proxy.url?.let { proxyUrl ->
-                                    (proxyUrl.toUri().takeIf { it.host != null } ?: "https://$proxyUrl".toUri()).let { uri ->
-                                        if (proxy.addQueryParams) {
-                                            val source = uri.getQueryParameter("allow_source") == null
-                                            val audio = uri.getQueryParameter("allow_audio_only") == null
-                                            val lowLatency = uri.getQueryParameter("fast_bread") == null
-                                            if (source || audio || lowLatency) {
-                                                uri.buildUpon().apply {
-                                                    if (source) {
-                                                        appendQueryParameter("allow_source", "true")
-                                                    }
-                                                    if (audio) {
-                                                        appendQueryParameter("allow_audio_only", "true")
-                                                    }
-                                                    if (lowLatency) {
-                                                        appendQueryParameter("fast_bread", "true")
-                                                    }
-                                                }.build()
-                                            } else uri
-                                        } else uri
-                                    }.toString().replace("\$channel", channelLogin)
-                                }
-                            }
-                            if (proxyUrl == null) {
-                                result = getQualities(playlist)
-                                break
-                            }
-                        }
-                    }
-                    result
-                } else {
-                    var streamProxy = if (useStreamProxy) {
-                        streamProxyList?.getOrNull(currentStreamProxy)
-                    } else null
-                    if (streamProxy != null) {
-                        val proxyHost = streamProxy.host
-                        val proxyPort = streamProxy.port
-                        val proxyUser = streamProxy.username
-                        val proxyPassword = streamProxy.password
-                        val playlistUrl = if (streamProxy.proxyPlaybackAccessToken) {
-                            var result: String
-                            while (true) {
-                                val newPlaylistUrl = try {
-                                    xtraModule.playerRepository.loadStreamPlaylistUrl(gqlHeaders, channelLogin, platform, playerType, supportedCodecs, true, proxyHost, proxyPort, proxyUser, proxyPassword, false)
-                                } catch (e: Exception) {
-                                    null
-                                }
-                                if (!newPlaylistUrl.isNullOrBlank()) {
-                                    result = newPlaylistUrl
-                                    break
-                                } else {
-                                    currentStreamProxy += 1
-                                    streamProxy = streamProxyList?.getOrNull(currentStreamProxy)
-                                    if (streamProxy == null || !streamProxy.proxyPlaybackAccessToken) {
-                                        result = playlistUrl
-                                        break
-                                    }
-                                }
-                            }
-                            result
-                        } else {
-                            playlistUrl
-                        }
-                        if (streamProxy != null) {
-                            if (streamProxy.proxyMultivariantPlaylist) {
-                                var result: List<VideoQuality>
-                                while (true) {
-                                    val newPlaylist = loadPlaylist(playlistUrl, true, proxyHost, proxyPort, proxyUser, proxyPassword)
-                                    if (!newPlaylist.isNullOrBlank()) {
-                                        result = getQualities(newPlaylist).ifEmpty { getQualities(playlist) }
-                                        break
-                                    } else {
-                                        currentStreamProxy += 1
-                                        streamProxy = streamProxyList?.getOrNull(currentStreamProxy)
-                                        if (streamProxy == null || !streamProxy.proxyMultivariantPlaylist) {
-                                            result = getQualities(playlist)
-                                            break
-                                        }
-                                    }
-                                }
-                                result
-                            } else {
-                                val newPlaylist = loadPlaylist(playlistUrl, false, null, null, null, null)
-                                if (!newPlaylist.isNullOrBlank()) {
-                                    getQualities(newPlaylist).ifEmpty { getQualities(playlist) }
-                                } else {
-                                    getQualities(playlist)
-                                }
-                            }
-                        } else {
-                            getQualities(playlist)
-                        }
-                    } else {
-                        getQualities(playlist)
-                    }
-                }
+                val qualities = getQualities(playlist)
                 if (qualities.isNotEmpty()) {
                     val selectedQuality = if (!quality.isNullOrBlank()) {
                         val audio = if (quality.startsWith("audio", true)) {
@@ -483,7 +334,7 @@ class StreamDownloadService : LifecycleService() {
                     }
                     endTime = endWait?.let { System.currentTimeMillis() + it }
                     if (continueDownloading) {
-                        playlistUrl = xtraModule.playerRepository.loadStreamPlaylistUrl(gqlHeaders, channelLogin, platform, playerType, supportedCodecs, false, null, null, null, null, false)
+                        playlistUrl = xtraModule.playerRepository.loadStreamPlaylistUrl(gqlHeaders, channelLogin, platform, playerType, supportedCodecs, false)
                     }
                 }
             }
@@ -500,26 +351,13 @@ class StreamDownloadService : LifecycleService() {
         }
     }
 
-    private suspend fun loadPlaylist(playlistUrl: String, useProxy: Boolean, proxyHost: String?, proxyPort: Int?, proxyUser: String?, proxyPassword: String?): String? = withContext(Dispatchers.IO) {
-        val useProxy = useProxy && !proxyHost.isNullOrBlank() && proxyPort != null
+    private suspend fun loadPlaylist(playlistUrl: String): String? = withContext(Dispatchers.IO) {
         try {
-            val okHttpClient = if (useProxy) {
-                        okHttpClient.value.newBuilder().apply {
-                            proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
-                            if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                proxyAuthenticator { _, response ->
-                                    response.request.newBuilder().header("Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)).build()
-                                }
-                            }
-                        }.build()
-                    } else {
-                        okHttpClient.value
-                    }
-                    okHttpClient.newCall(Request.Builder().url(playlistUrl).build()).executeAsync().use { response ->
-                        if (response.isSuccessful) {
-                            response.body.string()
-                        } else null
-                    }
+            okHttpClient.value.newCall(Request.Builder().url(playlistUrl).build()).executeAsync().use { response ->
+                if (response.isSuccessful) {
+                    response.body.string()
+                } else null
+            }
         } catch (e: Exception) {
             null
         }

@@ -1217,14 +1217,6 @@ class MainActivity : AppCompatActivity() {
                 putInt(C.SETTINGS_VERSION, 4)
             }
         }
-        if (version < 5) {
-            prefs.edit {
-                if (prefs.getString(C.PLAYER_PROXY, "1")?.toIntOrNull() == 0) {
-                    putBoolean(C.PLAYER_STREAM_PROXY, true)
-                }
-                putInt(C.SETTINGS_VERSION, 5)
-            }
-        }
         if (version < 6) {
             prefs.edit {
                 when {
@@ -1336,35 +1328,6 @@ class MainActivity : AppCompatActivity() {
                     putString(C.PLAYER_FORWARD, (it / 1000).toString())
                 }
                 putInt(C.SETTINGS_VERSION, 13)
-            }
-        }
-        if (version < 14) {
-            viewModel.updateProxies(prefs.getString(C.PLAYER_PROXY_URL, null))
-            prefs.edit {
-                putInt(C.SETTINGS_VERSION, 14)
-            }
-        }
-        if (version < 15) {
-            val oldProxy = prefs.getString(C.PLAYER_PROXY_URL, null)
-            if (!oldProxy.isNullOrBlank() && oldProxy.toUri().host == "api.ttv.lol") {
-                viewModel.deleteOldProxy()
-            }
-            prefs.edit {
-                putInt(C.SETTINGS_VERSION, 15)
-            }
-        }
-        if (version < 16) {
-            viewModel.updateStreamProxies(
-                prefs.getString(C.PROXY_HOST, null),
-                prefs.getString(C.PROXY_PORT, null)?.toIntOrNull(),
-                prefs.getString(C.PROXY_USER, null),
-                prefs.getString(C.PROXY_PASSWORD, null),
-                prefs.getBoolean(C.PROXY_PLAYBACK_ACCESS_TOKEN, false),
-                prefs.getBoolean(C.PROXY_MULTIVARIANT_PLAYLIST, false),
-                prefs.getBoolean(C.PROXY_MEDIA_PLAYLIST, true),
-            )
-            prefs.edit {
-                putInt(C.SETTINGS_VERSION, 16)
             }
         }
         if (version < 17) {

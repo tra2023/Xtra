@@ -50,10 +50,6 @@ abstract class BasePlaybackService : LifecycleService() {
     var restoreQuality = false
     var playlistUrl: String? = null
     var restorePlaylist = false
-    var useCustomProxy = false
-    var currentCustomProxy = 0
-    var useStreamProxy = false
-    var currentStreamProxy = 0
     var skipAccessToken = false
 
     var chatUrl: String? = null
@@ -97,10 +93,6 @@ abstract class BasePlaybackService : LifecycleService() {
             restoreQuality = savedState.restoreQuality
             playlistUrl = savedState.playlistUrl
             restorePlaylist = savedState.restorePlaylist
-            useCustomProxy = savedState.useCustomProxy
-            currentCustomProxy = savedState.currentCustomProxy
-            useStreamProxy = savedState.useStreamProxy
-            currentStreamProxy = savedState.currentStreamProxy
             skipAccessToken = savedState.skipAccessToken
         }
     }
@@ -142,10 +134,6 @@ abstract class BasePlaybackService : LifecycleService() {
             restoreQuality = restoreQuality,
             playlistUrl = playlistUrl,
             restorePlaylist = restorePlaylist,
-            useCustomProxy = useCustomProxy,
-            currentCustomProxy = currentCustomProxy,
-            useStreamProxy = useStreamProxy,
-            currentStreamProxy = currentStreamProxy,
             skipAccessToken = skipAccessToken,
         )
         xtraModule.playerRepository.savePlaybackStates(listOf(item))

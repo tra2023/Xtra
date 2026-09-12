@@ -117,7 +117,7 @@ class XtraModule(application: Application) {
     }
 
     val playerRepository by lazy {
-        PlayerRepository(okHttpClient, json, database.recentEmotes(), database.translatedChannels(), database.customProxies(), database.streamProxies(), database.videoSwap(), database.videoPositions(), database.playbackStates(), graphQLRepository, helixRepository)
+        PlayerRepository(okHttpClient, json, database.recentEmotes(), database.translatedChannels(), database.videoSwap(), database.videoPositions(), database.playbackStates(), graphQLRepository, helixRepository)
     }
 
     val recentSearchesRepository by lazy {

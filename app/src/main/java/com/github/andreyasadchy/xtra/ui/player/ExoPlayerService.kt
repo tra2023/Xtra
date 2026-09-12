@@ -43,7 +43,6 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
-import androidx.media3.datasource.DataSourceException
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -56,8 +55,6 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.VideoPosition
 import com.github.andreyasadchy.xtra.model.VideoQuality
-import com.github.andreyasadchy.xtra.model.ui.CustomProxy
-import com.github.andreyasadchy.xtra.model.ui.StreamProxy
 import com.github.andreyasadchy.xtra.model.ui.Video
 import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.player.lowlatency.OkHttpDataSource
@@ -67,8 +64,6 @@ import com.github.andreyasadchy.xtra.util.MediaButtonReceiver
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
-import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
-import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -76,17 +71,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import okhttp3.Credentials
 import okhttp3.Request
 import java.io.FileInputStream
-import java.io.IOException
-import java.net.InetSocketAddress
-import java.net.Proxy
-import java.net.ProxySelector
-import java.net.SocketAddress
-import java.net.URI
 import java.util.Timer
-import java.util.concurrent.TimeUnit
 import kotlin.concurrent.schedule
 import kotlin.concurrent.scheduleAtFixedRate
 import kotlin.math.floor
@@ -112,16 +99,12 @@ class ExoPlayerService : BasePlaybackService() {
     private var savePositionTimer: Timer? = null
     private var stopServiceTimer: Timer? = null
 
-    private var customProxyList: List<CustomProxy>? = null
-    private var streamProxyList: List<StreamProxy>? = null
     private var videoSwapList: List<VideoSwap>? = null
     private var currentVideoSwapItem = 0
     private var videoSwapPreviousQuality: String? = null
     private var useVideoSwap = false
     private var playingAds = false
-    private var proxyMediaPlaylist = false
     private var checkPlaylistJob: Job? = null
-    private var stopProxy = false
     private var videoSwapActive = false
     private var videoSwapLoading = false
     private var stopVideoSwap = false
@@ -231,10 +214,9 @@ class ExoPlayerService : BasePlaybackService() {
                         }
                     }
                     if (type == STREAM) {
-                        val useProxy = useStreamProxy && !stopProxy && streamProxyList?.getOrNull(currentStreamProxy)?.proxyMediaPlaylist == true
                         val useVideoSwap = useVideoSwap && !stopVideoSwap
                         val hideAds = prefs().getBoolean(C.PLAYER_HIDE_ADS, false)
-                        if (useProxy || useVideoSwap || hideAds) {
+                        if (useVideoSwap || hideAds) {
                             val playlist = (player?.currentManifest as? HlsManifest)?.mediaPlaylist
                             val ads = playlist?.segments?.lastOrNull()?.let { segment ->
                                 segment.title == "Amazon"
@@ -261,14 +243,6 @@ class ExoPlayerService : BasePlaybackService() {
                             playingAds = ads
                             if (ads) {
                                 when {
-                                    proxyMediaPlaylist -> {
-                                        if (!stopProxy) {
-                                            proxyMediaPlaylist = false
-                                            stopProxy = true
-                                            checkPlaylistJob?.cancel()
-                                            checkPlaylistJob = null
-                                        }
-                                    }
                                     videoSwapActive -> {
                                         if (!videoSwapLoading) {
                                             videoSwapLoading = true
@@ -307,20 +281,6 @@ class ExoPlayerService : BasePlaybackService() {
                                         if (!oldValue) {
                                             val playlist = quality?.url
                                             when {
-                                                useProxy && !playlist.isNullOrBlank() -> {
-                                                    proxyMediaPlaylist = true
-                                                    checkPlaylistJob?.cancel()
-                                                    checkPlaylistJob = lifecycleScope.launch {
-                                                        for (i in 0 until 60) {
-                                                            delay(2.seconds)
-                                                            if (!checkPlaylist(playlist)) {
-                                                                break
-                                                            }
-                                                        }
-                                                        proxyMediaPlaylist = false
-                                                        checkPlaylistJob = null
-                                                    }
-                                                }
                                                 useVideoSwap && !playlist.isNullOrBlank() -> {
                                                     if (!videoSwapLoading) {
                                                         videoSwapLoading = true
@@ -388,10 +348,6 @@ class ExoPlayerService : BasePlaybackService() {
                     when (type) {
                         STREAM -> {
                             val responseCode = (player?.playerError?.cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
-                            val timeout = (player?.playerError?.cause as? DataSourceException)?.reason?.let {
-                                it == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
-                                        || it == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
-                            } == true
                             val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
                             val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
                             val isNetworkAvailable = networkCapabilities != null
@@ -401,33 +357,6 @@ class ExoPlayerService : BasePlaybackService() {
                                 when {
                                     responseCode == 404 -> {
                                         serviceListener?.toast(R.string.stream_ended, Toast.LENGTH_LONG)
-                                    }
-                                    useCustomProxy && (responseCode >= 400 || timeout) -> {
-                                        val host = customProxyList?.getOrNull(currentCustomProxy)?.url?.let {
-                                            it.toUri().host ?: "https://$it".toUri().host
-                                        }
-                                        currentCustomProxy += 1
-                                        if (host != null) {
-                                            serviceListener?.toast(getString(R.string.proxy_error, host), Toast.LENGTH_LONG)
-                                        }
-                                        lifecycleScope.launch {
-                                            delay(1500.milliseconds)
-                                            restartPlayer()
-                                        }
-                                    }
-                                    useStreamProxy && (responseCode >= 400 || timeout) -> {
-                                        val host = streamProxyList?.getOrNull(currentStreamProxy)?.host
-                                        currentStreamProxy += 1
-                                        stopProxy = false
-                                        checkPlaylistJob?.cancel()
-                                        checkPlaylistJob = null
-                                        if (host != null) {
-                                            serviceListener?.toast(getString(R.string.proxy_error, host), Toast.LENGTH_LONG)
-                                        }
-                                        lifecycleScope.launch {
-                                            delay(1500.milliseconds)
-                                            restartPlayer()
-                                        }
                                     }
                                     else -> {
                                         serviceListener?.toast(R.string.player_error, Toast.LENGTH_SHORT)
@@ -646,24 +575,7 @@ class ExoPlayerService : BasePlaybackService() {
                 STREAM -> {
                     started = true
                     serviceListener?.started()
-                    if (qualities.isNullOrEmpty()) {
-                        useCustomProxy = prefs().getBoolean(C.PLAYER_USE_CUSTOM_PROXY, true)
-                        if (!useCustomProxy) {
-                            useStreamProxy = prefs().getBoolean(C.PLAYER_USE_STREAM_PROXY, false)
-                        }
-                    }
-                    if (useCustomProxy) {
-                        customProxyList = xtraModule.playerRepository.getCustomProxies().filter {
-                            it.enabled && !it.url.isNullOrBlank()
-                        }.sortedBy { it.position }
-                    }
-                    if (useStreamProxy) {
-                        streamProxyList = xtraModule.playerRepository.getStreamProxies().filter {
-                            it.enabled && !it.host.isNullOrBlank() && it.port != null
-                                    && (it.proxyPlaybackAccessToken || it.proxyMultivariantPlaylist || it.proxyMediaPlaylist)
-                        }.sortedBy { it.position }
-                    }
-                    useVideoSwap = !useCustomProxy && !useStreamProxy && prefs().getBoolean(C.PLAYER_USE_VIDEO_SWAP, false)
+                    useVideoSwap = prefs().getBoolean(C.PLAYER_USE_VIDEO_SWAP, false)
                     if (useVideoSwap) {
                         videoSwapList = xtraModule.playerRepository.getVideoSwapItems().filter {
                             it.enabled && !it.platform.isNullOrBlank() && !it.playerType.isNullOrBlank()
@@ -705,7 +617,7 @@ class ExoPlayerService : BasePlaybackService() {
                                         HlsMediaSource.Factory(
                                             DefaultDataSource.Factory(
                                                 this@ExoPlayerService,
-                                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value, null, null, null, null) { false }
+                                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value)
                                             )
                                         ).createMediaSource(
                                             MediaItem.fromUri(url)
@@ -772,177 +684,24 @@ class ExoPlayerService : BasePlaybackService() {
 
     private suspend fun loadStream(restorePauseState: Boolean = false, restart: Boolean = false) {
         channelLogin?.let { channelLogin ->
-            var streamProxy = if (useStreamProxy) {
-                streamProxyList?.getOrNull(currentStreamProxy).also {
-                    if (it == null) {
-                        useStreamProxy = false
-                    }
-                }
-            } else null
             if (restart || qualities.isNullOrEmpty()) {
-                val proxyUrl = if (useCustomProxy) {
-                    customProxyList?.getOrNull(currentCustomProxy)?.let { proxy ->
-                        proxy.url?.let { proxyUrl ->
-                            (proxyUrl.toUri().takeIf { it.host != null } ?: "https://$proxyUrl".toUri()).let { uri ->
-                                if (proxy.addQueryParams) {
-                                    val source = uri.getQueryParameter("allow_source") == null
-                                    val audio = uri.getQueryParameter("allow_audio_only") == null
-                                    val lowLatency = uri.getQueryParameter("fast_bread") == null
-                                    if (source || audio || lowLatency) {
-                                        uri.buildUpon().apply {
-                                            if (source) {
-                                                appendQueryParameter("allow_source", "true")
-                                            }
-                                            if (audio) {
-                                                appendQueryParameter("allow_audio_only", "true")
-                                            }
-                                            if (lowLatency) {
-                                                appendQueryParameter("fast_bread", "true")
-                                            }
-                                        }.build()
-                                    } else uri
-                                } else uri
-                            }.toString().replace("\$channel", channelLogin)
-                        }
-                    }
+                val videoSwap = if (videoSwapActive) {
+                    videoSwapList?.getOrNull(currentVideoSwapItem)
                 } else null
-                if (proxyUrl != null) {
-                    playlistUrl = proxyUrl
-                } else {
-                    useCustomProxy = false
-                    val url = if (streamProxy?.proxyPlaybackAccessToken == true) {
-                        var url: String?
-                        while (true) {
-                            val result = getStreamPlaylistUrl(channelLogin, streamProxy)
-                            if (result != null) {
-                                url = result
-                                break
-                            } else {
-                                currentStreamProxy += 1
-                                streamProxy = streamProxyList?.getOrNull(currentStreamProxy)
-                                if (streamProxy == null) {
-                                    useStreamProxy = false
-                                    url = getStreamPlaylistUrl(channelLogin)
-                                    break
-                                } else {
-                                    if (!streamProxy.proxyPlaybackAccessToken) {
-                                        url = getStreamPlaylistUrl(channelLogin)
-                                        break
-                                    }
-                                }
-                            }
-                        }
-                        url
-                    } else {
-                        val videoSwap = if (videoSwapActive) {
-                            videoSwapList?.getOrNull(currentVideoSwapItem)
-                        } else null
-                        getStreamPlaylistUrl(channelLogin, videoSwap = videoSwap)
-                    }
-                    playlistUrl = url
-                }
+                playlistUrl = getStreamPlaylistUrl(channelLogin, videoSwap = videoSwap)
             }
             videoSwapLoading = false
             val url = playlistUrl
             if (url != null) {
                 player?.let { player ->
-                    proxyMediaPlaylist = false
-                    val customProxyUrl = if (useCustomProxy) {
-                        url
-                    } else null
-                    val proxyTimeout = prefs().getString(C.PROXY_TIMEOUT, "3000")?.toIntOrNull() ?: 3000
-                    val proxyHost = streamProxy?.host
-                    val proxyPort = streamProxy?.port
-                    val proxyUser = streamProxy?.username
-                    val proxyPassword = streamProxy?.password
-                    val proxyMultivariantPlaylist = streamProxy?.proxyMultivariantPlaylist == true && !proxyHost.isNullOrBlank() && proxyPort != null
-                    val proxyMediaPlaylist = streamProxy?.proxyMediaPlaylist == true && !proxyHost.isNullOrBlank() && proxyPort != null
                     player.setMediaSource(
                         HlsMediaSource.Factory(
                             DefaultDataSource.Factory(
                                 this@ExoPlayerService,
-                                run {
-                                    val customProxyClient = if (customProxyUrl != null) {
-                                            xtraModule.okHttpClient.value.newBuilder().apply {
-                                                val proxyTimeout = proxyTimeout.toLong()
-                                                connectTimeout(proxyTimeout, TimeUnit.MILLISECONDS)
-                                                writeTimeout(proxyTimeout, TimeUnit.MILLISECONDS)
-                                                readTimeout(proxyTimeout, TimeUnit.MILLISECONDS)
-                                            }.build()
-                                        } else null
-                                        val multivariantPlaylistProxyClient = if (proxyMultivariantPlaylist) {
-                                            xtraModule.okHttpClient.value.newBuilder().apply {
-                                                val proxyTimeout = proxyTimeout.toLong()
-                                                connectTimeout(proxyTimeout, TimeUnit.MILLISECONDS)
-                                                writeTimeout(proxyTimeout, TimeUnit.MILLISECONDS)
-                                                readTimeout(proxyTimeout, TimeUnit.MILLISECONDS)
-                                                proxySelector(
-                                                    object : ProxySelector() {
-                                                        override fun select(u: URI): List<Proxy> {
-                                                            return if (Regex(MULTIVARIANT_PLAYLIST_REGEX).matches(u.host)) {
-                                                                listOf(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)), Proxy.NO_PROXY)
-                                                            } else {
-                                                                listOf(Proxy.NO_PROXY)
-                                                            }
-                                                        }
-
-                                                        override fun connectFailed(u: URI, sa: SocketAddress, e: IOException) {}
-                                                    }
-                                                )
-                                                if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                                    proxyAuthenticator { _, response ->
-                                                        response.request.newBuilder().header(
-                                                            "Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)
-                                                        ).build()
-                                                    }
-                                                }
-                                            }.build()
-                                        } else null
-                                        val mediaPlaylistProxyClient = if (proxyMediaPlaylist) {
-                                            xtraModule.okHttpClient.value.newBuilder().apply {
-                                                val proxyTimeout = proxyTimeout.toLong()
-                                                connectTimeout(proxyTimeout, TimeUnit.MILLISECONDS)
-                                                writeTimeout(proxyTimeout, TimeUnit.MILLISECONDS)
-                                                readTimeout(proxyTimeout, TimeUnit.MILLISECONDS)
-                                                proxySelector(
-                                                    object : ProxySelector() {
-                                                        override fun select(u: URI): List<Proxy> {
-                                                            return if (Regex(MEDIA_PLAYLIST_REGEX).matches(u.host)) {
-                                                                listOf(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)), Proxy.NO_PROXY)
-                                                            } else {
-                                                                listOf(Proxy.NO_PROXY)
-                                                            }
-                                                        }
-
-                                                        override fun connectFailed(u: URI, sa: SocketAddress, e: IOException) {}
-                                                    }
-                                                )
-                                                if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                                    proxyAuthenticator { _, response ->
-                                                        response.request.newBuilder().header(
-                                                            "Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)
-                                                        ).build()
-                                                    }
-                                                }
-                                            }.build()
-                                        } else null
-                                        OkHttpDataSource.Factory(
-                                            xtraModule.okHttpClient.value,
-                                            customProxyClient,
-                                            customProxyUrl,
-                                            multivariantPlaylistProxyClient,
-                                            mediaPlaylistProxyClient
-                                        ) { this.proxyMediaPlaylist }
-                                }
+                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value)
                             )
                         ).apply {
-                            setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(
-                                if (useCustomProxy || proxyMultivariantPlaylist) {
-                                    1
-                                } else {
-                                    6
-                                }
-                            ))
+                            setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6))
                         }.createMediaSource(
                             MediaItem.Builder().apply {
                                 setUri(url.toUri())
@@ -964,7 +723,7 @@ class ExoPlayerService : BasePlaybackService() {
         }
     }
 
-    private suspend fun getStreamPlaylistUrl(channelLogin: String, streamProxy: StreamProxy? = null, videoSwap: VideoSwap? = null): String? {
+    private suspend fun getStreamPlaylistUrl(channelLogin: String, videoSwap: VideoSwap? = null): String? {
         return try {
             xtraModule.playerRepository.loadStreamPlaylistUrl(
                 gqlHeaders = TwitchApiHelper.getGQLHeaders(this, prefs().getBoolean(C.TOKEN_INCLUDE_TOKEN_STREAM, true)),
@@ -972,12 +731,7 @@ class ExoPlayerService : BasePlaybackService() {
                 platform = videoSwap?.platform ?: prefs().getString(C.TOKEN_PLATFORM, "web"),
                 playerType = videoSwap?.playerType ?: prefs().getString(C.TOKEN_PLAYER_TYPE, "site"),
                 supportedCodecs = prefs().getString(C.TOKEN_SUPPORTED_CODECS, "av1,h265,h264"),
-                proxyPlaybackAccessToken = streamProxy != null,
-                proxyHost = streamProxy?.host,
-                proxyPort = streamProxy?.port,
-                proxyUser = streamProxy?.username,
-                proxyPassword = streamProxy?.password,
-                enableIntegrity = prefs().getBoolean(C.ENABLE_INTEGRITY, false) && streamProxy == null
+                enableIntegrity = prefs().getBoolean(C.ENABLE_INTEGRITY, false)
             )
         } catch (e: Exception) {
             if (e.message == C.FAILED_INTEGRITY_CHECK) {
@@ -1024,7 +778,7 @@ class ExoPlayerService : BasePlaybackService() {
                         HlsMediaSource.Factory(
                             DefaultDataSource.Factory(
                                 this@ExoPlayerService,
-                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value, null, null, null, null) { false }
+                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value)
                             )
                         ).createMediaSource(
                             MediaItem.fromUri(url)
@@ -1164,7 +918,7 @@ class ExoPlayerService : BasePlaybackService() {
                         ProgressiveMediaSource.Factory(
                             DefaultDataSource.Factory(
                                 this@ExoPlayerService,
-                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value, null, null, null, null) { false }
+                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value)
                             )
                         ).createMediaSource(
                             MediaItem.fromUri(url)
@@ -1227,7 +981,6 @@ class ExoPlayerService : BasePlaybackService() {
                             }.build()
                         }
                         VideoQuality.AUDIO_ONLY_QUALITY -> {
-                            proxyMediaPlaylist = false
                             player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
                                 setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
                             }.build()
@@ -1242,7 +995,6 @@ class ExoPlayerService : BasePlaybackService() {
                             }
                         }
                         VideoQuality.CHAT_ONLY_QUALITY -> {
-                            proxyMediaPlaylist = false
                             player.stop()
                         }
                         else -> {
@@ -1379,7 +1131,6 @@ class ExoPlayerService : BasePlaybackService() {
 
     fun startAudioOnly() {
         player?.let { player ->
-            proxyMediaPlaylist = false
             if (quality?.name != VideoQuality.AUDIO_ONLY_QUALITY) {
                 restoreQuality = true
                 previousQuality = quality
@@ -1410,7 +1161,6 @@ class ExoPlayerService : BasePlaybackService() {
 
     fun stop(isInPIPMode: Boolean) {
         player?.let { player ->
-            proxyMediaPlaylist = false
             val isInteractive = (getSystemService(POWER_SERVICE) as PowerManager).isInteractive
             if ((!isInPIPMode && isInteractive && prefs().getBoolean(C.PLAYER_BACKGROUND_AUDIO, true))
                 || (!isInPIPMode && !isInteractive && prefs().getBoolean(C.PLAYER_BACKGROUND_AUDIO_LOCKED, true))
@@ -1910,9 +1660,6 @@ class ExoPlayerService : BasePlaybackService() {
     }
 
     companion object {
-        const val MULTIVARIANT_PLAYLIST_REGEX = "^usher\\.ttvnw\\.net$"
-        const val MEDIA_PLAYLIST_REGEX = "^(?:[a-z0-9-]+\\.playlist\\.(?:live-video|ttvnw)\\.net|video-weaver\\.[a-z0-9-]+\\.hls\\.ttvnw\\.net)$"
-
         private const val NOTIFICATION_ID = 1001
         private const val GROUP_KEY = "com.github.andreyasadchy.xtra.PLAYBACK_NOTIFICATIONS"
 

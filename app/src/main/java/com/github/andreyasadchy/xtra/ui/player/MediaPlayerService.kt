@@ -38,8 +38,6 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.VideoPosition
 import com.github.andreyasadchy.xtra.model.VideoQuality
-import com.github.andreyasadchy.xtra.model.ui.CustomProxy
-import com.github.andreyasadchy.xtra.model.ui.StreamProxy
 import com.github.andreyasadchy.xtra.model.ui.Video
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
@@ -53,13 +51,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import okhttp3.Credentials
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONException
 import java.io.FileInputStream
-import java.net.InetSocketAddress
-import java.net.Proxy
 import java.util.Timer
 import kotlin.concurrent.schedule
 import kotlin.concurrent.scheduleAtFixedRate
@@ -85,8 +80,6 @@ class MediaPlayerService : BasePlaybackService() {
 
     var seekPosition: Long? = null
     var startPlayer = true
-    private var customProxyList: List<CustomProxy>? = null
-    private var streamProxyList: List<StreamProxy>? = null
     private var backupQualities: List<String>? = null
     private var created = false
 
@@ -395,23 +388,6 @@ class MediaPlayerService : BasePlaybackService() {
                 STREAM -> {
                     started = true
                     serviceListener?.started()
-                    if (qualities.isNullOrEmpty()) {
-                        useCustomProxy = prefs().getBoolean(C.PLAYER_USE_CUSTOM_PROXY, true)
-                        if (!useCustomProxy) {
-                            useStreamProxy = prefs().getBoolean(C.PLAYER_USE_STREAM_PROXY, false)
-                        }
-                    }
-                    if (useCustomProxy) {
-                        customProxyList = xtraModule.playerRepository.getCustomProxies().filter {
-                            it.enabled && !it.url.isNullOrBlank()
-                        }.sortedBy { it.position }
-                    }
-                    if (useStreamProxy) {
-                        streamProxyList = xtraModule.playerRepository.getStreamProxies().filter {
-                            it.enabled && !it.host.isNullOrBlank() && it.port != null
-                                    && (it.proxyPlaybackAccessToken || it.proxyMultivariantPlaylist || it.proxyMediaPlaylist)
-                        }.sortedBy { it.position }
-                    }
                     loadStream(restorePauseState)
                 }
                 VIDEO -> {
@@ -514,95 +490,14 @@ class MediaPlayerService : BasePlaybackService() {
 
     private suspend fun loadStream(restorePauseState: Boolean = false, restart: Boolean = false) {
         channelLogin?.let { channelLogin ->
-            var streamProxy = if (useStreamProxy) {
-                streamProxyList?.getOrNull(currentStreamProxy).also {
-                    if (it == null) {
-                        useStreamProxy = false
-                    }
-                }
-            } else null
             if (restart || qualities.isNullOrEmpty()) {
-                val proxyUrl = if (useCustomProxy) {
-                    customProxyList?.getOrNull(currentCustomProxy)?.let { proxy ->
-                        proxy.url?.let { proxyUrl ->
-                            (proxyUrl.toUri().takeIf { it.host != null } ?: "https://$proxyUrl".toUri()).let { uri ->
-                                if (proxy.addQueryParams) {
-                                    val source = uri.getQueryParameter("allow_source") == null
-                                    val audio = uri.getQueryParameter("allow_audio_only") == null
-                                    val lowLatency = uri.getQueryParameter("fast_bread") == null
-                                    if (source || audio || lowLatency) {
-                                        uri.buildUpon().apply {
-                                            if (source) {
-                                                appendQueryParameter("allow_source", "true")
-                                            }
-                                            if (audio) {
-                                                appendQueryParameter("allow_audio_only", "true")
-                                            }
-                                            if (lowLatency) {
-                                                appendQueryParameter("fast_bread", "true")
-                                            }
-                                        }.build()
-                                    } else uri
-                                } else uri
-                            }.toString().replace("\$channel", channelLogin)
-                        }
-                    }
-                } else null
-                if (proxyUrl != null) {
-                    playlistUrl = proxyUrl
-                } else {
-                    useCustomProxy = false
-                    val url = if (streamProxy?.proxyPlaybackAccessToken == true) {
-                        var url: String?
-                        while (true) {
-                            val result = getStreamPlaylistUrl(channelLogin, streamProxy)
-                            if (result != null) {
-                                url = result
-                                break
-                            } else {
-                                currentStreamProxy += 1
-                                streamProxy = streamProxyList?.getOrNull(currentStreamProxy)
-                                if (streamProxy == null) {
-                                    useStreamProxy = false
-                                    url = getStreamPlaylistUrl(channelLogin, null)
-                                    break
-                                } else {
-                                    if (!streamProxy.proxyPlaybackAccessToken) {
-                                        url = getStreamPlaylistUrl(channelLogin, null)
-                                        break
-                                    }
-                                }
-                            }
-                        }
-                        url
-                    } else {
-                        getStreamPlaylistUrl(channelLogin, null)
-                    }
-                    playlistUrl = url
-                }
+                playlistUrl = getStreamPlaylistUrl(channelLogin)
             }
             val url = playlistUrl
             if (url != null) {
                 player?.let { player ->
-                    val proxyHost = streamProxy?.host
-                    val proxyPort = streamProxy?.port
-                    val proxyUser = streamProxy?.username
-                    val proxyPassword = streamProxy?.password
-                    val proxyMultivariantPlaylist = streamProxy?.proxyMultivariantPlaylist == true && !proxyHost.isNullOrBlank() && proxyPort != null
                     val response = try {
-                        val okHttpClient = if (proxyMultivariantPlaylist) {
-                                    xtraModule.okHttpClient.value.newBuilder().apply {
-                                        proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
-                                        if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                            proxyAuthenticator { _, response ->
-                                                response.request.newBuilder().header("Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)).build()
-                                            }
-                                        }
-                                    }.build()
-                                } else {
-                                    xtraModule.okHttpClient.value
-                                }
-                                okHttpClient.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                        xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                     if (response.isSuccessful) {
                                         response.body.string() to null
                                     } else {
@@ -624,30 +519,6 @@ class MediaPlayerService : BasePlaybackService() {
                             when {
                                 responseCode == 404 -> {
                                     serviceListener?.toast(R.string.stream_ended, Toast.LENGTH_LONG)
-                                }
-                                useCustomProxy && responseCode >= 400 -> {
-                                    val host = customProxyList?.getOrNull(currentCustomProxy)?.url?.let {
-                                        it.toUri().host ?: "https://$it".toUri().host
-                                    }
-                                    currentCustomProxy += 1
-                                    if (host != null) {
-                                        serviceListener?.toast(getString(R.string.proxy_error, host), Toast.LENGTH_LONG)
-                                    }
-                                    lifecycleScope.launch {
-                                        delay(1500.milliseconds)
-                                        restartPlayer()
-                                    }
-                                }
-                                useStreamProxy && responseCode >= 400 -> {
-                                    val host = streamProxyList?.getOrNull(currentStreamProxy)?.host
-                                    currentStreamProxy += 1
-                                    if (host != null) {
-                                        serviceListener?.toast(getString(R.string.proxy_error, host), Toast.LENGTH_LONG)
-                                    }
-                                    lifecycleScope.launch {
-                                        delay(1500.milliseconds)
-                                        restartPlayer()
-                                    }
                                 }
                                 else -> {
                                     serviceListener?.toast(R.string.player_error, Toast.LENGTH_SHORT)
@@ -712,7 +583,7 @@ class MediaPlayerService : BasePlaybackService() {
         }
     }
 
-    private suspend fun getStreamPlaylistUrl(channelLogin: String, streamProxy: StreamProxy?): String? {
+    private suspend fun getStreamPlaylistUrl(channelLogin: String): String? {
         return try {
             xtraModule.playerRepository.loadStreamPlaylistUrl(
                 gqlHeaders = TwitchApiHelper.getGQLHeaders(this, prefs().getBoolean(C.TOKEN_INCLUDE_TOKEN_STREAM, true)),
@@ -720,12 +591,7 @@ class MediaPlayerService : BasePlaybackService() {
                 platform = prefs().getString(C.TOKEN_PLATFORM, "web"),
                 playerType = prefs().getString(C.TOKEN_PLAYER_TYPE, "site"),
                 supportedCodecs = prefs().getString(C.TOKEN_SUPPORTED_CODECS, "av1,h265,h264"),
-                proxyPlaybackAccessToken = streamProxy != null,
-                proxyHost = streamProxy?.host,
-                proxyPort = streamProxy?.port,
-                proxyUser = streamProxy?.username,
-                proxyPassword = streamProxy?.password,
-                enableIntegrity = prefs().getBoolean(C.ENABLE_INTEGRITY, false) && streamProxy == null
+                enableIntegrity = prefs().getBoolean(C.ENABLE_INTEGRITY, false)
             )
         } catch (e: Exception) {
             if (e.message == C.FAILED_INTEGRITY_CHECK) {

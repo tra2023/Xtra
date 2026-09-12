@@ -13,14 +13,12 @@ import com.github.andreyasadchy.xtra.model.chat.RecentEmote
 import com.github.andreyasadchy.xtra.model.ui.Bookmark
 import com.github.andreyasadchy.xtra.model.ui.BookmarkIgnoredUser
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
-import com.github.andreyasadchy.xtra.model.ui.CustomProxy
 import com.github.andreyasadchy.xtra.model.ui.GameSort
 import com.github.andreyasadchy.xtra.model.ui.LocalChannelFollow
 import com.github.andreyasadchy.xtra.model.ui.LocalGameFollow
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.model.ui.RecentSearch
 import com.github.andreyasadchy.xtra.model.ui.SavedFilter
-import com.github.andreyasadchy.xtra.model.ui.StreamProxy
 import com.github.andreyasadchy.xtra.model.ui.TranslatedChannel
 import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import kotlinx.coroutines.Dispatchers
@@ -42,11 +40,9 @@ import kotlinx.coroutines.Dispatchers
         SavedFilter::class,
         RecentSearch::class,
         PlaybackState::class,
-        CustomProxy::class,
-        StreamProxy::class,
         VideoSwap::class,
     ],
-    version = 40,
+    version = 41,
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -67,8 +63,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun savedFilters(): SavedFiltersDao
     abstract fun recentSearches(): RecentSearchesDao
     abstract fun playbackStates(): PlaybackStatesDao
-    abstract fun customProxies(): CustomProxiesDao
-    abstract fun streamProxies(): StreamProxiesDao
     abstract fun videoSwap(): VideoSwapDao
 }
 
