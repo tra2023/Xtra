@@ -479,7 +479,6 @@
     <string name="chat_emote_size">エモートサイズ</string>
     <string name="chat_badge_size">バッジサイズ</string>
     <string name="overlay_emotes">オーバーレイエモート</string>
-    <string name="network_library">ネットワークライブラリ</string>
     <string name="navigation_tabs">ナビゲーションタブ</string>
     <string name="translate_chat_messages">チャットメッセージを翻訳</string>
     <string name="downloaded_languages">ダウンロードされた言語</string>

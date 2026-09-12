@@ -74,7 +74,6 @@ class GameVideosFragment : PagedListFragment(), Scrollable, Sortable, VideosSort
             viewModel.saveBookmark(
                 requireContext().filesDir.path,
                 it,
-                requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                 TwitchApiHelper.getGQLHeaders(requireContext()),
                 TwitchApiHelper.getHelixHeaders(requireContext()),
             )

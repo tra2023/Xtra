@@ -820,7 +820,6 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             val channelLogin = args.getString(KEY_CHANNEL_LOGIN)
             if (args.getBoolean(KEY_IS_LIVE)) {
                 viewModel.startLive(
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     requireContext().prefs().getString(C.CHAT_RECENT_MESSAGES_URL, "https://recent-messages.robotty.de/api/v2/recent-messages/\$channel"),
                     channelId,
                     channelLogin,
@@ -880,7 +879,6 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             viewModel.startLiveChat(requireArguments().getString(KEY_CHANNEL_ID), channelLogin)
             if (requireContext().prefs().getBoolean(C.CHAT_RECENT, true)) {
                 viewModel.loadRecentMessages(
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     requireContext().prefs().getString(C.CHAT_RECENT_MESSAGES_URL, "https://recent-messages.robotty.de/api/v2/recent-messages/\$channel"),
                     channelLogin,
                 )
@@ -969,7 +967,6 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                 viewModel.send(
                     message = text,
                     replyId = replyId,
-                    networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), true),
                     helixHeaders = TwitchApiHelper.getHelixHeaders(requireContext()),
                     accountId = requireContext().tokenPrefs().getString(C.USER_ID, null),

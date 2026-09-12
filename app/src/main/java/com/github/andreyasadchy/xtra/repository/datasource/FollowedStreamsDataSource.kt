@@ -16,7 +16,6 @@ class FollowedStreamsDataSource(
     private val helixHeaders: Map<String, String>,
     private val helixRepository: HelixRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, Stream>() {
     private var api: String? = null
     private var offset: String? = null
@@ -94,7 +93,7 @@ class FollowedStreamsDataSource(
     }
 
     private suspend fun gqlQueryLoad(params: LoadParams<Int>): LoadResult<Int, Stream> {
-        val response = graphQLRepository.loadQueryUserFollowedStreams(networkLibrary, gqlHeaders, 100, offset)
+        val response = graphQLRepository.loadQueryUserFollowedStreams(gqlHeaders, 100, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -131,7 +130,7 @@ class FollowedStreamsDataSource(
     }
 
     private suspend fun gqlLoad(params: LoadParams<Int>): LoadResult<Int, Stream> {
-        val response = graphQLRepository.loadFollowedStreams(networkLibrary, gqlHeaders, 100, offset)
+        val response = graphQLRepository.loadFollowedStreams(gqlHeaders, 100, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -169,7 +168,6 @@ class FollowedStreamsDataSource(
 
     private suspend fun helixLoad(params: LoadParams<Int>): LoadResult<Int, Stream> {
         val response = helixRepository.getFollowedStreams(
-            networkLibrary = networkLibrary,
             headers = helixHeaders,
             userId = userId,
             limit = 100,
@@ -177,7 +175,6 @@ class FollowedStreamsDataSource(
         )
         val users = response.data.mapNotNull { it.channelId }.let {
             helixRepository.getUsers(
-                networkLibrary = networkLibrary,
                 headers = helixHeaders,
                 ids = it,
             ).data
@@ -212,7 +209,7 @@ class FollowedStreamsDataSource(
 
     private suspend fun gqlQueryLocal(ids: List<String>): LoadResult<Int, Stream> {
         val items = ids.chunked(100).map { list ->
-            graphQLRepository.loadQueryUsersStream(networkLibrary, gqlHeaders, list).also { response ->
+            graphQLRepository.loadQueryUsersStream(gqlHeaders, list).also { response ->
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
                 }
@@ -250,14 +247,12 @@ class FollowedStreamsDataSource(
     private suspend fun helixLocal(ids: List<String>): LoadResult<Int, Stream> {
         val items = ids.chunked(100).map {
             helixRepository.getStreams(
-                networkLibrary = networkLibrary,
                 headers = helixHeaders,
                 ids = it,
             )
         }.flatMap { it.data }
         val users = items.mapNotNull { it.channelId }.chunked(100).map {
             helixRepository.getUsers(
-                networkLibrary = networkLibrary,
                 headers = helixHeaders,
                 ids = it,
             )

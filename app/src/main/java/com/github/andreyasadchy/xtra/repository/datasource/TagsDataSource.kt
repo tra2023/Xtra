@@ -12,7 +12,6 @@ class TagsDataSource(
     private val gqlHeaders: Map<String, String>,
     private val graphQLRepository: GraphQLRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, Tag>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Tag> {
@@ -37,7 +36,7 @@ class TagsDataSource(
 
     private suspend fun gqlQueryLoad(): LoadResult<Int, Tag> {
         return if (getGameTags) {
-            val response = graphQLRepository.loadQuerySearchGameTags(networkLibrary, gqlHeaders, query, 100)
+            val response = graphQLRepository.loadQuerySearchGameTags(gqlHeaders, query, 100)
             if (enableIntegrity) {
                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
             }
@@ -53,7 +52,7 @@ class TagsDataSource(
                 nextKey = null
             )
         } else {
-            val response = graphQLRepository.loadQuerySearchFreeformTags(networkLibrary, gqlHeaders, query, 100)
+            val response = graphQLRepository.loadQuerySearchFreeformTags(gqlHeaders, query, 100)
             if (enableIntegrity) {
                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
             }
@@ -76,7 +75,7 @@ class TagsDataSource(
 
     private suspend fun gqlLoad(): LoadResult<Int, Tag> {
         return if (getGameTags) {
-            val response = graphQLRepository.loadGameTags(networkLibrary, gqlHeaders, query, 100)
+            val response = graphQLRepository.loadGameTags(gqlHeaders, query, 100)
             if (enableIntegrity) {
                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
             }
@@ -92,7 +91,7 @@ class TagsDataSource(
                 nextKey = null
             )
         } else {
-            val response = graphQLRepository.loadFreeformTags(networkLibrary, gqlHeaders, query, 100)
+            val response = graphQLRepository.loadFreeformTags(gqlHeaders, query, 100)
             if (enableIntegrity) {
                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
             }

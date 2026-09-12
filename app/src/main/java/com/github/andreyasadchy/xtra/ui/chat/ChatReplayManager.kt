@@ -18,7 +18,6 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 class ChatReplayManager(
-    private val networkLibrary: String?,
     private val gqlHeaders: Map<String, String>,
     private val graphQLRepository: GraphQLRepository,
     private val json: Json,
@@ -66,9 +65,9 @@ class ChatReplayManager(
         loadJob = coroutineScope.launch(Dispatchers.IO) {
             try {
                 val response = if (position != null) {
-                    graphQLRepository.loadQueryVideoComments(networkLibrary, gqlHeaders, videoId, offset = position.div(1000).toInt())
+                    graphQLRepository.loadQueryVideoComments(gqlHeaders, videoId, offset = position.div(1000).toInt())
                 } else {
-                    graphQLRepository.loadQueryVideoComments(networkLibrary, gqlHeaders, videoId, cursor = cursor)
+                    graphQLRepository.loadQueryVideoComments(gqlHeaders, videoId, cursor = cursor)
                 }
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
@@ -128,9 +127,9 @@ class ChatReplayManager(
             } catch (e: Exception) {
                 try {
                     val response = if (position != null) {
-                        graphQLRepository.loadVideoMessages(networkLibrary, gqlHeaders, videoId, offset = position.div(1000).toInt())
+                        graphQLRepository.loadVideoMessages(gqlHeaders, videoId, offset = position.div(1000).toInt())
                     } else {
-                        graphQLRepository.loadVideoMessages(networkLibrary, gqlHeaders, videoId, cursor = cursor)
+                        graphQLRepository.loadVideoMessages(gqlHeaders, videoId, cursor = cursor)
                     }
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {

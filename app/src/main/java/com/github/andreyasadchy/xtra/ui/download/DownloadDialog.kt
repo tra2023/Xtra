@@ -209,7 +209,6 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     }
                 }
                 viewModel.setStream(
-                    networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), requireContext().prefs().getBoolean(C.TOKEN_INCLUDE_TOKEN_STREAM, true)),
                     channelLogin = requireArguments().getString(KEY_CHANNEL_LOGIN),
                     qualities = requireArguments().getStringArray(KEY_QUALITY_NAMES)?.let { names ->
@@ -260,7 +259,6 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     }
                 }
                 viewModel.setVideo(
-                    networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), requireContext().prefs().getBoolean(C.TOKEN_INCLUDE_TOKEN_VIDEO, true)),
                     videoId = requireArguments().getString(KEY_VIDEO_ID),
                     animatedPreviewUrl = requireArguments().getString(KEY_VIDEO_ANIMATED_PREVIEW),
@@ -295,7 +293,6 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     }
                 }
                 viewModel.setClip(
-                    networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
                     clipId = requireArguments().getString(KEY_CLIP_ID),
                     qualities = requireArguments().getStringArray(KEY_QUALITY_NAMES)?.let { names ->
@@ -710,7 +707,6 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
         when (callback) {
             "stream" -> {
                 viewModel.setStream(
-                    networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), requireContext().prefs().getBoolean(C.TOKEN_INCLUDE_TOKEN_STREAM, true)),
                     channelLogin = requireArguments().getString(KEY_CHANNEL_LOGIN),
                     qualities = requireArguments().getStringArray(KEY_QUALITY_NAMES)?.let { names ->
@@ -736,7 +732,6 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
             }
             "video" -> {
                 viewModel.setVideo(
-                    networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), requireContext().prefs().getBoolean(C.TOKEN_INCLUDE_TOKEN_VIDEO, true)),
                     videoId = requireArguments().getString(KEY_VIDEO_ID),
                     animatedPreviewUrl = requireArguments().getString(KEY_VIDEO_ANIMATED_PREVIEW),
@@ -762,7 +757,6 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
             }
             "clip" -> {
                 viewModel.setClip(
-                    networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
                     clipId = requireArguments().getString(KEY_CLIP_ID),
                     qualities = requireArguments().getStringArray(KEY_QUALITY_NAMES)?.let { names ->

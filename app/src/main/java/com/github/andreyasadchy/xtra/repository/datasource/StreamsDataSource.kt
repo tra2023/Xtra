@@ -20,7 +20,6 @@ class StreamsDataSource(
     private val helixHeaders: Map<String, String>,
     private val helixRepository: HelixRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, Stream>() {
     private var api: String? = null
     private var offset: String? = null
@@ -62,7 +61,7 @@ class StreamsDataSource(
     }
 
     private suspend fun gqlQueryLoad(params: LoadParams<Int>): LoadResult<Int, Stream> {
-        val response = graphQLRepository.loadQueryTopStreams(networkLibrary, gqlHeaders, gqlQuerySort, tags, gqlQueryLanguages, params.loadSize, offset)
+        val response = graphQLRepository.loadQueryTopStreams(gqlHeaders, gqlQuerySort, tags, gqlQueryLanguages, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -101,7 +100,7 @@ class StreamsDataSource(
     }
 
     private suspend fun gqlLoad(params: LoadParams<Int>): LoadResult<Int, Stream> {
-        val response = graphQLRepository.loadTopStreams(networkLibrary, gqlHeaders, gqlSort, tags, gqlLanguages, params.loadSize, offset)
+        val response = graphQLRepository.loadTopStreams(gqlHeaders, gqlSort, tags, gqlLanguages, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -141,14 +140,12 @@ class StreamsDataSource(
 
     private suspend fun helixLoad(params: LoadParams<Int>): LoadResult<Int, Stream> {
         val response = helixRepository.getStreams(
-            networkLibrary = networkLibrary,
             headers = helixHeaders,
             limit = params.loadSize,
             offset = offset
         )
         val users = response.data.mapNotNull { it.channelId }.let {
             helixRepository.getUsers(
-                networkLibrary = networkLibrary,
                 headers = helixHeaders,
                 ids = it
             ).data

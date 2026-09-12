@@ -24,12 +24,12 @@ class PlayerViewerListViewModel(
     val viewerList: StateFlow<ChannelViewerList?> = _viewerList
     private var isLoading = false
 
-    fun loadViewerList(channelLogin: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadViewerList(channelLogin: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (_viewerList.value == null && !isLoading) {
             isLoading = true
             viewModelScope.launch {
                 try {
-                    val response = graphQLRepository.loadQueryUserChatters(networkLibrary, gqlHeaders, login = channelLogin)
+                    val response = graphQLRepository.loadQueryUserChatters(gqlHeaders, login = channelLogin)
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("refresh")
@@ -48,7 +48,7 @@ class PlayerViewerListViewModel(
                     }
                 } catch (e: Exception) {
                     try {
-                        val response = graphQLRepository.loadChannelViewerList(networkLibrary, gqlHeaders, channelLogin)
+                        val response = graphQLRepository.loadChannelViewerList(gqlHeaders, channelLogin)
                         if (enableIntegrity) {
                             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                 integrity.emit("refresh")

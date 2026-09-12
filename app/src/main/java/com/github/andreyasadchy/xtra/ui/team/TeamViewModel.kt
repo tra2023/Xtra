@@ -45,16 +45,15 @@ class TeamViewModel(
             gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext),
             graphQLRepository = graphQLRepository,
             enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
-            networkLibrary = applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
         )
     }.flow.cachedIn(viewModelScope)
 
-    fun loadTeamInfo(teamName: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadTeamInfo(teamName: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (teamName != null && team.value == null && !isLoading) {
             isLoading = true
             viewModelScope.launch {
                 val response = try {
-                    val response = graphQLRepository.loadQueryTeam(networkLibrary, gqlHeaders, teamName)
+                    val response = graphQLRepository.loadQueryTeam(gqlHeaders, teamName)
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("refresh")

@@ -1,6 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.main
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
@@ -9,7 +8,6 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.net.http.HttpEngine
 import android.widget.Toast
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -49,7 +47,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -59,11 +56,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.chromium.net.CronetEngine
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Timer
-import java.util.concurrent.ExecutorService
 import kotlin.math.max
 import kotlin.time.Instant
 
@@ -75,9 +70,6 @@ class MainViewModel(
     private val offlineVideosRepository: OfflineVideosRepository,
     private val localChannelFollowsRepository: LocalChannelFollowsRepository,
     private val authRepository: AuthRepository,
-    private val httpEngine: Lazy<HttpEngine?>,
-    private val cronetEngine: Lazy<CronetEngine?>,
-    private val cronetExecutor: Lazy<ExecutorService>,
     private val okHttpClient: Lazy<OkHttpClient>,
     private val json: Json,
 ) : ViewModel() {
@@ -130,11 +122,11 @@ class MainViewModel(
         return offlineVideosRepository.getWaitingDownloads()
     }
 
-    fun loadVideo(videoId: String?, offset: Long?, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadVideo(videoId: String?, offset: Long?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (video.value == null) {
             viewModelScope.launch {
                 val item = try {
-                    val response = graphQLRepository.loadQueryVideo(networkLibrary, gqlHeaders, videoId)
+                    val response = graphQLRepository.loadQueryVideo(gqlHeaders, videoId)
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("refresh")
@@ -165,7 +157,6 @@ class MainViewModel(
                     if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                         try {
                             helixRepository.getVideos(
-                                networkLibrary = networkLibrary,
                                 headers = helixHeaders,
                                 ids = videoId?.let { listOf(it) }
                             ).data.firstOrNull()?.let {
@@ -207,11 +198,11 @@ class MainViewModel(
         }
     }
 
-    fun loadClip(clipId: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadClip(clipId: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (clip.value == null) {
             viewModelScope.launch {
                 clip.value = try {
-                    val response = graphQLRepository.loadQueryClip(networkLibrary, gqlHeaders, clipId!!)
+                    val response = graphQLRepository.loadQueryClip(gqlHeaders, clipId!!)
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("refresh")
@@ -249,11 +240,11 @@ class MainViewModel(
                 } catch (e: Exception) {
                     try {
                         val user = try {
-                            graphQLRepository.loadClipData(networkLibrary, gqlHeaders, clipId).data?.clip
+                            graphQLRepository.loadClipData(gqlHeaders, clipId).data?.clip
                         } catch (e: Exception) {
                             null
                         }
-                        val clip = graphQLRepository.loadClipVideo(networkLibrary, gqlHeaders, clipId).also { response ->
+                        val clip = graphQLRepository.loadClipVideo(gqlHeaders, clipId).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -282,7 +273,6 @@ class MainViewModel(
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                             try {
                                 helixRepository.getClips(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     ids = clipId?.let { listOf(it) }
                                 ).data.firstOrNull()?.let {
@@ -318,11 +308,11 @@ class MainViewModel(
         }
     }
 
-    fun loadUser(login: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadUser(login: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (user.value == null) {
             viewModelScope.launch {
                 user.value = try {
-                    val response = graphQLRepository.loadQueryUser(networkLibrary, gqlHeaders, login = login)
+                    val response = graphQLRepository.loadQueryUser(gqlHeaders, login = login)
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("refresh")
@@ -341,7 +331,6 @@ class MainViewModel(
                     if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                         try {
                             helixRepository.getUsers(
-                                networkLibrary = networkLibrary,
                                 headers = helixHeaders,
                                 logins = login?.let { listOf(it) }
                             ).data.firstOrNull()?.let {
@@ -364,12 +353,11 @@ class MainViewModel(
         }
     }
 
-    fun loadGame(gameSlug: String? = null, gameName: String? = null, tag: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadGame(gameSlug: String? = null, gameName: String? = null, tag: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (game.value == null) {
             viewModelScope.launch {
                 game.value = try {
                     val response = graphQLRepository.loadQueryGame(
-                        networkLibrary = networkLibrary,
                         headers = gqlHeaders,
                         slug = gameSlug,
                         name = gameName.takeIf { gameSlug.isNullOrBlank() },
@@ -392,7 +380,6 @@ class MainViewModel(
                     if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank() && !gameName.isNullOrBlank()) {
                         try {
                             helixRepository.getGames(
-                                networkLibrary = networkLibrary,
                                 headers = helixHeaders,
                                 names = listOf(gameName)
                             ).data.firstOrNull()?.let {
@@ -411,11 +398,11 @@ class MainViewModel(
         }
     }
 
-    fun loadTag(tagId: String, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadTag(tagId: String, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (tag.value == null) {
             viewModelScope.launch {
                 tag.value = try {
-                    val response = graphQLRepository.loadQueryTag(networkLibrary, gqlHeaders, tagId)
+                    val response = graphQLRepository.loadQueryTag(gqlHeaders, tagId)
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("refresh")
@@ -430,7 +417,7 @@ class MainViewModel(
                     }
                 } catch (e: Exception) {
                     try {
-                        val response = graphQLRepository.loadTag(networkLibrary, gqlHeaders, tagId)
+                        val response = graphQLRepository.loadTag(gqlHeaders, tagId)
                         if (enableIntegrity) {
                             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                 integrity.emit("refresh")
@@ -451,7 +438,7 @@ class MainViewModel(
         }
     }
 
-    fun downloadStream(networkLibrary: String?, filesDir: String, id: String?, title: String?, createdAt: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, downloadPath: String, quality: String, downloadChat: Boolean, downloadChatEmotes: Boolean, wifiOnly: Boolean) {
+    fun downloadStream(filesDir: String, id: String?, title: String?, createdAt: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, downloadPath: String, quality: String, downloadChat: Boolean, downloadChatEmotes: Boolean, wifiOnly: Boolean) {
         viewModelScope.launch {
             if (!channelLogin.isNullOrBlank()) {
                 val downloadedThumbnail = id.takeIf { !it.isNullOrBlank() }?.let { id ->
@@ -460,51 +447,7 @@ class MainViewModel(
                         val path = filesDir + File.separator + "thumbnails" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                when {
-                                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.HttpEngineTimeout()
-                                            val request = httpEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                cronetExecutor.value,
-                                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.CronetTimeout()
-                                            val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                                cronetExecutor.value
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    else -> {
-                                        okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                             if (response.isSuccessful) {
                                                 FileOutputStream(path).use { outputStream ->
                                                     response.body.byteStream().use { inputStream ->
@@ -513,8 +456,6 @@ class MainViewModel(
                                                 }
                                             }
                                         }
-                                    }
-                                }
                             } catch (e: Exception) {
 
                             }
@@ -528,51 +469,7 @@ class MainViewModel(
                         val path = filesDir + File.separator + "profile_pics" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                when {
-                                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.HttpEngineTimeout()
-                                            val request = httpEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                cronetExecutor.value,
-                                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.CronetTimeout()
-                                            val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                                cronetExecutor.value
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    else -> {
-                                        okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                             if (response.isSuccessful) {
                                                 FileOutputStream(path).use { outputStream ->
                                                     response.body.byteStream().use { inputStream ->
@@ -581,8 +478,6 @@ class MainViewModel(
                                                 }
                                             }
                                         }
-                                    }
-                                }
                             } catch (e: Exception) {
 
                             }
@@ -627,7 +522,7 @@ class MainViewModel(
         }
     }
 
-    fun downloadVideo(networkLibrary: String?, filesDir: String, id: String?, title: String?, createdAt: String?, type: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, url: String, downloadPath: String, quality: String, from: Long, to: Long, downloadChat: Boolean, downloadChatEmotes: Boolean, playlistToFile: Boolean, wifiOnly: Boolean) {
+    fun downloadVideo(filesDir: String, id: String?, title: String?, createdAt: String?, type: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, url: String, downloadPath: String, quality: String, from: Long, to: Long, downloadChat: Boolean, downloadChatEmotes: Boolean, playlistToFile: Boolean, wifiOnly: Boolean) {
         viewModelScope.launch {
             val downloadedThumbnail = id.takeIf { !it.isNullOrBlank() }?.let { id ->
                 thumbnail.takeIf { !it.isNullOrBlank() }?.let { url ->
@@ -635,51 +530,7 @@ class MainViewModel(
                     val path = filesDir + File.separator + "thumbnails" + File.separator + id
                     viewModelScope.launch(Dispatchers.IO) {
                         try {
-                            when {
-                                networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                    val response = suspendCancellableCoroutine { continuation ->
-                                        val timeout = NetworkUtils.HttpEngineTimeout()
-                                        val request = httpEngine.value!!.newUrlRequestBuilder(
-                                            url,
-                                            cronetExecutor.value,
-                                            NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                        ).build()
-                                        timeout.start(request, continuation)
-                                        request.start()
-                                        continuation.invokeOnCancellation {
-                                            request.cancel()
-                                            timeout.stop()
-                                        }
-                                    }
-                                    if (response.info.httpStatusCode in 200..299) {
-                                        FileOutputStream(path).use {
-                                            it.write(response.body)
-                                        }
-                                    }
-                                }
-                                networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                    val response = suspendCancellableCoroutine { continuation ->
-                                        val timeout = NetworkUtils.CronetTimeout()
-                                        val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                            url,
-                                            NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                            cronetExecutor.value
-                                        ).build()
-                                        timeout.start(request, continuation)
-                                        request.start()
-                                        continuation.invokeOnCancellation {
-                                            request.cancel()
-                                            timeout.stop()
-                                        }
-                                    }
-                                    if (response.info.httpStatusCode in 200..299) {
-                                        FileOutputStream(path).use {
-                                            it.write(response.body)
-                                        }
-                                    }
-                                }
-                                else -> {
-                                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                         if (response.isSuccessful) {
                                             FileOutputStream(path).use { outputStream ->
                                                 response.body.byteStream().use { inputStream ->
@@ -688,8 +539,6 @@ class MainViewModel(
                                             }
                                         }
                                     }
-                                }
-                            }
                         } catch (e: Exception) {
 
                         }
@@ -703,51 +552,7 @@ class MainViewModel(
                     val path = filesDir + File.separator + "profile_pics" + File.separator + id
                     viewModelScope.launch(Dispatchers.IO) {
                         try {
-                            when {
-                                networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                    val response = suspendCancellableCoroutine { continuation ->
-                                        val timeout = NetworkUtils.HttpEngineTimeout()
-                                        val request = httpEngine.value!!.newUrlRequestBuilder(
-                                            url,
-                                            cronetExecutor.value,
-                                            NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                        ).build()
-                                        timeout.start(request, continuation)
-                                        request.start()
-                                        continuation.invokeOnCancellation {
-                                            request.cancel()
-                                            timeout.stop()
-                                        }
-                                    }
-                                    if (response.info.httpStatusCode in 200..299) {
-                                        FileOutputStream(path).use {
-                                            it.write(response.body)
-                                        }
-                                    }
-                                }
-                                networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                    val response = suspendCancellableCoroutine { continuation ->
-                                        val timeout = NetworkUtils.CronetTimeout()
-                                        val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                            url,
-                                            NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                            cronetExecutor.value
-                                        ).build()
-                                        timeout.start(request, continuation)
-                                        request.start()
-                                        continuation.invokeOnCancellation {
-                                            request.cancel()
-                                            timeout.stop()
-                                        }
-                                    }
-                                    if (response.info.httpStatusCode in 200..299) {
-                                        FileOutputStream(path).use {
-                                            it.write(response.body)
-                                        }
-                                    }
-                                }
-                                else -> {
-                                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                         if (response.isSuccessful) {
                                             FileOutputStream(path).use { outputStream ->
                                                 response.body.byteStream().use { inputStream ->
@@ -756,8 +561,6 @@ class MainViewModel(
                                             }
                                         }
                                     }
-                                }
-                            }
                         } catch (e: Exception) {
 
                         }
@@ -806,7 +609,7 @@ class MainViewModel(
         }
     }
 
-    fun downloadClip(networkLibrary: String?, filesDir: String, clipId: String?, title: String?, createdAt: String?, durationSeconds: Int?, videoId: String?, videoOffsetSeconds: Int?, videoCreatedAt: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, url: String, downloadPath: String, quality: String, downloadChat: Boolean, downloadChatEmotes: Boolean, wifiOnly: Boolean) {
+    fun downloadClip(filesDir: String, clipId: String?, title: String?, createdAt: String?, durationSeconds: Int?, videoId: String?, videoOffsetSeconds: Int?, videoCreatedAt: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, url: String, downloadPath: String, quality: String, downloadChat: Boolean, downloadChatEmotes: Boolean, wifiOnly: Boolean) {
         viewModelScope.launch {
             val downloadedThumbnail = clipId.takeIf { !it.isNullOrBlank() }?.let { id ->
                 thumbnail.takeIf { !it.isNullOrBlank() }?.let { url ->
@@ -814,51 +617,7 @@ class MainViewModel(
                     val path = filesDir + File.separator + "thumbnails" + File.separator + id
                     viewModelScope.launch(Dispatchers.IO) {
                         try {
-                            when {
-                                networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                    val response = suspendCancellableCoroutine { continuation ->
-                                        val timeout = NetworkUtils.HttpEngineTimeout()
-                                        val request = httpEngine.value!!.newUrlRequestBuilder(
-                                            url,
-                                            cronetExecutor.value,
-                                            NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                        ).build()
-                                        timeout.start(request, continuation)
-                                        request.start()
-                                        continuation.invokeOnCancellation {
-                                            request.cancel()
-                                            timeout.stop()
-                                        }
-                                    }
-                                    if (response.info.httpStatusCode in 200..299) {
-                                        FileOutputStream(path).use {
-                                            it.write(response.body)
-                                        }
-                                    }
-                                }
-                                networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                    val response = suspendCancellableCoroutine { continuation ->
-                                        val timeout = NetworkUtils.CronetTimeout()
-                                        val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                            url,
-                                            NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                            cronetExecutor.value
-                                        ).build()
-                                        timeout.start(request, continuation)
-                                        request.start()
-                                        continuation.invokeOnCancellation {
-                                            request.cancel()
-                                            timeout.stop()
-                                        }
-                                    }
-                                    if (response.info.httpStatusCode in 200..299) {
-                                        FileOutputStream(path).use {
-                                            it.write(response.body)
-                                        }
-                                    }
-                                }
-                                else -> {
-                                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                         if (response.isSuccessful) {
                                             FileOutputStream(path).use { outputStream ->
                                                 response.body.byteStream().use { inputStream ->
@@ -867,8 +626,6 @@ class MainViewModel(
                                             }
                                         }
                                     }
-                                }
-                            }
                         } catch (e: Exception) {
 
                         }
@@ -882,51 +639,7 @@ class MainViewModel(
                     val path = filesDir + File.separator + "profile_pics" + File.separator + id
                     viewModelScope.launch(Dispatchers.IO) {
                         try {
-                            when {
-                                networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                    val response = suspendCancellableCoroutine { continuation ->
-                                        val timeout = NetworkUtils.HttpEngineTimeout()
-                                        val request = httpEngine.value!!.newUrlRequestBuilder(
-                                            url,
-                                            cronetExecutor.value,
-                                            NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                        ).build()
-                                        timeout.start(request, continuation)
-                                        request.start()
-                                        continuation.invokeOnCancellation {
-                                            request.cancel()
-                                            timeout.stop()
-                                        }
-                                    }
-                                    if (response.info.httpStatusCode in 200..299) {
-                                        FileOutputStream(path).use {
-                                            it.write(response.body)
-                                        }
-                                    }
-                                }
-                                networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                    val response = suspendCancellableCoroutine { continuation ->
-                                        val timeout = NetworkUtils.CronetTimeout()
-                                        val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                            url,
-                                            NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                            cronetExecutor.value
-                                        ).build()
-                                        timeout.start(request, continuation)
-                                        request.start()
-                                        continuation.invokeOnCancellation {
-                                            request.cancel()
-                                            timeout.stop()
-                                        }
-                                    }
-                                    if (response.info.httpStatusCode in 200..299) {
-                                        FileOutputStream(path).use {
-                                            it.write(response.body)
-                                        }
-                                    }
-                                }
-                                else -> {
-                                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                         if (response.isSuccessful) {
                                             FileOutputStream(path).use { outputStream ->
                                                 response.body.byteStream().use { inputStream ->
@@ -935,8 +648,6 @@ class MainViewModel(
                                             }
                                         }
                                     }
-                                }
-                            }
                         } catch (e: Exception) {
 
                         }
@@ -985,12 +696,12 @@ class MainViewModel(
         }
     }
 
-    fun validate(networkLibrary: String?, gqlHeaders: Map<String, String>, gqlWebClientId: String?, gqlWebToken: String?, helixHeaders: Map<String, String>, accountId: String?, accountLogin: String?, activity: Activity) {
+    fun validate(gqlHeaders: Map<String, String>, gqlWebClientId: String?, gqlWebToken: String?, helixHeaders: Map<String, String>, accountId: String?, accountLogin: String?, activity: Activity) {
         viewModelScope.launch {
             try {
                 val helixToken = helixHeaders[C.HEADER_TOKEN]
                 if (!helixToken.isNullOrBlank()) {
-                    val response = authRepository.validate(networkLibrary, helixToken)
+                    val response = authRepository.validate(helixToken)
                     if (response.clientId.isNotBlank() && response.clientId == helixHeaders[C.HEADER_CLIENT_ID]) {
                         if ((!response.userId.isNullOrBlank() && response.userId != accountId) || (!response.login.isNullOrBlank() && response.login != accountLogin)) {
                             activity.tokenPrefs().edit {
@@ -1004,7 +715,7 @@ class MainViewModel(
                 }
                 val gqlToken = gqlHeaders[C.HEADER_TOKEN]
                 if (!gqlToken.isNullOrBlank()) {
-                    val response = authRepository.validate(networkLibrary, gqlToken)
+                    val response = authRepository.validate(gqlToken)
                     if (response.clientId.isNotBlank() && (response.clientId == gqlHeaders[C.HEADER_CLIENT_ID] || response.clientId == gqlWebClientId)) {
                         if ((!response.userId.isNullOrBlank() && response.userId != accountId) || (!response.login.isNullOrBlank() && response.login != accountLogin)) {
                             activity.tokenPrefs().edit {
@@ -1017,7 +728,7 @@ class MainViewModel(
                     }
                 }
                 if (!gqlWebToken.isNullOrBlank() && gqlWebToken != gqlToken) {
-                    val response = authRepository.validate(networkLibrary, gqlWebToken)
+                    val response = authRepository.validate(gqlWebToken)
                     if (response.clientId.isNotBlank() && response.clientId == gqlWebClientId) {
                         if ((!response.userId.isNullOrBlank() && response.userId != accountId) || (!response.login.isNullOrBlank() && response.login != accountLogin)) {
                             activity.tokenPrefs().edit {
@@ -1039,51 +750,13 @@ class MainViewModel(
         TwitchApiHelper.checkedValidation = true
     }
 
-    fun checkUpdates(networkLibrary: String?, url: String, lastChecked: Long) {
+    fun checkUpdates(url: String, lastChecked: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             updateUrl.emit(
                 try {
-                    val response = when {
-                        networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                            val response = suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.HttpEngineTimeout()
-                                val request = httpEngine.value!!.newUrlRequestBuilder(
-                                    url,
-                                    cronetExecutor.value,
-                                    NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                ).build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
-                                }
-                            }
-                            json.decodeFromString<JsonObject>(response.body.decodeToString())
-                        }
-                        networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                            val response = suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.CronetTimeout()
-                                val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                    url,
-                                    NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                    cronetExecutor.value
-                                ).build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
-                                }
-                            }
-                            json.decodeFromString<JsonObject>(response.body.decodeToString())
-                        }
-                        else -> {
-                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                    val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                 json.decodeFromString<JsonObject>(response.body.string())
                             }
-                        }
-                    }
                     response["assets"]?.jsonArray?.find {
                         it.jsonObject.getValue("content_type").jsonPrimitive.contentOrNull == "application/vnd.android.package-archive"
                     }?.jsonObject?.let { obj ->
@@ -1104,7 +777,7 @@ class MainViewModel(
         TwitchApiHelper.checkedUpdates = true
     }
 
-    fun downloadUpdate(networkLibrary: String?, url: String) {
+    fun downloadUpdate(url: String) {
         updateJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val progressListener = NetworkUtils.ProgressListener { bytesRead ->
@@ -1112,55 +785,13 @@ class MainViewModel(
                         updateProgress.emit(bytesRead)
                     }
                 }
-                val response = when {
-                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                        val response = suspendCancellableCoroutine { continuation ->
-                            val timeout = NetworkUtils.HttpEngineTimeout()
-                            val request = httpEngine.value!!.newUrlRequestBuilder(
-                                url,
-                                cronetExecutor.value,
-                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout, progressListener)
-                            ).build()
-                            timeout.start(request, continuation)
-                            request.start()
-                            continuation.invokeOnCancellation {
-                                request.cancel()
-                                timeout.stop()
-                            }
-                        }
-                        if (response.info.httpStatusCode in 200..299) {
-                            response.body
-                        } else null
-                    }
-                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                        val response = suspendCancellableCoroutine { continuation ->
-                            val timeout = NetworkUtils.CronetTimeout()
-                            val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                url,
-                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout, progressListener),
-                                cronetExecutor.value
-                            ).build()
-                            timeout.start(request, continuation)
-                            request.start()
-                            continuation.invokeOnCancellation {
-                                request.cancel()
-                                timeout.stop()
-                            }
-                        }
-                        if (response.info.httpStatusCode in 200..299) {
-                            response.body
-                        } else null
-                    }
-                    else -> {
-                        okHttpClient.value.newBuilder().apply {
+                val response = okHttpClient.value.newBuilder().apply {
                             addNetworkInterceptor(NetworkUtils.ProgressInterceptor(progressListener))
                         }.build().newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                             if (response.isSuccessful) {
                                 response.body.bytes()
                             } else null
                         }
-                    }
-                }
                 if (response != null && response.isNotEmpty()) {
                     val packageInstaller = applicationContext.packageManager.packageInstaller
                     val sessionId = packageInstaller.createSession(
@@ -1280,7 +911,7 @@ class MainViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                MainViewModel(application.applicationContext, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.offlineVideosRepository, xtraModule.localChannelFollowsRepository, xtraModule.authRepository, xtraModule.httpEngine, xtraModule.cronetEngine, xtraModule.cronetExecutor, xtraModule.okHttpClient, xtraModule.json)
+                MainViewModel(application.applicationContext, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.offlineVideosRepository, xtraModule.localChannelFollowsRepository, xtraModule.authRepository, xtraModule.okHttpClient, xtraModule.json)
             }
         }
     }

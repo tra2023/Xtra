@@ -25,7 +25,6 @@ class GameClipsDataSource(
     private val helixHeaders: Map<String, String>,
     private val helixRepository: HelixRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, Clip>() {
     private var api: String? = null
     private var offset: String? = null
@@ -68,7 +67,6 @@ class GameClipsDataSource(
 
     private suspend fun gqlQueryLoad(params: LoadParams<Int>): LoadResult<Int, Clip> {
         val response = graphQLRepository.loadQueryGameClips(
-            networkLibrary = networkLibrary,
             headers = gqlHeaders,
             id = gameId,
             slug = gameSlug.takeIf { gameId.isNullOrBlank() },
@@ -126,7 +124,7 @@ class GameClipsDataSource(
     }
 
     private suspend fun gqlLoad(params: LoadParams<Int>): LoadResult<Int, Clip> {
-        val response = graphQLRepository.loadGameClips(networkLibrary, gqlHeaders, gameSlug, gqlPeriod, gqlLanguages, params.loadSize, offset)
+        val response = graphQLRepository.loadGameClips(gqlHeaders, gameSlug, gqlPeriod, gqlLanguages, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -164,7 +162,6 @@ class GameClipsDataSource(
 
     private suspend fun helixLoad(params: LoadParams<Int>): LoadResult<Int, Clip> {
         val response = helixRepository.getClips(
-            networkLibrary = networkLibrary,
             headers = helixHeaders,
             gameId = gameId,
             startedAt = startedAt,
@@ -174,7 +171,6 @@ class GameClipsDataSource(
         )
         val users = response.data.mapNotNull { it.channelId }.let {
             helixRepository.getUsers(
-                networkLibrary = networkLibrary,
                 headers = helixHeaders,
                 ids = it,
             ).data

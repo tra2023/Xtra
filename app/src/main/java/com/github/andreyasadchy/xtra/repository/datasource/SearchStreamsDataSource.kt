@@ -14,7 +14,6 @@ class SearchStreamsDataSource(
     private val helixHeaders: Map<String, String>,
     private val helixRepository: HelixRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, Stream>() {
     private var api: String? = null
     private var offset: String? = null
@@ -58,7 +57,7 @@ class SearchStreamsDataSource(
     }
 
     private suspend fun gqlQueryLoad(params: LoadParams<Int>): LoadResult<Int, Stream> {
-        val response = graphQLRepository.loadQuerySearchStreams(networkLibrary, gqlHeaders, query, params.loadSize, offset)
+        val response = graphQLRepository.loadQuerySearchStreams(gqlHeaders, query, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -98,7 +97,6 @@ class SearchStreamsDataSource(
 
     private suspend fun helixLoad(params: LoadParams<Int>): LoadResult<Int, Stream> {
         val response = helixRepository.getSearchChannels(
-            networkLibrary = networkLibrary,
             headers = helixHeaders,
             query = query,
             limit = params.loadSize,

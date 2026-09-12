@@ -1,7 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.channel
 
-import android.annotation.SuppressLint
-import android.net.http.HttpEngine
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -22,20 +20,16 @@ import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.repository.NotificationsRepository
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.chromium.net.CronetEngine
 import java.io.File
 import java.io.FileOutputStream
-import java.util.concurrent.ExecutorService
 import kotlin.time.Instant
 
 class ChannelPagerViewModel(
@@ -45,9 +39,6 @@ class ChannelPagerViewModel(
     private val notificationsRepository: NotificationsRepository,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
-    private val httpEngine: Lazy<HttpEngine?>,
-    private val cronetEngine: Lazy<CronetEngine?>,
-    private val cronetExecutor: Lazy<ExecutorService>,
     private val okHttpClient: Lazy<OkHttpClient>,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -68,11 +59,11 @@ class ChannelPagerViewModel(
     private val _user = MutableStateFlow<User?>(null)
     val user: StateFlow<User?> = _user
 
-    fun loadStream(networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadStream(gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (_stream.value == null) {
             viewModelScope.launch {
                 try {
-                    val response = graphQLRepository.loadQueryUserChannelPage(networkLibrary, gqlHeaders, args.channelId, if (args.channelId.isNullOrBlank()) args.channelLogin else null)
+                    val response = graphQLRepository.loadQueryUserChannelPage(gqlHeaders, args.channelId, if (args.channelId.isNullOrBlank()) args.channelLogin else null)
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("refresh")
@@ -118,7 +109,6 @@ class ChannelPagerViewModel(
                     if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                         try {
                             helixRepository.getStreams(
-                                networkLibrary = networkLibrary,
                                 headers = helixHeaders,
                                 ids = args.channelId?.let { listOf(it) },
                                 logins = if (args.channelId.isNullOrBlank()) args.channelLogin?.let { listOf(it) } else null
@@ -138,7 +128,6 @@ class ChannelPagerViewModel(
                                 )
                             }
                             helixRepository.getUsers(
-                                networkLibrary = networkLibrary,
                                 headers = helixHeaders,
                                 ids = args.channelId?.let { listOf(it) },
                                 logins = if (args.channelId.isNullOrBlank()) args.channelLogin?.let { listOf(it) } else null
@@ -162,12 +151,12 @@ class ChannelPagerViewModel(
         }
     }
 
-    fun enableNotifications(userId: String?, channelId: String?, setting: Int, notificationsEnabled: Boolean, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun enableNotifications(userId: String?, channelId: String?, setting: Int, notificationsEnabled: Boolean, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         viewModelScope.launch {
             try {
                 if (!channelId.isNullOrBlank()) {
                     if (setting == 0 && !gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() && userId != channelId && _isFollowing.value == true) {
-                        val errorMessage = graphQLRepository.loadToggleNotificationsUser(networkLibrary, gqlHeaders, channelId, false).also { response ->
+                        val errorMessage = graphQLRepository.loadToggleNotificationsUser(gqlHeaders, channelId, false).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("enableNotifications")
@@ -207,12 +196,12 @@ class ChannelPagerViewModel(
         }
     }
 
-    fun disableNotifications(userId: String?, channelId: String?, setting: Int, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun disableNotifications(userId: String?, channelId: String?, setting: Int, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         viewModelScope.launch {
             try {
                 if (!channelId.isNullOrBlank()) {
                     if (setting == 0 && !gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() && userId != channelId && _isFollowing.value == true) {
-                        val errorMessage = graphQLRepository.loadToggleNotificationsUser(networkLibrary, gqlHeaders, channelId, true).also { response ->
+                        val errorMessage = graphQLRepository.loadToggleNotificationsUser(gqlHeaders, channelId, true).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("disableNotifications")
@@ -238,20 +227,19 @@ class ChannelPagerViewModel(
         }
     }
 
-    fun updateNotifications(networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
+    fun updateNotifications(gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
         viewModelScope.launch {
-            notificationsRepository.getNewStreams(networkLibrary, gqlHeaders, helixHeaders)
+            notificationsRepository.getNewStreams(gqlHeaders, helixHeaders)
         }
     }
 
-    fun isFollowingChannel(userId: String?, channelId: String?, channelLogin: String?, setting: Int, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
+    fun isFollowingChannel(userId: String?, channelId: String?, channelLogin: String?, setting: Int, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
         if (_isFollowing.value == null) {
             viewModelScope.launch {
                 try {
                     if (!channelId.isNullOrBlank()) {
                         if (setting == 0 && !gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() && userId != channelId) {
                             val follower = graphQLRepository.loadQueryFollowingUser(
-                                networkLibrary = networkLibrary,
                                 headers = gqlHeaders,
                                 id = channelId,
                                 login = channelLogin.takeIf { channelId.isBlank() },
@@ -270,12 +258,12 @@ class ChannelPagerViewModel(
         }
     }
 
-    fun saveFollowChannel(userId: String?, channelId: String?, channelLogin: String?, channelName: String?, setting: Int, liveNotificationsEnabled: Boolean, disableNotifications: Boolean, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun saveFollowChannel(userId: String?, channelId: String?, channelLogin: String?, channelName: String?, setting: Int, liveNotificationsEnabled: Boolean, disableNotifications: Boolean, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         viewModelScope.launch {
             try {
                 if (!channelId.isNullOrBlank()) {
                     if (setting == 0 && !gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() && userId != channelId) {
-                        val errorMessage = graphQLRepository.loadFollowUser(networkLibrary, gqlHeaders, channelId, disableNotifications).also { response ->
+                        val errorMessage = graphQLRepository.loadFollowUser(gqlHeaders, channelId, disableNotifications).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("follow")
@@ -322,12 +310,12 @@ class ChannelPagerViewModel(
         }
     }
 
-    fun deleteFollowChannel(userId: String?, channelId: String?, setting: Int, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun deleteFollowChannel(userId: String?, channelId: String?, setting: Int, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         viewModelScope.launch {
             try {
                 if (!channelId.isNullOrBlank()) {
                     if (setting == 0 && !gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() && userId != channelId) {
-                        val errorMessage = graphQLRepository.loadUnfollowUser(networkLibrary, gqlHeaders, channelId).also { response ->
+                        val errorMessage = graphQLRepository.loadUnfollowUser(gqlHeaders, channelId).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("unfollow")
@@ -356,7 +344,7 @@ class ChannelPagerViewModel(
         }
     }
 
-    fun updateLocalUser(networkLibrary: String?, filesDir: String, user: User) {
+    fun updateLocalUser(filesDir: String, user: User) {
         if (!updatedLocalUser) {
             updatedLocalUser = true
             user.id.takeIf { !it.isNullOrBlank() }?.let { userId ->
@@ -366,51 +354,7 @@ class ChannelPagerViewModel(
                         val path = filesDir + File.separator + "profile_pics" + File.separator + userId
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                when {
-                                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.HttpEngineTimeout()
-                                            val request = httpEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                cronetExecutor.value,
-                                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.CronetTimeout()
-                                            val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                                cronetExecutor.value
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    else -> {
-                                        okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                             if (response.isSuccessful) {
                                                 FileOutputStream(path).use { outputStream ->
                                                     response.body.byteStream().use { inputStream ->
@@ -419,8 +363,6 @@ class ChannelPagerViewModel(
                                                 }
                                             }
                                         }
-                                    }
-                                }
                             } catch (e: Exception) {
 
                             }
@@ -458,7 +400,7 @@ class ChannelPagerViewModel(
                 val savedStateHandle = createSavedStateHandle()
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                ChannelPagerViewModel(xtraModule.localChannelFollowsRepository, xtraModule.offlineVideosRepository, xtraModule.bookmarksRepository, xtraModule.notificationsRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.httpEngine, xtraModule.cronetEngine, xtraModule.cronetExecutor, xtraModule.okHttpClient, savedStateHandle)
+                ChannelPagerViewModel(xtraModule.localChannelFollowsRepository, xtraModule.offlineVideosRepository, xtraModule.bookmarksRepository, xtraModule.notificationsRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.okHttpClient, savedStateHandle)
             }
         }
     }

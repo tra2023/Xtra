@@ -11,7 +11,6 @@ class TeamMembersDataSource(
     private val gqlHeaders: Map<String, String>,
     private val graphQLRepository: GraphQLRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, Stream>() {
     private var getLiveMembers = true
     private val liveMemberIds = mutableListOf<String>()
@@ -21,7 +20,7 @@ class TeamMembersDataSource(
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Stream> {
         return try {
             if (getLiveMembers) {
-                val response = graphQLRepository.loadQueryTeamLiveMembers(networkLibrary, gqlHeaders, teamName!!, params.loadSize, liveOffset)
+                val response = graphQLRepository.loadQueryTeamLiveMembers(gqlHeaders, teamName!!, params.loadSize, liveOffset)
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
                 }
@@ -89,7 +88,7 @@ class TeamMembersDataSource(
                     )
                 }
             } else {
-                val response = graphQLRepository.loadQueryTeamMembers(networkLibrary, gqlHeaders, teamName!!, params.loadSize, offset)
+                val response = graphQLRepository.loadQueryTeamMembers(gqlHeaders, teamName!!, params.loadSize, offset)
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
                 }

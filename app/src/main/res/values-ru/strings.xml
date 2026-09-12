@@ -479,7 +479,6 @@
     <string name="chat_emote_size">Размер смайлов</string>
     <string name="chat_badge_size">Размер значков</string>
     <string name="overlay_emotes">Наложение смайлов</string>
-    <string name="network_library">Сетевая библиотека</string>
     <string name="navigation_tabs">Вкладки навигации</string>
     <string name="translate_chat_messages">Переводить сообщения чата</string>
     <string name="downloaded_languages">Загруженные языки</string>

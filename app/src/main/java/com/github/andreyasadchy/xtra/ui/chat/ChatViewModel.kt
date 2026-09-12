@@ -161,7 +161,7 @@ class ChatViewModel(
     val autoCompleteList = mutableListOf<Any?>()
     private val chatters = ConcurrentHashMap<String, Chatter>()
 
-    fun startLive(networkLibrary: String?, recentMessagesUrl: String?, channelId: String?, channelLogin: String?, channelName: String?, streamId: String?) {
+    fun startLive(recentMessagesUrl: String?, channelId: String?, channelLogin: String?, channelName: String?, streamId: String?) {
         if (chatReadIRCSocket == null && chatReadWebSocket == null && eventSub == null && channelLogin != null) {
             messageLimit = applicationContext.prefs().getInt(C.CHAT_LIMIT, 600)
             this.streamId = streamId
@@ -169,7 +169,7 @@ class ChatViewModel(
             addChatter(channelName)
             loadEmotes(channelId, channelLogin)
             if (applicationContext.prefs().getBoolean(C.CHAT_RECENT, true)) {
-                loadRecentMessages(networkLibrary, recentMessagesUrl, channelLogin)
+                loadRecentMessages(recentMessagesUrl, channelLogin)
             }
             val isLoggedIn = !applicationContext.tokenPrefs().getString(C.USERNAME, null).isNullOrBlank() &&
                     (!TwitchApiHelper.getGQLHeaders(applicationContext, true)[C.HEADER_TOKEN].isNullOrBlank() ||
@@ -213,7 +213,6 @@ class ChatViewModel(
     }
 
     private fun loadEmotes(channelId: String?, channelLogin: String?) {
-        val networkLibrary = applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP)
         val helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext)
         val gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext, true)
         val emoteQuality = applicationContext.prefs().getString(C.CHAT_IMAGE_QUALITY, "4") ?: "4"
@@ -235,7 +234,7 @@ class ChatViewModel(
         } else {
             viewModelScope.launch {
                 try {
-                    val badges = playerRepository.loadGlobalBadges(networkLibrary, helixHeaders, gqlHeaders, emoteQuality, enableIntegrity)
+                    val badges = playerRepository.loadGlobalBadges(helixHeaders, gqlHeaders, emoteQuality, enableIntegrity)
                     if (badges.isNotEmpty()) {
                         savedGlobalBadges = badges
                         synchronized(globalBadges) {
@@ -275,7 +274,7 @@ class ChatViewModel(
             } else {
                 viewModelScope.launch {
                     val pair = try {
-                        playerRepository.loadGlobalSTVEmoteSetResponse(networkLibrary) to true
+                        playerRepository.loadGlobalSTVEmoteSetResponse() to true
                     } catch (e: Exception) {
                         try {
                             val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/global.stv").use {
@@ -337,7 +336,7 @@ class ChatViewModel(
                     var emotes: List<Emote>? = null
                     var online = false
                     try {
-                        val userResponse = playerRepository.loadSTVUserResponse(networkLibrary, channelId)
+                        val userResponse = playerRepository.loadSTVUserResponse(channelId)
                         val user = playerRepository.loadSTVUser(userResponse, useWebp)
                         val userSetId = user.first
                         val userEmotes = user.second
@@ -348,7 +347,7 @@ class ChatViewModel(
                             online = true
                         } else {
                             if (!userSetId.isNullOrBlank()) {
-                                val emoteSetResponse = playerRepository.loadSTVEmoteSetResponse(networkLibrary, userSetId)
+                                val emoteSetResponse = playerRepository.loadSTVEmoteSetResponse(userSetId)
                                 val emoteSet = playerRepository.loadSTVEmoteSet(emoteSetResponse, useWebp, false)
                                 response = emoteSetResponse
                                 setId = userSetId
@@ -452,7 +451,7 @@ class ChatViewModel(
             } else {
                 viewModelScope.launch {
                     val pair = try {
-                        playerRepository.loadGlobalBTTVEmotesResponse(networkLibrary) to true
+                        playerRepository.loadGlobalBTTVEmotesResponse() to true
                     } catch (e: Exception) {
                         try {
                             val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/global.bttv").use {
@@ -512,7 +511,7 @@ class ChatViewModel(
             if (!channelId.isNullOrBlank()) {
                 viewModelScope.launch {
                     val pair = try {
-                        playerRepository.loadBTTVEmotesResponse(networkLibrary, channelId) to true
+                        playerRepository.loadBTTVEmotesResponse(channelId) to true
                     } catch (e: Exception) {
                         try {
                             val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.bttv").use {
@@ -599,7 +598,7 @@ class ChatViewModel(
             } else {
                 viewModelScope.launch {
                     val pair = try {
-                        playerRepository.loadGlobalFFZEmotesResponse(networkLibrary) to true
+                        playerRepository.loadGlobalFFZEmotesResponse() to true
                     } catch (e: Exception) {
                         try {
                             val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/global.ffz").use {
@@ -657,7 +656,7 @@ class ChatViewModel(
             if (!channelId.isNullOrBlank()) {
                 viewModelScope.launch {
                     val pair = try {
-                        playerRepository.loadFFZEmotesResponse(networkLibrary, channelId) to true
+                        playerRepository.loadFFZEmotesResponse(channelId) to true
                     } catch (e: Exception) {
                         try {
                             val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.ffz").use {
@@ -723,7 +722,7 @@ class ChatViewModel(
         if (!channelId.isNullOrBlank() || !channelLogin.isNullOrBlank()) {
             viewModelScope.launch {
                 try {
-                    val badges = playerRepository.loadChannelBadges(networkLibrary, helixHeaders, gqlHeaders, channelId, channelLogin, emoteQuality, enableIntegrity)
+                    val badges = playerRepository.loadChannelBadges(helixHeaders, gqlHeaders, channelId, channelLogin, emoteQuality, enableIntegrity)
                     if (badges.isNotEmpty()) {
                         synchronized(channelBadges) {
                             channelBadges.clear()
@@ -741,7 +740,7 @@ class ChatViewModel(
             }
             viewModelScope.launch {
                 try {
-                    val emotes = playerRepository.loadCheerEmotes(networkLibrary, helixHeaders, gqlHeaders, channelId, channelLogin, animateGifs, enableIntegrity)
+                    val emotes = playerRepository.loadCheerEmotes(helixHeaders, gqlHeaders, channelId, channelLogin, animateGifs, enableIntegrity)
                     if (emotes.isNotEmpty()) {
                         synchronized(cheerEmotes) {
                             cheerEmotes.clear()
@@ -802,11 +801,10 @@ class ChatViewModel(
             if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() || !helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                 viewModelScope.launch {
                     try {
-                        val networkLibrary = applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP)
                         val accountId = applicationContext.tokenPrefs().getString(C.USER_ID, null)
                         val animateGifs =  applicationContext.prefs().getBoolean(C.ANIMATED_EMOTES, true)
                         val enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false)
-                        val emotes = playerRepository.loadUserEmotes(networkLibrary, helixHeaders, gqlHeaders, channelId, accountId, animateGifs, enableIntegrity)
+                        val emotes = playerRepository.loadUserEmotes(helixHeaders, gqlHeaders, channelId, accountId, animateGifs, enableIntegrity)
                         if (emotes.isNotEmpty()) {
                             val sorted = emotes.sortedByDescending { it.setId }
                             synchronized(userEmotes) {
@@ -880,12 +878,12 @@ class ChatViewModel(
         loadEmotes(channelId, channelLogin)
     }
 
-    fun loadRecentMessages(networkLibrary: String?, recentMessagesUrl: String?, channelLogin: String) {
+    fun loadRecentMessages(recentMessagesUrl: String?, channelLogin: String) {
         if (!recentMessagesUrl.isNullOrBlank()) {
             viewModelScope.launch {
                 try {
                     val list = mutableListOf<ChatMessage>()
-                    playerRepository.loadRecentMessages(networkLibrary, recentMessagesUrl, channelLogin, applicationContext.prefs().getInt(C.CHAT_RECENT_LIMIT, 100).toString()).messages.forEach { message ->
+                    playerRepository.loadRecentMessages(recentMessagesUrl, channelLogin, applicationContext.prefs().getInt(C.CHAT_RECENT_LIMIT, 100).toString()).messages.forEach { message ->
                         val ircMessage = ChatUtils.parseIRCMessage(message)
                         when (ircMessage.command) {
                             "PRIVMSG" -> ChatUtils.parseChatMessage(ircMessage)
@@ -1015,7 +1013,6 @@ class ChatViewModel(
         started = true
         val gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext, true)
         val helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext)
-        val networkLibrary = applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP)
         val enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false)
         val accountId = applicationContext.tokenPrefs().getString(C.USER_ID, null)
         val accountLogin = applicationContext.tokenPrefs().getString(C.USERNAME, null)
@@ -1028,13 +1025,13 @@ class ChatViewModel(
         val useApiChatMessages = applicationContext.prefs().getBoolean(C.DEBUG_API_CHAT_MESSAGES, true)
         val showWebSocketDebugInfo = applicationContext.prefs().getBoolean(C.DEBUG_WEBSOCKET_INFO, false)
         if (applicationContext.prefs().getBoolean(C.DEBUG_EVENT_SUB_CHAT, false) && !helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-            eventSub = EventSubWebSocket(trustManager, EventSubListener(helixHeaders, channelLogin, showUserNotice, showClearChat, usePubSub, networkLibrary, isLoggedIn, accountId, channelId))
+            eventSub = EventSubWebSocket(trustManager, EventSubListener(helixHeaders, channelLogin, showUserNotice, showClearChat, usePubSub, isLoggedIn, accountId, channelId))
             chatReadJob = eventSub?.connect(viewModelScope)
         } else {
             val gqlToken = gqlHeaders[C.HEADER_TOKEN]?.removePrefix("OAuth ")
             val helixToken = helixHeaders[C.HEADER_TOKEN]?.removePrefix("Bearer ")
             if (applicationContext.prefs().getBoolean(C.CHAT_USE_WEBSOCKET, true)) {
-                chatReadWebSocket = ChatReadWebSocket(channelLogin, applicationContext.prefs().getBoolean(C.CHAT_SHOW_GIF_MESSAGES, true), trustManager, ChatReadListener(channelLogin, nameDisplay, showUserNotice, showClearMsg, showClearChat, usePubSub, networkLibrary, isLoggedIn, accountId, channelId))
+                chatReadWebSocket = ChatReadWebSocket(channelLogin, applicationContext.prefs().getBoolean(C.CHAT_SHOW_GIF_MESSAGES, true), trustManager, ChatReadListener(channelLogin, nameDisplay, showUserNotice, showClearMsg, showClearChat, usePubSub, isLoggedIn, accountId, channelId))
                 chatReadJob = chatReadWebSocket?.connect(viewModelScope)
                 if (isLoggedIn && (!gqlToken.isNullOrBlank() || !helixHeaders[C.HEADER_TOKEN].isNullOrBlank() && !useApiChatMessages)) {
                     chatWriteWebSocket = ChatWriteWebSocket(
@@ -1048,7 +1045,7 @@ class ChatViewModel(
                 }
             } else {
                 val useSSL = applicationContext.prefs().getBoolean(C.CHAT_USE_SSL, true)
-                chatReadIRCSocket = ChatReadIRCSocket(useSSL, channelLogin, trustManager, ChatReadListener(channelLogin, nameDisplay, showUserNotice, showClearMsg, showClearChat, usePubSub, networkLibrary, isLoggedIn, accountId, channelId))
+                chatReadIRCSocket = ChatReadIRCSocket(useSSL, channelLogin, trustManager, ChatReadListener(channelLogin, nameDisplay, showUserNotice, showClearMsg, showClearChat, usePubSub, isLoggedIn, accountId, channelId))
                 chatReadJob = viewModelScope.launch(Dispatchers.IO) {
                     chatReadIRCSocket?.start()
                 }
@@ -1095,7 +1092,7 @@ class ChatViewModel(
                 showPolls = applicationContext.prefs().getBoolean(C.CHAT_POLLS_SHOW, true),
                 showPredictions = applicationContext.prefs().getBoolean(C.CHAT_PREDICTIONS_SHOW, true),
                 trustManager = trustManager,
-                listener = PubSubListener(channelLogin, collectPoints, notifyPoints, showRaids, showPolls, showPredictions, networkLibrary, gqlHeaders, isLoggedIn, accountId, channelId, enableIntegrity, showWebSocketDebugInfo)
+                listener = PubSubListener(channelLogin, collectPoints, notifyPoints, showRaids, showPolls, showPredictions, gqlHeaders, isLoggedIn, accountId, channelId, enableIntegrity, showWebSocketDebugInfo)
             )
             pubSubJob = hermesWebSocket?.connect(viewModelScope)
         }
@@ -1108,13 +1105,13 @@ class ChatViewModel(
             stvEventApi = STVEventApiWebSocket(
                 channelId = channelId,
                 trustManager = trustManager,
-                listener = STVEventApiListener(useWebp, showNamePaints, showSTVBadges, showPersonalEmotes, stvLiveUpdates, networkLibrary, isLoggedIn, accountId, channelId, showWebSocketDebugInfo)
+                listener = STVEventApiListener(useWebp, showNamePaints, showSTVBadges, showPersonalEmotes, stvLiveUpdates, isLoggedIn, accountId, channelId, showWebSocketDebugInfo)
             )
             stvEventApiJob = stvEventApi?.connect(viewModelScope)
             if (isLoggedIn && !accountId.isNullOrBlank()) {
                 viewModelScope.launch {
                     try {
-                        stvUserId = playerRepository.getSTVUser(networkLibrary, accountId).takeIf { !it.isNullOrBlank() }
+                        stvUserId = playerRepository.getSTVUser(accountId).takeIf { !it.isNullOrBlank() }
                     } catch (e: Exception) {
 
                     }
@@ -1213,7 +1210,6 @@ class ChatViewModel(
         private val showClearMsg: Boolean,
         private val showClearChat: Boolean,
         private val usePubSub: Boolean,
-        private val networkLibrary: String?,
         private val isLoggedIn: Boolean,
         private val accountId: String?,
         private val channelId: String?,
@@ -1234,9 +1230,9 @@ class ChatViewModel(
                 }
                 val reward = chatMessage.reward
                 if (usePubSub && reward != null && !reward.id.isNullOrBlank()) {
-                    onRewardMessage(chatMessage, networkLibrary, isLoggedIn, accountId, channelId)
+                    onRewardMessage(chatMessage, isLoggedIn, accountId, channelId)
                 } else {
-                    onChatMessage(chatMessage, networkLibrary, isLoggedIn, accountId, channelId)
+                    onChatMessage(chatMessage, isLoggedIn, accountId, channelId)
                     if (chatMessage.msgId == "unraid") {
                         if (!hideRaid.value) {
                             hideRaid.value = true
@@ -1329,7 +1325,6 @@ class ChatViewModel(
         private val showUserNotice: Boolean,
         private val showClearChat: Boolean,
         private val usePubSub: Boolean,
-        private val networkLibrary: String?,
         private val isLoggedIn: Boolean,
         private val accountId: String?,
         private val channelId: String?,
@@ -1347,7 +1342,7 @@ class ChatViewModel(
             ).forEach {
                 viewModelScope.launch {
                     try {
-                        helixRepository.createEventSubSubscription(networkLibrary, helixHeaders, accountId, channelId, it, sessionId)?.let {
+                        helixRepository.createEventSubSubscription(helixHeaders, accountId, channelId, it, sessionId)?.let {
                             onMessage(ChatMessage(systemMsg = it))
                         }
                     } catch (e: Exception) {
@@ -1361,15 +1356,15 @@ class ChatViewModel(
             val chatMessage = EventSubUtils.parseChatMessage(event, timestamp)
             val reward = chatMessage.reward
             if (usePubSub && reward != null && !reward.id.isNullOrBlank()) {
-                onRewardMessage(chatMessage, networkLibrary, isLoggedIn, accountId, channelId)
+                onRewardMessage(chatMessage, isLoggedIn, accountId, channelId)
             } else {
-                onChatMessage(chatMessage, networkLibrary, isLoggedIn, accountId, channelId)
+                onChatMessage(chatMessage, isLoggedIn, accountId, channelId)
             }
         }
 
         override suspend fun onUserNotice(event: JSONObject, timestamp: String?) {
             if (showUserNotice) {
-                onChatMessage(EventSubUtils.parseUserNotice(event, timestamp), networkLibrary, isLoggedIn, accountId, channelId)
+                onChatMessage(EventSubUtils.parseUserNotice(event, timestamp), isLoggedIn, accountId, channelId)
             }
         }
 
@@ -1398,7 +1393,6 @@ class ChatViewModel(
         private val showRaids: Boolean,
         private val showPolls: Boolean,
         private val showPredictions: Boolean,
-        private val networkLibrary: String?,
         private val gqlHeaders: Map<String, String>,
         private val isLoggedIn: Boolean,
         private val accountId: String?,
@@ -1439,9 +1433,9 @@ class ChatViewModel(
         override suspend fun onRewardMessage(message: JSONObject) {
             val chatMessage = PubSubUtils.parseRewardMessage(message)
             if (!chatMessage.message.isNullOrBlank()) {
-                onRewardMessage(chatMessage, networkLibrary, isLoggedIn, accountId, channelId)
+                onRewardMessage(chatMessage, isLoggedIn, accountId, channelId)
             } else {
-                onChatMessage(chatMessage, networkLibrary, isLoggedIn, accountId, channelId)
+                onChatMessage(chatMessage, isLoggedIn, accountId, channelId)
             }
         }
 
@@ -1466,7 +1460,7 @@ class ChatViewModel(
                 if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                     viewModelScope.launch {
                         try {
-                            val response = graphQLRepository.loadChannelPointsContext(networkLibrary, gqlHeaders, channelLogin)
+                            val response = graphQLRepository.loadChannelPointsContext(gqlHeaders, channelLogin)
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -1474,7 +1468,7 @@ class ChatViewModel(
                                 }
                             }
                             response.data?.community?.channel?.self?.communityPoints?.availableClaim?.id?.let { claimId ->
-                                val response = graphQLRepository.loadClaimPoints(networkLibrary, gqlHeaders, channelId, claimId)
+                                val response = graphQLRepository.loadClaimPoints(gqlHeaders, channelId, claimId)
                                 if (enableIntegrity) {
                                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                         integrity.emit("refresh")
@@ -1493,7 +1487,7 @@ class ChatViewModel(
         override suspend fun onMinuteWatched() {
             if (!streamId.isNullOrBlank()) {
                 try {
-                    playerRepository.sendMinuteWatched(networkLibrary, accountId, streamId, channelId, channelLogin)
+                    playerRepository.sendMinuteWatched(accountId, streamId, channelId, channelLogin)
                 } catch (e: Exception) {
 
                 }
@@ -1509,7 +1503,7 @@ class ChatViewModel(
                         if (collectPoints && !gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                             viewModelScope.launch {
                                 try {
-                                    val response = graphQLRepository.loadJoinRaid(networkLibrary, gqlHeaders, it.raidId)
+                                    val response = graphQLRepository.loadJoinRaid(gqlHeaders, it.raidId)
                                     if (enableIntegrity) {
                                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                             integrity.emit("refresh")
@@ -1616,7 +1610,6 @@ class ChatViewModel(
         private val showSTVBadges: Boolean,
         private val showPersonalEmotes: Boolean,
         private val stvLiveUpdates: Boolean,
-        private val networkLibrary: String?,
         private val isLoggedIn: Boolean,
         private val accountId: String?,
         private val channelId: String?,
@@ -1777,7 +1770,7 @@ class ChatViewModel(
         }
 
         override suspend fun onUpdatePresence(sessionId: String) {
-            onUpdatePresence(networkLibrary, sessionId, channelId, true)
+            onUpdatePresence(sessionId, channelId, true)
         }
 
         override suspend fun onDisconnect(message: String, fullMsg: String?) {
@@ -1790,11 +1783,11 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun onChatMessage(message: ChatMessage, networkLibrary: String?, isLoggedIn: Boolean, accountId: String?, channelId: String?) {
+    private suspend fun onChatMessage(message: ChatMessage, isLoggedIn: Boolean, accountId: String?, channelId: String?) {
         onMessage(message)
         addChatter(message.userName)
         if (isLoggedIn && !accountId.isNullOrBlank() && message.userId == accountId) {
-            onUpdatePresence(networkLibrary, null, channelId, false)
+            onUpdatePresence(null, channelId, false)
         }
     }
 
@@ -1809,14 +1802,14 @@ class ChatViewModel(
         }
     }
 
-    private fun onUpdatePresence(networkLibrary: String?, sessionId: String?, channelId: String?, self: Boolean) {
+    private fun onUpdatePresence(sessionId: String?, channelId: String?, self: Boolean) {
         stvUserId?.let { stvUserId ->
             if (stvUserId.isNotBlank() && !channelId.isNullOrBlank() && (self && !sessionId.isNullOrBlank() || !self) &&
                 stvLastPresenceUpdate?.let { (System.currentTimeMillis() - it) > 10000 } != false) {
                 stvLastPresenceUpdate = System.currentTimeMillis()
                 viewModelScope.launch {
                     try {
-                        playerRepository.sendSTVPresence(networkLibrary, stvUserId, channelId, sessionId, self)
+                        playerRepository.sendSTVPresence(stvUserId, channelId, sessionId, self)
                     } catch (e: Exception) {
 
                     }
@@ -1825,7 +1818,7 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun onRewardMessage(message: ChatMessage, networkLibrary: String?, isLoggedIn: Boolean, accountId: String?, channelId: String?) {
+    private suspend fun onRewardMessage(message: ChatMessage, isLoggedIn: Boolean, accountId: String?, channelId: String?) {
         val messageReward = message.reward
         if (messageReward?.id != null) {
             synchronized(rewardList) {
@@ -1864,11 +1857,11 @@ class ChatViewModel(
                         ),
                         timestamp = message.timestamp ?: item.timestamp,
                         fullMsg = message.fullMsg ?: item.fullMsg,
-                    ), networkLibrary, isLoggedIn, accountId, channelId)
+                    ), isLoggedIn, accountId, channelId)
                 }
             }
         } else {
-            onChatMessage(message, networkLibrary, isLoggedIn, accountId, channelId)
+            onChatMessage(message, isLoggedIn, accountId, channelId)
         }
     }
 
@@ -1877,11 +1870,10 @@ class ChatViewModel(
         if (!savedEmoteSets.isNullOrEmpty() && !helixHeaders[C.HEADER_CLIENT_ID].isNullOrBlank() && !helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
             viewModelScope.launch {
                 try {
-                    val networkLibrary = applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP)
                     val animateGifs =  applicationContext.prefs().getBoolean(C.ANIMATED_EMOTES, true)
                     val emotes = mutableListOf<TwitchEmote>()
                     savedEmoteSets?.chunked(25)?.forEach { list ->
-                        playerRepository.loadEmotesFromSet(networkLibrary, helixHeaders, list, animateGifs).let { emotes.addAll(it) }
+                        playerRepository.loadEmotesFromSet(helixHeaders, list, animateGifs).let { emotes.addAll(it) }
                     }
                     if (emotes.isNotEmpty()) {
                         val sorted = emotes.sortedByDescending { it.setId }
@@ -1941,38 +1933,38 @@ class ChatViewModel(
         }
     }
 
-    fun send(message: CharSequence, replyId: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, accountId: String?, channelId: String?, channelLogin: String?, useApiCommands: Boolean, useApiChatMessages: Boolean, enableIntegrity: Boolean) {
+    fun send(message: CharSequence, replyId: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, accountId: String?, channelId: String?, channelLogin: String?, useApiCommands: Boolean, useApiChatMessages: Boolean, enableIntegrity: Boolean) {
         val text = message.toString()
         if (replyId != null) {
-            sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity, replyId)
+            sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity, replyId)
         } else {
             if (useApiCommands) {
                 if (text.startsWith("/")) {
                     try {
-                        sendCommand(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, channelLogin, useApiChatMessages, enableIntegrity)
+                        sendCommand(message, gqlHeaders, helixHeaders, accountId, channelId, channelLogin, useApiChatMessages, enableIntegrity)
                     } catch (e: Exception) {
 
                     }
                 } else {
-                    sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
+                    sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
                 }
             } else {
                 if (text == "/dc" || text == "/disconnect") {
                     disconnect()
                 } else {
-                    sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
+                    sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
                 }
             }
         }
     }
 
-    private fun sendMessage(message: CharSequence, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, accountId: String?, channelId: String?, useApiChatMessages: Boolean, enableIntegrity: Boolean, replyId: String? = null) {
+    private fun sendMessage(message: CharSequence, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, accountId: String?, channelId: String?, useApiChatMessages: Boolean, enableIntegrity: Boolean, replyId: String? = null) {
         val text = message.toString()
         try {
             viewModelScope.launch {
                 if (useApiChatMessages) {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        graphQLRepository.sendMessage(networkLibrary, gqlHeaders, channelId, text, replyId).also { response ->
+                        graphQLRepository.sendMessage(gqlHeaders, channelId, text, replyId).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -1982,7 +1974,7 @@ class ChatViewModel(
                         }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.sendMessage(networkLibrary, helixHeaders, accountId, channelId, text, replyId)
+                            helixRepository.sendMessage(helixHeaders, accountId, channelId, text, replyId)
                         } else null
                     }?.let {
                         onMessage(ChatMessage(systemMsg = it))
@@ -2008,7 +2000,7 @@ class ChatViewModel(
         }
     }
 
-    private fun sendCommand(message: CharSequence, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, accountId: String?, channelId: String?, channelLogin: String?, useApiChatMessages: Boolean, enableIntegrity: Boolean) {
+    private fun sendCommand(message: CharSequence, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, accountId: String?, channelId: String?, channelLogin: String?, useApiChatMessages: Boolean, enableIntegrity: Boolean) {
         val text = message.toString()
         val command = text.substringBefore(" ")
         when {
@@ -2017,7 +2009,7 @@ class ChatViewModel(
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            graphQLRepository.sendAnnouncement(networkLibrary, gqlHeaders, channelId, splits[1], splits[0].substringAfter("/announce", "").ifBlank { null }).also { response ->
+                            graphQLRepository.sendAnnouncement(gqlHeaders, channelId, splits[1], splits[0].substringAfter("/announce", "").ifBlank { null }).also { response ->
                                 if (enableIntegrity) {
                                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                         integrity.emit("refresh")
@@ -2027,7 +2019,7 @@ class ChatViewModel(
                             }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                                helixRepository.sendAnnouncement(networkLibrary, helixHeaders, channelId, accountId, splits[1], splits[0].substringAfter("/announce", "").ifBlank { null })
+                                helixRepository.sendAnnouncement(helixHeaders, channelId, accountId, splits[1], splits[0].substringAfter("/announce", "").ifBlank { null })
                             } else null
                         }?.let {
                             onMessage(ChatMessage(systemMsg = it))
@@ -2040,7 +2032,7 @@ class ChatViewModel(
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            graphQLRepository.banUser(networkLibrary, gqlHeaders, channelId, splits[1],
+                            graphQLRepository.banUser(gqlHeaders, channelId, splits[1],
                                 reason = if (splits.size >= 3) splits[2] else null
                             ).also { response ->
                                 if (enableIntegrity) {
@@ -2053,11 +2045,10 @@ class ChatViewModel(
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                                 val targetId = helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     logins = listOf(splits[1])
                                 ).data.firstOrNull()?.id
-                                helixRepository.banUser(networkLibrary, helixHeaders, channelId, accountId, targetId,
+                                helixRepository.banUser(helixHeaders, channelId, accountId, targetId,
                                     reason = if (splits.size >= 3) splits[2] else null
                                 )
                             } else null
@@ -2072,7 +2063,7 @@ class ChatViewModel(
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            graphQLRepository.unbanUser(networkLibrary, gqlHeaders, channelId, splits[1]).also { response ->
+                            graphQLRepository.unbanUser(gqlHeaders, channelId, splits[1]).also { response ->
                                 if (enableIntegrity) {
                                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                         integrity.emit("refresh")
@@ -2083,11 +2074,10 @@ class ChatViewModel(
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                                 val targetId = helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     logins = listOf(splits[1])
                                 ).data.firstOrNull()?.id
-                                helixRepository.unbanUser(networkLibrary, helixHeaders, channelId, accountId, targetId)
+                                helixRepository.unbanUser(helixHeaders, channelId, accountId, targetId)
                             } else null
                         }?.let {
                             onMessage(ChatMessage(systemMsg = it))
@@ -2098,13 +2088,13 @@ class ChatViewModel(
             command.equals("/clear", true) -> {
                 if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                     viewModelScope.launch {
-                        helixRepository.deleteMessages(networkLibrary, helixHeaders, channelId, accountId)?.let {
+                        helixRepository.deleteMessages(helixHeaders, channelId, accountId)?.let {
                             onMessage(ChatMessage(systemMsg = it))
                         }
                     }
                 } else {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
+                        sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
                     }
                 }
             }
@@ -2113,7 +2103,7 @@ class ChatViewModel(
                 viewModelScope.launch {
                     if (splits.size >= 2) {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            graphQLRepository.updateChatColor(networkLibrary, gqlHeaders, splits[1]).also { response ->
+                            graphQLRepository.updateChatColor(gqlHeaders, splits[1]).also { response ->
                                 if (enableIntegrity) {
                                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                         integrity.emit("refresh")
@@ -2123,12 +2113,12 @@ class ChatViewModel(
                             }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                                helixRepository.updateChatColor(networkLibrary, helixHeaders, accountId, splits[1])
+                                helixRepository.updateChatColor(helixHeaders, accountId, splits[1])
                             } else null
                         }
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.getChatColor(networkLibrary, helixHeaders, accountId)
+                            helixRepository.getChatColor(helixHeaders, accountId)
                         } else null
                     }?.let {
                         onMessage(ChatMessage(systemMsg = it))
@@ -2140,14 +2130,14 @@ class ChatViewModel(
                     val splits = text.split(" ")
                     if (splits.size >= 2) {
                         viewModelScope.launch {
-                            helixRepository.startCommercial(networkLibrary, helixHeaders, channelId, splits[1])?.let {
+                            helixRepository.startCommercial(helixHeaders, channelId, splits[1])?.let {
                                 onMessage(ChatMessage(systemMsg = it))
                             }
                         }
                     }
                 } else {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
+                        sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
                     }
                 }
             }
@@ -2156,14 +2146,14 @@ class ChatViewModel(
                     val splits = text.split(" ")
                     if (splits.size >= 2) {
                         viewModelScope.launch {
-                            helixRepository.deleteMessages(networkLibrary, helixHeaders, channelId, accountId, splits[1])?.let {
+                            helixRepository.deleteMessages(helixHeaders, channelId, accountId, splits[1])?.let {
                                 onMessage(ChatMessage(systemMsg = it))
                             }
                         }
                     }
                 } else {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
+                        sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
                     }
                 }
             }
@@ -2171,7 +2161,7 @@ class ChatViewModel(
             command.equals("/emoteonly", true) -> {
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        graphQLRepository.updateChatSettings(networkLibrary, gqlHeaders, channelId, emote = true).also { response ->
+                        graphQLRepository.updateChatSettings(gqlHeaders, channelId, emote = true).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -2181,7 +2171,7 @@ class ChatViewModel(
                         }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.updateChatSettings(networkLibrary, helixHeaders, channelId, accountId, emote = true)
+                            helixRepository.updateChatSettings(helixHeaders, channelId, accountId, emote = true)
                         } else null
                     }?.let {
                         onMessage(ChatMessage(systemMsg = it))
@@ -2191,7 +2181,7 @@ class ChatViewModel(
             command.equals("/emoteonlyoff", true) -> {
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        graphQLRepository.updateChatSettings(networkLibrary, gqlHeaders, channelId, emote = false).also { response ->
+                        graphQLRepository.updateChatSettings(gqlHeaders, channelId, emote = false).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -2201,7 +2191,7 @@ class ChatViewModel(
                         }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.updateChatSettings(networkLibrary, helixHeaders, channelId, accountId, emote = false)
+                            helixRepository.updateChatSettings(helixHeaders, channelId, accountId, emote = false)
                         } else null
                     }?.let {
                         onMessage(ChatMessage(systemMsg = it))
@@ -2213,7 +2203,7 @@ class ChatViewModel(
                 val duration = if (splits.size >= 2) splits[1].toIntOrNull() else null
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        graphQLRepository.setFollowersOnlyMode(networkLibrary, gqlHeaders, channelId, duration ?: 0).also { response ->
+                        graphQLRepository.setFollowersOnlyMode(gqlHeaders, channelId, duration ?: 0).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -2223,7 +2213,7 @@ class ChatViewModel(
                         }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.updateChatSettings(networkLibrary, helixHeaders, channelId, accountId,
+                            helixRepository.updateChatSettings(helixHeaders, channelId, accountId,
                                 followers = true,
                                 followersDuration = duration
                             )
@@ -2236,7 +2226,7 @@ class ChatViewModel(
             command.equals("/followersoff", true) -> {
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        graphQLRepository.setFollowersOnlyMode(networkLibrary, gqlHeaders, channelId, -1).also { response ->
+                        graphQLRepository.setFollowersOnlyMode(gqlHeaders, channelId, -1).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -2246,7 +2236,7 @@ class ChatViewModel(
                         }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.updateChatSettings(networkLibrary, helixHeaders, channelId, accountId, followers = false)
+                            helixRepository.updateChatSettings(helixHeaders, channelId, accountId, followers = false)
                         } else null
                     }?.let {
                         onMessage(ChatMessage(systemMsg = it))
@@ -2257,7 +2247,7 @@ class ChatViewModel(
                 val splits = text.split(" ", limit = 2)
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        graphQLRepository.createStreamMarker(networkLibrary, gqlHeaders, channelLogin).also { response ->
+                        graphQLRepository.createStreamMarker(gqlHeaders, channelLogin).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -2267,7 +2257,7 @@ class ChatViewModel(
                         }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.createStreamMarker(networkLibrary, helixHeaders, channelId, if (splits.size >= 2) splits[1] else null)
+                            helixRepository.createStreamMarker(helixHeaders, channelId, if (splits.size >= 2) splits[1] else null)
                         } else null
                     }?.let {
                         onMessage(ChatMessage(systemMsg = it))
@@ -2279,7 +2269,7 @@ class ChatViewModel(
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            graphQLRepository.addModerator(networkLibrary, gqlHeaders, channelId, splits[1]).also { response ->
+                            graphQLRepository.addModerator(gqlHeaders, channelId, splits[1]).also { response ->
                                 if (enableIntegrity) {
                                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                         integrity.emit("refresh")
@@ -2290,11 +2280,10 @@ class ChatViewModel(
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                                 val targetId = helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     logins = listOf(splits[1])
                                 ).data.firstOrNull()?.id
-                                helixRepository.addModerator(networkLibrary, helixHeaders, channelId, targetId)
+                                helixRepository.addModerator(helixHeaders, channelId, targetId)
                             } else null
                         }?.let {
                             onMessage(ChatMessage(systemMsg = it))
@@ -2307,7 +2296,7 @@ class ChatViewModel(
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            graphQLRepository.removeModerator(networkLibrary, gqlHeaders, channelId, splits[1]).also { response ->
+                            graphQLRepository.removeModerator(gqlHeaders, channelId, splits[1]).also { response ->
                                 if (enableIntegrity) {
                                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                         integrity.emit("refresh")
@@ -2318,11 +2307,10 @@ class ChatViewModel(
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                                 val targetId = helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     logins = listOf(splits[1])
                                 ).data.firstOrNull()?.id
-                                helixRepository.removeModerator(networkLibrary, helixHeaders, channelId, targetId)
+                                helixRepository.removeModerator(helixHeaders, channelId, targetId)
                             } else null
                         }?.let {
                             onMessage(ChatMessage(systemMsg = it))
@@ -2332,7 +2320,7 @@ class ChatViewModel(
             }
             command.equals("/mods", true) -> {
                 viewModelScope.launch {
-                    graphQLRepository.getModerators(networkLibrary, gqlHeaders, channelLogin).also { response ->
+                    graphQLRepository.getModerators(gqlHeaders, channelLogin).also { response ->
                         if (enableIntegrity) {
                             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                 integrity.emit("refresh")
@@ -2350,7 +2338,7 @@ class ChatViewModel(
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                             val targetId = try {
-                                graphQLRepository.loadQueryUser(networkLibrary, gqlHeaders, login = splits[1]).also { response ->
+                                graphQLRepository.loadQueryUser(gqlHeaders, login = splits[1]).also { response ->
                                     if (enableIntegrity) {
                                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                             integrity.emit("refresh")
@@ -2360,12 +2348,11 @@ class ChatViewModel(
                                 }.data!!.user?.id
                             } catch (e: Exception) {
                                 helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     logins = listOf(splits[1])
                                 ).data.firstOrNull()?.id
                             }
-                            graphQLRepository.startRaid(networkLibrary, gqlHeaders, channelId, targetId).also { response ->
+                            graphQLRepository.startRaid(gqlHeaders, channelId, targetId).also { response ->
                                 if (enableIntegrity) {
                                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                         integrity.emit("refresh")
@@ -2376,11 +2363,10 @@ class ChatViewModel(
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                                 val targetId = helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     logins = listOf(splits[1])
                                 ).data.firstOrNull()?.id
-                                helixRepository.startRaid(networkLibrary, helixHeaders, channelId, targetId)
+                                helixRepository.startRaid(helixHeaders, channelId, targetId)
                             } else null
                         }?.let {
                             onMessage(ChatMessage(systemMsg = it))
@@ -2391,7 +2377,7 @@ class ChatViewModel(
             command.equals("/unraid", true) -> {
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        graphQLRepository.cancelRaid(networkLibrary, gqlHeaders, channelId).also { response ->
+                        graphQLRepository.cancelRaid(gqlHeaders, channelId).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -2401,7 +2387,7 @@ class ChatViewModel(
                         }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.cancelRaid(networkLibrary, helixHeaders, channelId)
+                            helixRepository.cancelRaid(helixHeaders, channelId)
                         } else null
                     }?.let {
                         onMessage(ChatMessage(systemMsg = it))
@@ -2413,7 +2399,7 @@ class ChatViewModel(
                 val duration = if (splits.size >= 2) splits[1].toIntOrNull() else null
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        graphQLRepository.setSlowMode(networkLibrary, gqlHeaders, channelId, duration ?: 30).also { response ->
+                        graphQLRepository.setSlowMode(gqlHeaders, channelId, duration ?: 30).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -2423,7 +2409,7 @@ class ChatViewModel(
                         }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.updateChatSettings(networkLibrary, helixHeaders, channelId, accountId,
+                            helixRepository.updateChatSettings(helixHeaders, channelId, accountId,
                                 slow = true,
                                 slowDuration = duration
                             )
@@ -2436,7 +2422,7 @@ class ChatViewModel(
             command.equals("/slowoff", true) -> {
                 viewModelScope.launch {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        graphQLRepository.setSlowMode(networkLibrary, gqlHeaders, channelId, 0).also { response ->
+                        graphQLRepository.setSlowMode(gqlHeaders, channelId, 0).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("refresh")
@@ -2446,7 +2432,7 @@ class ChatViewModel(
                         }.takeIf { !it.errors.isNullOrEmpty() }?.toString()
                     } else {
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            helixRepository.updateChatSettings(networkLibrary, helixHeaders, channelId, accountId, slow = false)
+                            helixRepository.updateChatSettings(helixHeaders, channelId, accountId, slow = false)
                         } else null
                     }?.let {
                         onMessage(ChatMessage(systemMsg = it))
@@ -2456,26 +2442,26 @@ class ChatViewModel(
             command.equals("/subscribers", true) -> {
                 if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                     viewModelScope.launch {
-                        helixRepository.updateChatSettings(networkLibrary, helixHeaders, channelId, accountId, subs = true)?.let {
+                        helixRepository.updateChatSettings(helixHeaders, channelId, accountId, subs = true)?.let {
                             onMessage(ChatMessage(systemMsg = it))
                         }
                     }
                 } else {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
+                        sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
                     }
                 }
             }
             command.equals("/subscribersoff", true) -> {
                 if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                     viewModelScope.launch {
-                        helixRepository.updateChatSettings(networkLibrary, helixHeaders, channelId, accountId, subs = false)?.let {
+                        helixRepository.updateChatSettings(helixHeaders, channelId, accountId, subs = false)?.let {
                             onMessage(ChatMessage(systemMsg = it))
                         }
                     }
                 } else {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
+                        sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
                     }
                 }
             }
@@ -2484,7 +2470,7 @@ class ChatViewModel(
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            graphQLRepository.banUser(networkLibrary, gqlHeaders, channelId, splits[1],
+                            graphQLRepository.banUser(gqlHeaders, channelId, splits[1],
                                 duration = if (splits.size >= 3) splits[2] else "10m",
                                 reason = if (splits.size >= 4) splits[3] else null
                             ).also { response ->
@@ -2498,11 +2484,10 @@ class ChatViewModel(
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                                 val targetId = helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     logins = listOf(splits[1])
                                 ).data.firstOrNull()?.id
-                                helixRepository.banUser(networkLibrary, helixHeaders, channelId, accountId, targetId,
+                                helixRepository.banUser(helixHeaders, channelId, accountId, targetId,
                                     duration = if (splits.size >= 3) splits[2] else "600",
                                     reason = if (splits.size >= 4) splits[3] else null
                                 )
@@ -2518,7 +2503,7 @@ class ChatViewModel(
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            graphQLRepository.unbanUser(networkLibrary, gqlHeaders, channelId, splits[1]).also { response ->
+                            graphQLRepository.unbanUser(gqlHeaders, channelId, splits[1]).also { response ->
                                 if (enableIntegrity) {
                                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                         integrity.emit("refresh")
@@ -2529,11 +2514,10 @@ class ChatViewModel(
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                                 val targetId = helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     logins = listOf(splits[1])
                                 ).data.firstOrNull()?.id
-                                helixRepository.unbanUser(networkLibrary, helixHeaders, channelId, accountId, targetId)
+                                helixRepository.unbanUser(helixHeaders, channelId, accountId, targetId)
                             } else null
                         }?.let {
                             onMessage(ChatMessage(systemMsg = it))
@@ -2544,26 +2528,26 @@ class ChatViewModel(
             command.equals("/uniquechat", true) -> {
                 if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                     viewModelScope.launch {
-                        helixRepository.updateChatSettings(networkLibrary, helixHeaders, channelId, accountId, unique = true)?.let {
+                        helixRepository.updateChatSettings(helixHeaders, channelId, accountId, unique = true)?.let {
                             onMessage(ChatMessage(systemMsg = it))
                         }
                     }
                 } else {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
+                        sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
                     }
                 }
             }
             command.equals("/uniquechatoff", true) -> {
                 if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                     viewModelScope.launch {
-                        helixRepository.updateChatSettings(networkLibrary, helixHeaders, channelId, accountId, unique = false)?.let {
+                        helixRepository.updateChatSettings(helixHeaders, channelId, accountId, unique = false)?.let {
                             onMessage(ChatMessage(systemMsg = it))
                         }
                     }
                 } else {
                     if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
+                        sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
                     }
                 }
             }
@@ -2572,7 +2556,7 @@ class ChatViewModel(
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            graphQLRepository.addVip(networkLibrary, gqlHeaders, channelId, splits[1]).also { response ->
+                            graphQLRepository.addVip(gqlHeaders, channelId, splits[1]).also { response ->
                                 if (enableIntegrity) {
                                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                         integrity.emit("refresh")
@@ -2583,11 +2567,10 @@ class ChatViewModel(
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                                 val targetId = helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     logins = listOf(splits[1])
                                 ).data.firstOrNull()?.id
-                                helixRepository.addVip(networkLibrary, helixHeaders, channelId, targetId)
+                                helixRepository.addVip(helixHeaders, channelId, targetId)
                             } else null
                         }?.let {
                             onMessage(ChatMessage(systemMsg = it))
@@ -2600,7 +2583,7 @@ class ChatViewModel(
                 if (splits.size >= 2) {
                     viewModelScope.launch {
                         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            graphQLRepository.removeVip(networkLibrary, gqlHeaders, channelId, splits[1]).also { response ->
+                            graphQLRepository.removeVip(gqlHeaders, channelId, splits[1]).also { response ->
                                 if (enableIntegrity) {
                                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                         integrity.emit("refresh")
@@ -2611,11 +2594,10 @@ class ChatViewModel(
                         } else {
                             if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                                 val targetId = helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     logins = listOf(splits[1])
                                 ).data.firstOrNull()?.id
-                                helixRepository.removeVip(networkLibrary, helixHeaders, channelId, targetId)
+                                helixRepository.removeVip(helixHeaders, channelId, targetId)
                             } else null
                         }?.let {
                             onMessage(ChatMessage(systemMsg = it))
@@ -2625,7 +2607,7 @@ class ChatViewModel(
             }
             command.equals("/vips", true) -> {
                 viewModelScope.launch {
-                    graphQLRepository.getVips(networkLibrary, gqlHeaders, channelLogin).also { response ->
+                    graphQLRepository.getVips(gqlHeaders, channelLogin).also { response ->
                         if (enableIntegrity) {
                             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                 integrity.emit("refresh")
@@ -2643,18 +2625,17 @@ class ChatViewModel(
                     if (splits.size >= 3) {
                         viewModelScope.launch {
                             val targetId = helixRepository.getUsers(
-                                networkLibrary = networkLibrary,
                                 headers = helixHeaders,
                                 logins = listOf(splits[1])
                             ).data.firstOrNull()?.id
-                            helixRepository.sendWhisper(networkLibrary, helixHeaders, accountId, targetId, splits[2])?.let {
+                            helixRepository.sendWhisper(helixHeaders, accountId, targetId, splits[2])?.let {
                                 onMessage(ChatMessage(systemMsg = it))
                             }
                         }
                     }
                 }
             }
-            else -> sendMessage(message, networkLibrary, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
+            else -> sendMessage(message, gqlHeaders, helixHeaders, accountId, channelId, useApiChatMessages, enableIntegrity)
         }
     }
 
@@ -2672,7 +2653,6 @@ class ChatViewModel(
         } else {
             if (!videoId.isNullOrBlank()) {
                 chatReplayManager = ChatReplayManager(
-                    networkLibrary = applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext, true),
                     graphQLRepository = graphQLRepository,
                     json = json,

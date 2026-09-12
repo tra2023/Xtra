@@ -22,7 +22,6 @@ class FollowedChannelsDataSource(
     private val helixHeaders: Map<String, String>,
     private val helixRepository: HelixRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, User>() {
     private var api: String? = null
     private var offset: String? = null
@@ -45,7 +44,7 @@ class FollowedChannelsDataSource(
                 list.add(user)
             }
             list.filter { it.lastBroadcast == null || it.profileImageURL == null }.mapNotNull { it.id }.chunked(100).forEach { ids ->
-                val response = graphQLRepository.loadQueryUsersLastBroadcast(networkLibrary, gqlHeaders, ids)
+                val response = graphQLRepository.loadQueryUsersLastBroadcast(gqlHeaders, ids)
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
                 }
@@ -141,7 +140,7 @@ class FollowedChannelsDataSource(
             list.filter {
                 it.lastBroadcast == null || it.profileImageURL == null
             }.mapNotNull { it.id }.chunked(100).forEach { ids ->
-                val response = graphQLRepository.loadQueryUsersLastBroadcast(networkLibrary, gqlHeaders, ids)
+                val response = graphQLRepository.loadQueryUsersLastBroadcast(gqlHeaders, ids)
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
                 }
@@ -215,7 +214,7 @@ class FollowedChannelsDataSource(
     }
 
     private suspend fun gqlQueryLoad(params: LoadParams<Int>): LoadResult<Int, User> {
-        val response = graphQLRepository.loadQueryUserFollowedUsers(networkLibrary, gqlHeaders, 100, offset)
+        val response = graphQLRepository.loadQueryUserFollowedUsers(gqlHeaders, 100, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -245,7 +244,7 @@ class FollowedChannelsDataSource(
     }
 
     private suspend fun gqlLoad(params: LoadParams<Int>): LoadResult<Int, User> {
-        val response = graphQLRepository.loadFollowedChannels(networkLibrary, gqlHeaders, 100, offset)
+        val response = graphQLRepository.loadFollowedChannels(gqlHeaders, 100, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -275,7 +274,6 @@ class FollowedChannelsDataSource(
 
     private suspend fun helixLoad(params: LoadParams<Int>): LoadResult<Int, User> {
         val response = helixRepository.getUserFollows(
-            networkLibrary = networkLibrary,
             headers = helixHeaders,
             userId = userId,
             limit = 100,

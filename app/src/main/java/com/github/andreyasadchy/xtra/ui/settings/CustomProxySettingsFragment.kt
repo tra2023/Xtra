@@ -82,7 +82,7 @@ class CustomProxySettingsFragment : Fragment() {
                     viewModel.list.value.indexOf(item).takeIf { it != -1 }?.let {
                         adapter.notifyItemChanged(it)
                     }
-                    viewModel.updateProxyStatus(requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP), url)
+                    viewModel.updateProxyStatus(url)
                 }
             }
             adapter.deleteListener = { item ->
@@ -102,7 +102,7 @@ class CustomProxySettingsFragment : Fragment() {
             }
             adapter.statusMap = viewModel.statusMap
             itemTouchHelper.attachToRecyclerView(recyclerView)
-            viewModel.getProxies(requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP))
+            viewModel.getProxies()
             viewLifecycleOwner.lifecycleScope.launch {
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
                     viewModel.list.collectLatest { list ->
@@ -134,7 +134,7 @@ class CustomProxySettingsFragment : Fragment() {
                     list.add(item)
                     adapter.notifyItemInserted(index)
                     viewModel.saveProxy(item)
-                    viewModel.updateProxyStatus(requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP), url)
+                    viewModel.updateProxyStatus(url)
                 }
             }
             requireActivity().findViewById<AppBarLayout>(R.id.appBar)?.let { appBar ->

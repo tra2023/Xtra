@@ -484,7 +484,6 @@
     <string name="chat_emote_size">Tamaño de emote</string>
     <string name="chat_badge_size">Tamaño de insignia</string>
     <string name="overlay_emotes">Superponer emotes</string>
-    <string name="network_library">Biblioteca de red</string>
     <string name="navigation_tabs">Pestañas de navegación</string>
     <string name="translate_chat_messages">Traducir mensajes de chat</string>
     <string name="downloaded_languages">Idiomas descargados</string>

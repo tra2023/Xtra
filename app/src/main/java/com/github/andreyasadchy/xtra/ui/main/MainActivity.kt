@@ -21,7 +21,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
-import android.os.ext.SdkExtensions
 import android.text.format.Formatter
 import android.view.Menu
 import android.view.View
@@ -99,7 +98,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import org.chromium.net.CronetProvider
 import java.util.Timer
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.schedule
@@ -219,7 +217,6 @@ class MainActivity : AppCompatActivity() {
                             if (isNetworkAvailable) {
                                 if (!TwitchApiHelper.checkedValidation && prefs.getBoolean(C.VALIDATE_TOKENS, true)) {
                                     viewModel.validate(
-                                        prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                         TwitchApiHelper.getGQLHeaders(this@MainActivity, true),
                                         prefs.getString(C.GQL_CLIENT_ID_WEB, "kimne78kx3ncx6brgo4mv6wki5h1ko"),
                                         tokenPrefs().getString(C.GQL_TOKEN_WEB, null)?.takeIf { it.isNotBlank() }?.let { TwitchApiHelper.addTokenPrefixGQL(it) },
@@ -234,7 +231,6 @@ class MainActivity : AppCompatActivity() {
                                     (prefs.getString(C.UPDATE_CHECK_FREQUENCY, "7")?.toIntOrNull() ?: 7) * 86400000 + tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0) < System.currentTimeMillis()
                                 ) {
                                     viewModel.checkUpdates(
-                                        prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                         prefs.getString(C.UPDATE_URL, null) ?: "https://api.github.com/repos/crackededed/xtra/releases/tags/latest",
                                         tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0)
                                     )
@@ -353,7 +349,7 @@ class MainActivity : AppCompatActivity() {
                                         binding.textView.text = getString(R.string.downloading_update)
                                         binding.progressBar.visibility = View.GONE
                                     }
-                                    viewModel.downloadUpdate(prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP), it)
+                                    viewModel.downloadUpdate(it)
                                     val dialog = getAlertDialogBuilder()
                                         .setView(binding.root)
                                         .setNegativeButton(getString(android.R.string.cancel), null)
@@ -689,7 +685,6 @@ class MainActivity : AppCompatActivity() {
                                 viewModel.loadVideo(
                                     id,
                                     offset,
-                                    prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                     TwitchApiHelper.getGQLHeaders(this),
                                     TwitchApiHelper.getHelixHeaders(this),
                                     prefs.getBoolean(C.ENABLE_INTEGRITY, false),
@@ -701,7 +696,6 @@ class MainActivity : AppCompatActivity() {
                             if (!id.isNullOrBlank()) {
                                 viewModel.loadClip(
                                     id,
-                                    prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                     TwitchApiHelper.getGQLHeaders(this),
                                     TwitchApiHelper.getHelixHeaders(this),
                                     prefs.getBoolean(C.ENABLE_INTEGRITY, false),
@@ -713,7 +707,6 @@ class MainActivity : AppCompatActivity() {
                             if (!id.isNullOrBlank()) {
                                 viewModel.loadClip(
                                     id,
-                                    prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                     TwitchApiHelper.getHelixHeaders(this),
                                     TwitchApiHelper.getGQLHeaders(this),
                                     prefs.getBoolean(C.ENABLE_INTEGRITY, false),
@@ -727,7 +720,6 @@ class MainActivity : AppCompatActivity() {
                                 viewModel.loadGame(
                                     gameSlug = slug,
                                     tag = tag?.let { Uri.decode(it) },
-                                    networkLibrary = prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                     gqlHeaders = TwitchApiHelper.getGQLHeaders(this),
                                     helixHeaders = TwitchApiHelper.getHelixHeaders(this),
                                     enableIntegrity = prefs.getBoolean(C.ENABLE_INTEGRITY, false),
@@ -741,7 +733,6 @@ class MainActivity : AppCompatActivity() {
                                 viewModel.loadGame(
                                     gameName = Uri.decode(name),
                                     tag = tag?.let { Uri.decode(it) },
-                                    networkLibrary = prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                     gqlHeaders = TwitchApiHelper.getGQLHeaders(this),
                                     helixHeaders = TwitchApiHelper.getHelixHeaders(this),
                                     enableIntegrity = prefs.getBoolean(C.ENABLE_INTEGRITY, false),
@@ -770,7 +761,6 @@ class MainActivity : AppCompatActivity() {
                             if (!tagId.isNullOrBlank()) {
                                 viewModel.loadTag(
                                     tagId,
-                                    prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                     TwitchApiHelper.getGQLHeaders(this),
                                     prefs.getBoolean(C.ENABLE_INTEGRITY, false),
                                 )
@@ -798,7 +788,6 @@ class MainActivity : AppCompatActivity() {
                             if (!login.isNullOrBlank()) {
                                 viewModel.loadUser(
                                     login,
-                                    prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                     TwitchApiHelper.getGQLHeaders(this),
                                     TwitchApiHelper.getHelixHeaders(this),
                                     prefs.getBoolean(C.ENABLE_INTEGRITY, false),
@@ -1077,15 +1066,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun downloadStream(filesDir: String, id: String?, title: String?, createdAt: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, downloadPath: String, quality: String, downloadChat: Boolean, downloadChatEmotes: Boolean, wifiOnly: Boolean) {
-        viewModel.downloadStream(prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP), filesDir, id, title, createdAt, channelId, channelLogin, channelName, channelImage, thumbnail, gameId, gameSlug, gameName, downloadPath, quality, downloadChat, downloadChatEmotes, wifiOnly)
+        viewModel.downloadStream(filesDir, id, title, createdAt, channelId, channelLogin, channelName, channelImage, thumbnail, gameId, gameSlug, gameName, downloadPath, quality, downloadChat, downloadChatEmotes, wifiOnly)
     }
 
     fun downloadVideo(filesDir: String, id: String?, title: String?, createdAt: String?, type: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, url: String, downloadPath: String, quality: String, from: Long, to: Long, downloadChat: Boolean, downloadChatEmotes: Boolean, playlistToFile: Boolean, wifiOnly: Boolean) {
-        viewModel.downloadVideo(prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP), filesDir, id, title, createdAt, type, channelId, channelLogin, channelName, channelImage, thumbnail, gameId, gameSlug, gameName, url, downloadPath, quality, from, to, downloadChat, downloadChatEmotes, playlistToFile, wifiOnly)
+        viewModel.downloadVideo(filesDir, id, title, createdAt, type, channelId, channelLogin, channelName, channelImage, thumbnail, gameId, gameSlug, gameName, url, downloadPath, quality, from, to, downloadChat, downloadChatEmotes, playlistToFile, wifiOnly)
     }
 
     fun downloadClip(filesDir: String, clipId: String?, title: String?, createdAt: String?, durationSeconds: Int?, videoId: String?, videoOffsetSeconds: Int?, videoCreatedAt: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, url: String, downloadPath: String, quality: String, downloadChat: Boolean, downloadChatEmotes: Boolean, wifiOnly: Boolean) {
-        viewModel.downloadClip(prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP), filesDir, clipId, title, createdAt, durationSeconds, videoId, videoOffsetSeconds, videoCreatedAt, channelId, channelLogin, channelName, channelImage, thumbnail, gameId, gameSlug, gameName, url, downloadPath, quality, downloadChat, downloadChatEmotes, wifiOnly)
+        viewModel.downloadClip(filesDir, clipId, title, createdAt, durationSeconds, videoId, videoOffsetSeconds, videoCreatedAt, channelId, channelLogin, channelName, channelImage, thumbnail, gameId, gameSlug, gameName, url, downloadPath, quality, downloadChat, downloadChatEmotes, wifiOnly)
     }
 
     fun popFragment() {
@@ -1340,13 +1329,6 @@ class MainActivity : AppCompatActivity() {
         }
         if (version < 13) {
             prefs.edit {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && SdkExtensions.getExtensionVersion(Build.VERSION_CODES.S) >= 7) {
-                    putString(C.NETWORK_LIBRARY, C.HTTP_ENGINE)
-                } else {
-                    if (CronetProvider.getAllProviders(this@MainActivity).any { it.isEnabled }) {
-                        putString(C.NETWORK_LIBRARY, C.CRONET)
-                    }
-                }
                 prefs.getString("playerRewind", null)?.toLongOrNull()?.let {
                     putString(C.PLAYER_REWIND, (it / 1000).toString())
                 }

@@ -644,7 +644,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     playbackService?.channelId,
                     playbackService?.channelLogin,
                     requireContext().prefs().getString(C.UI_FOLLOW_BUTTON, "0")?.toIntOrNull() ?: 0,
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     TwitchApiHelper.getGQLHeaders(requireContext(), true),
                     TwitchApiHelper.getHelixHeaders(requireContext()),
                 )
@@ -656,7 +655,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                                 channelLogin = it,
                                 viewerCount = playbackService?.viewerCount,
                                 loop = requireContext().prefs().getBoolean(C.CHAT_DISABLE, false) || !requireContext().prefs().getBoolean(C.CHAT_PUB_SUB_ENABLED, true),
-                                networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                 helixHeaders = TwitchApiHelper.getHelixHeaders(requireContext()),
                                 gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
                                 enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
@@ -668,7 +666,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                         if (!videoId.isNullOrBlank() && (requireContext().prefs().getBoolean(C.PLAYER_GAMES_BUTTON, true) || requireContext().prefs().getBoolean(C.PLAYER_MENU_GAMES, false))) {
                             viewModel.loadGamesList(
                                 videoId,
-                                requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                 TwitchApiHelper.getGQLHeaders(requireContext()),
                                 requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                             )
@@ -1026,7 +1023,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                                                 requireContext().tokenPrefs().getString(C.USER_ID, null),
                                                 playbackService?.channelId,
                                                 setting,
-                                                requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                                 TwitchApiHelper.getGQLHeaders(requireContext(), true),
                                                 requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                                             )
@@ -1042,7 +1038,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                                         requireContext().prefs().getBoolean(C.LIVE_NOTIFICATIONS_ENABLED, false),
                                         !requireContext().prefs().getBoolean(C.UI_ACTIVATE_NOTIFICATIONS_WHEN_FOLLOWING, true),
                                         playbackService?.createdAt,
-                                        requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                                         TwitchApiHelper.getGQLHeaders(requireContext(), true),
                                         requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                                     )
@@ -1600,7 +1595,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
     fun saveBookmark() {
         viewModel.saveBookmark(
             filesDir = requireContext().filesDir.path,
-            networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
             helixHeaders = TwitchApiHelper.getHelixHeaders(requireContext()),
             gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
             videoId = playbackService?.videoId,
@@ -2152,7 +2146,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             playbackService?.qualities?.filter { !it.url.isNullOrBlank() }
         }
         viewModel.findUnlistedVideo(
-            requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
             qualities,
             playbackService?.streamId,
             playbackService?.channelLogin,
@@ -2300,7 +2293,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     playbackService?.channelId,
                     playbackService?.channelLogin,
                     requireContext().prefs().getString(C.UI_FOLLOW_BUTTON, "0")?.toIntOrNull() ?: 0,
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     TwitchApiHelper.getGQLHeaders(requireContext(), true),
                     TwitchApiHelper.getHelixHeaders(requireContext()),
                 )
@@ -2313,14 +2305,12 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     playbackService?.channelId,
                     playbackService?.channelLogin,
                     requireContext().prefs().getString(C.UI_FOLLOW_BUTTON, "0")?.toIntOrNull() ?: 0,
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     TwitchApiHelper.getGQLHeaders(requireContext(), true),
                     TwitchApiHelper.getHelixHeaders(requireContext()),
                 )
                 if (!videoId.isNullOrBlank() && (requireContext().prefs().getBoolean(C.PLAYER_GAMES_BUTTON, true) || requireContext().prefs().getBoolean(C.PLAYER_MENU_GAMES, false))) {
                     viewModel.loadGamesList(
                         videoId,
-                        requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                         TwitchApiHelper.getGQLHeaders(requireContext()),
                         requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                     )
@@ -2333,7 +2323,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     playbackService?.channelId,
                     playbackService?.channelLogin,
                     requireContext().prefs().getString(C.UI_FOLLOW_BUTTON, "0")?.toIntOrNull() ?: 0,
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     TwitchApiHelper.getGQLHeaders(requireContext(), true),
                     TwitchApiHelper.getHelixHeaders(requireContext()),
                 )
@@ -2348,7 +2337,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     requireContext().prefs().getBoolean(C.LIVE_NOTIFICATIONS_ENABLED, false),
                     !requireContext().prefs().getBoolean(C.UI_ACTIVATE_NOTIFICATIONS_WHEN_FOLLOWING, true),
                     playbackService?.createdAt,
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     TwitchApiHelper.getGQLHeaders(requireContext(), true),
                     requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                 )
@@ -2358,7 +2346,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     requireContext().tokenPrefs().getString(C.USER_ID, null),
                     playbackService?.channelId,
                     requireContext().prefs().getString(C.UI_FOLLOW_BUTTON, "0")?.toIntOrNull() ?: 0,
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     TwitchApiHelper.getGQLHeaders(requireContext(), true),
                     requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                 )

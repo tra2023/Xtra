@@ -71,7 +71,6 @@ class PlayerViewerListDialog : BottomSheetDialogFragment(), IntegrityDialog.List
             }
             viewModel.loadViewerList(
                 requireArguments().getString(LOGIN),
-                requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                 TwitchApiHelper.getGQLHeaders(requireContext()),
                 requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
             )
@@ -180,7 +179,6 @@ class PlayerViewerListDialog : BottomSheetDialogFragment(), IntegrityDialog.List
             "refresh" -> {
                 viewModel.loadViewerList(
                     requireArguments().getString(LOGIN),
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     TwitchApiHelper.getGQLHeaders(requireContext()),
                     requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                 )

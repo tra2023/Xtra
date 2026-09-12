@@ -27,12 +27,12 @@ class ChannelAboutViewModel(
 
     private var isLoading = false
 
-    fun loadAbout(channelId: String?, channelLogin: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadAbout(channelId: String?, channelLogin: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if ((description.value == null || team.value == null || socialMedias.value == null || panels.value == null) && !isLoading) {
             isLoading = true
             viewModelScope.launch {
                 try {
-                    val response = graphQLRepository.loadQueryUserAbout(networkLibrary, gqlHeaders, channelId, channelLogin.takeIf { channelId.isNullOrBlank() })
+                    val response = graphQLRepository.loadQueryUserAbout(gqlHeaders, channelId, channelLogin.takeIf { channelId.isNullOrBlank() })
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("refresh")

@@ -83,7 +83,6 @@ class LoginActivity : AppCompatActivity() {
             windowInsets
         }
         with(binding) {
-            val networkLibrary = prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP)
             val helixHeaders = TwitchApiHelper.getHelixHeaders(this@LoginActivity)
             val helixClientId = helixHeaders[C.HEADER_CLIENT_ID]
             val oldHelixToken = helixHeaders[C.HEADER_TOKEN]?.removePrefix("Bearer ")
@@ -104,7 +103,7 @@ class LoginActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     if (!helixClientId.isNullOrBlank() && !oldHelixToken.isNullOrBlank()) {
                         try {
-                            xtraModule.authRepository.revoke(networkLibrary, "client_id=${helixClientId}&token=${oldHelixToken}")
+                            xtraModule.authRepository.revoke("client_id=${helixClientId}&token=${oldHelixToken}")
                         } catch (e: Exception) {
 
                         }
@@ -112,7 +111,7 @@ class LoginActivity : AppCompatActivity() {
                     val gqlClientId = gqlHeaders[C.HEADER_CLIENT_ID]
                     if (!gqlClientId.isNullOrBlank() && !oldGQLToken.isNullOrBlank() && oldGQLToken != oldGQLWebToken) {
                         try {
-                            xtraModule.authRepository.revoke(networkLibrary, "client_id=${gqlClientId}&token=${oldGQLToken}")
+                            xtraModule.authRepository.revoke("client_id=${gqlClientId}&token=${oldGQLToken}")
                         } catch (e: Exception) {
 
                         }
@@ -120,7 +119,7 @@ class LoginActivity : AppCompatActivity() {
                     val gqlWebClientId = prefs().getString(C.GQL_CLIENT_ID_WEB, "kimne78kx3ncx6brgo4mv6wki5h1ko")
                     if (!gqlWebClientId.isNullOrBlank() && !oldGQLWebToken.isNullOrBlank()) {
                         try {
-                            xtraModule.authRepository.revoke(networkLibrary, "client_id=${gqlWebClientId}&token=${oldGQLWebToken}")
+                            xtraModule.authRepository.revoke("client_id=${gqlWebClientId}&token=${oldGQLWebToken}")
                         } catch (e: Exception) {
 
                         }
@@ -166,7 +165,7 @@ class LoginActivity : AppCompatActivity() {
             webView.visibility = View.VISIBLE
             textZoom.visibility = View.VISIBLE
             havingTrouble.visibility = View.VISIBLE
-            setupButtons(networkLibrary, helixClientId, helixAuthUrl)
+            setupButtons(helixClientId, helixAuthUrl)
             CookieManager.getInstance().removeAllCookies(null)
             val isLightTheme = obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
                 it.getBoolean(0, false)
@@ -198,7 +197,7 @@ class LoginActivity : AppCompatActivity() {
                             val clientId = webViewRequest.requestHeaders.entries.find { it.key.equals(C.HEADER_CLIENT_ID, true) }?.value
                             readHeaders = false
                             lifecycleScope.launch {
-                                val valid = validateGQLToken(networkLibrary, clientId, token)
+                                val valid = validateGQLToken(clientId, token)
                                 if (prefs().getBoolean(C.ENABLE_INTEGRITY, false)) {
                                     if (valid) {
                                         TwitchApiHelper.checkedValidation = true
@@ -238,7 +237,7 @@ class LoginActivity : AppCompatActivity() {
                                             .setNegativeButton(getString(android.R.string.cancel), null)
                                             .setOnDismissListener {
                                                 if (getTvToken) {
-                                                    setupSecondaryWebView(networkLibrary, helixClientId, helixAuthUrl, isLightTheme)
+                                                    setupSecondaryWebView(helixClientId, helixAuthUrl, isLightTheme)
                                                 } else {
                                                     done()
                                                 }
@@ -262,7 +261,7 @@ class LoginActivity : AppCompatActivity() {
 
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     if (checkUrl) {
-                        loginIfValidUrl(request.url.toString(), networkLibrary, helixClientId, helixAuthUrl, apiSetting)
+                        loginIfValidUrl(request.url.toString(), helixClientId, helixAuthUrl, apiSetting)
                     }
                     return super.shouldOverrideUrlLoading(view, request)
                 }
@@ -271,7 +270,7 @@ class LoginActivity : AppCompatActivity() {
                 override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                     if (!WebViewFeature.isFeatureSupported(WebViewFeature.SHOULD_OVERRIDE_WITH_REDIRECTS)) {
                         if (checkUrl && url != null) {
-                            loginIfValidUrl(url, networkLibrary, helixClientId, helixAuthUrl, apiSetting)
+                            loginIfValidUrl(url, helixClientId, helixAuthUrl, apiSetting)
                         }
                     }
                     return super.shouldOverrideUrlLoading(view, url)
@@ -323,7 +322,7 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupButtons(networkLibrary: String?, helixClientId: String?, helixAuthUrl: String) {
+    private fun setupButtons(helixClientId: String?, helixAuthUrl: String) {
         with(binding) {
             textZoom.setOnClickListener {
                 val slider = Slider(this@LoginActivity).apply {
@@ -367,7 +366,7 @@ class LoginActivity : AppCompatActivity() {
                                 val token = matcher.group(1)
                                 if (!token.isNullOrBlank()) {
                                     lifecycleScope.launch {
-                                        val valid = validateHelixToken(networkLibrary, helixClientId, token)
+                                        val valid = validateHelixToken(helixClientId, token)
                                         if (valid) {
                                             helixToken = token
                                             var getTvToken = false
@@ -379,7 +378,7 @@ class LoginActivity : AppCompatActivity() {
                                                 .setNegativeButton(getString(android.R.string.cancel), null)
                                                 .setOnDismissListener {
                                                     if (getTvToken) {
-                                                        setupExternalCodeLogin(networkLibrary, helixClientId, helixAuthUrl)
+                                                        setupExternalCodeLogin(helixClientId, helixAuthUrl)
                                                     } else {
                                                         done()
                                                     }
@@ -415,7 +414,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun setupSecondaryWebView(networkLibrary: String?, helixClientId: String?, helixAuthUrl: String, isLightTheme: Boolean) {
+    private fun setupSecondaryWebView(helixClientId: String?, helixAuthUrl: String, isLightTheme: Boolean) {
         with(binding) {
             webView.visibility = View.INVISIBLE
             secondaryWebView.visibility = View.VISIBLE
@@ -441,7 +440,7 @@ class LoginActivity : AppCompatActivity() {
                 secondaryWebView.visibility = View.GONE
                 webView.visibility = View.VISIBLE
                 havingTrouble.text = getString(R.string.trouble_logging_in)
-                setupButtons(networkLibrary, helixClientId, helixAuthUrl)
+                setupButtons(helixClientId, helixAuthUrl)
                 if (!WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
                     CookieManager.getInstance().setCookie("https://www.twitch.tv", "auth-token=$gqlWebToken")
                 }
@@ -480,7 +479,7 @@ class LoginActivity : AppCompatActivity() {
                             if (!clientId.isNullOrBlank() && clientId != gqlWebClientId) {
                                 readHeaders2 = false
                                 lifecycleScope.launch {
-                                    val valid = validateGQLToken(networkLibrary, clientId, token)
+                                    val valid = validateGQLToken(clientId, token)
                                     if (valid) {
                                         gqlClientId = clientId
                                         gqlToken = token
@@ -493,7 +492,7 @@ class LoginActivity : AppCompatActivity() {
                                             secondaryWebView.visibility = View.GONE
                                             webView.visibility = View.VISIBLE
                                             havingTrouble.text = getString(R.string.trouble_logging_in)
-                                            setupButtons(networkLibrary, helixClientId, helixAuthUrl)
+                                            setupButtons(helixClientId, helixAuthUrl)
                                             readHeaders = true
                                             webView.loadUrl("https://www.twitch.tv/login")
                                         }
@@ -509,7 +508,7 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    private fun loginIfValidUrl(url: String, networkLibrary: String?, helixClientId: String?, helixAuthUrl: String, apiSetting: Int) {
+    private fun loginIfValidUrl(url: String, helixClientId: String?, helixAuthUrl: String, apiSetting: Int) {
         with(binding) {
             val matcher = tokenPattern.matcher(url)
             if (matcher.find()) {
@@ -521,7 +520,7 @@ class LoginActivity : AppCompatActivity() {
                     havingTrouble.visibility = View.GONE
                     progressBar.visibility = View.VISIBLE
                     lifecycleScope.launch {
-                        val valid = validateHelixToken(networkLibrary, helixClientId, token)
+                        val valid = validateHelixToken(helixClientId, token)
                         if (apiSetting == 0) {
                             if (valid) {
                                 helixToken = token
@@ -548,7 +547,7 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupExternalCodeLogin(networkLibrary: String?, helixClientId: String?, helixAuthUrl: String) {
+    private fun setupExternalCodeLogin(helixClientId: String?, helixAuthUrl: String) {
         with(binding) {
             webView.visibility = View.INVISIBLE
             havingTrouble.visibility = View.INVISIBLE
@@ -557,7 +556,7 @@ class LoginActivity : AppCompatActivity() {
             var userCode: String? = null
             lifecycleScope.launch {
                 try {
-                    val response = xtraModule.authRepository.getDeviceCode(networkLibrary, "client_id=${gqlClientId}&scopes=channel_read+chat%3Aread+user_blocks_edit+user_blocks_read+user_follows_edit+user_read")
+                    val response = xtraModule.authRepository.getDeviceCode("client_id=${gqlClientId}&scopes=channel_read+chat%3Aread+user_blocks_edit+user_blocks_read+user_follows_edit+user_read")
                     deviceCode = response.deviceCode
                     userCode = response.userCode
                     codeText.text = userCode
@@ -590,10 +589,10 @@ class LoginActivity : AppCompatActivity() {
                 if (deviceCode != null) {
                     lifecycleScope.launch {
                         try {
-                            val response = xtraModule.authRepository.getToken(networkLibrary, "client_id=${gqlClientId}&device_code=${deviceCode}&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code")
+                            val response = xtraModule.authRepository.getToken("client_id=${gqlClientId}&device_code=${deviceCode}&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code")
                             val token = response.token
                             if (!token.isNullOrBlank()) {
-                                val valid = validateGQLToken(networkLibrary, gqlClientId, token)
+                                val valid = validateGQLToken(gqlClientId, token)
                                 if (valid) {
                                     this@LoginActivity.gqlClientId = gqlClientId
                                     gqlToken = token
@@ -608,7 +607,7 @@ class LoginActivity : AppCompatActivity() {
                                         copyCode.visibility = View.GONE
                                         openUrl.visibility = View.GONE
                                         next.visibility = View.GONE
-                                        setupButtons(networkLibrary, helixClientId, helixAuthUrl)
+                                        setupButtons(helixClientId, helixAuthUrl)
                                         readHeaders = true
                                         webView.loadUrl("https://www.twitch.tv/login")
                                     }
@@ -627,9 +626,9 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun validateGQLToken(networkLibrary: String?, gqlClientId: String?, token: String): Boolean {
+    private suspend fun validateGQLToken(gqlClientId: String?, token: String): Boolean {
         return try {
-            val response = xtraModule.authRepository.validate(networkLibrary, TwitchApiHelper.addTokenPrefixGQL(token))
+            val response = xtraModule.authRepository.validate(TwitchApiHelper.addTokenPrefixGQL(token))
             if (response.clientId.isNotBlank() && response.clientId == gqlClientId) {
                 response.userId?.let { userId = it }
                 response.login?.let { userLogin = it }
@@ -640,9 +639,9 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun validateHelixToken(networkLibrary: String?, helixClientId: String?, token: String): Boolean {
+    private suspend fun validateHelixToken(helixClientId: String?, token: String): Boolean {
         return try {
-            val response = xtraModule.authRepository.validate(networkLibrary, TwitchApiHelper.addTokenPrefixHelix(token))
+            val response = xtraModule.authRepository.validate(TwitchApiHelper.addTokenPrefixHelix(token))
             if (response.clientId.isNotBlank() && response.clientId == helixClientId) {
                 response.userId?.let { userId = it }
                 response.login?.let { userLogin = it }

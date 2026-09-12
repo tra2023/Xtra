@@ -29,7 +29,6 @@ class LiveNotificationWorker(
     override suspend fun doWork(): Result {
         xtraModule = (context as XtraApp).xtraModule
         val streams = xtraModule.notificationsRepository.getNewStreams(
-            networkLibrary = context.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
             gqlHeaders = TwitchApiHelper.getGQLHeaders(context, true),
             helixHeaders = TwitchApiHelper.getHelixHeaders(context),
         )

@@ -479,7 +479,6 @@
     <string name="chat_emote_size">Taille de l\'emote</string>
     <string name="chat_badge_size">Taille du badge</string>
     <string name="overlay_emotes">Overlay des emotes</string>
-    <string name="network_library">Bibliothèque réseau</string>
     <string name="navigation_tabs">Onglets de navigation</string>
     <string name="translate_chat_messages">Traduire les messages du chat</string>
     <string name="downloaded_languages">Langues téléchargées</string>

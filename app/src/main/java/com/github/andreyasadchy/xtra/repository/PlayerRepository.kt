@@ -1,9 +1,5 @@
 package com.github.andreyasadchy.xtra.repository
 
-import android.annotation.SuppressLint
-import android.content.Context
-import android.net.http.HttpEngine
-import android.net.http.ProxyOptions
 import android.util.Base64
 import androidx.core.net.toUri
 import com.apollographql.apollo.api.CustomScalarAdapters
@@ -43,10 +39,8 @@ import com.github.andreyasadchy.xtra.model.ui.StreamProxy
 import com.github.andreyasadchy.xtra.model.ui.TranslatedChannel
 import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -61,23 +55,15 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okio.buffer
 import okio.source
-import org.chromium.net.CronetEngine
-import org.chromium.net.CronetProvider
-import org.chromium.net.QuicOptions
-import org.chromium.net.apihelpers.UploadDataProviders
 import org.json.JSONException
 import org.json.JSONObject
 import java.net.InetSocketAddress
 import java.net.Proxy
-import java.util.concurrent.ExecutorService
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.uuid.Uuid
 
 class PlayerRepository(
-    private val httpEngine: Lazy<HttpEngine?>,
-    private val cronetEngine: Lazy<CronetEngine?>,
-    private val cronetExecutor: Lazy<ExecutorService>,
     private val okHttpClient: Lazy<OkHttpClient>,
     private val json: Json,
     private val recentEmotes: RecentEmotesDao,
@@ -91,12 +77,12 @@ class PlayerRepository(
     private val helixRepository: HelixRepository,
 ) {
 
-    suspend fun loadStreamPlaylistUrl(context: Context, networkLibrary: String?, gqlHeaders: Map<String, String>, channelLogin: String, platform: String?, playerType: String?, supportedCodecs: String?, proxyPlaybackAccessToken: Boolean, proxyHost: String?, proxyPort: Int?, proxyUser: String?, proxyPassword: String?, enableIntegrity: Boolean): String = withContext(Dispatchers.IO) {
+    suspend fun loadStreamPlaylistUrl(gqlHeaders: Map<String, String>, channelLogin: String, platform: String?, playerType: String?, supportedCodecs: String?, proxyPlaybackAccessToken: Boolean, proxyHost: String?, proxyPort: Int?, proxyUser: String?, proxyPassword: String?, enableIntegrity: Boolean): String = withContext(Dispatchers.IO) {
         val platform = platform?.takeIf { it.isNotBlank() } ?: "web"
         val playerType = playerType?.takeIf { it.isNotBlank() } ?: "site"
-        val accessToken = loadStreamPlaybackAccessToken(context, networkLibrary, gqlHeaders, channelLogin, platform, playerType, proxyPlaybackAccessToken, proxyHost, proxyPort, proxyUser, proxyPassword, enableIntegrity).let { token ->
+        val accessToken = loadStreamPlaybackAccessToken(gqlHeaders, channelLogin, platform, playerType, proxyPlaybackAccessToken, proxyHost, proxyPort, proxyUser, proxyPassword, enableIntegrity).let { token ->
             if (token.second?.contains("\"forbidden\":true") == true && !gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                loadStreamPlaybackAccessToken(context, networkLibrary, gqlHeaders.filterNot { it.key == C.HEADER_TOKEN }, channelLogin, platform, playerType, proxyPlaybackAccessToken, proxyHost, proxyPort, proxyUser, proxyPassword, enableIntegrity)
+                loadStreamPlaybackAccessToken(gqlHeaders.filterNot { it.key == C.HEADER_TOKEN }, channelLogin, platform, playerType, proxyPlaybackAccessToken, proxyHost, proxyPort, proxyUser, proxyPassword, enableIntegrity)
             } else token
         }
         val signature = accessToken.first
@@ -116,7 +102,7 @@ class PlayerRepository(
         }.build().toString()
     }
 
-    private suspend fun loadStreamPlaybackAccessToken(context: Context, networkLibrary: String?, gqlHeaders: Map<String, String>, channelLogin: String, platform: String, playerType: String, proxyPlaybackAccessToken: Boolean, proxyHost: String?, proxyPort: Int?, proxyUser: String?, proxyPassword: String?, enableIntegrity: Boolean): Pair<String?, String?> = withContext(Dispatchers.IO) {
+    private suspend fun loadStreamPlaybackAccessToken(gqlHeaders: Map<String, String>, channelLogin: String, platform: String, playerType: String, proxyPlaybackAccessToken: Boolean, proxyHost: String?, proxyPort: Int?, proxyUser: String?, proxyPassword: String?, enableIntegrity: Boolean): Pair<String?, String?> = withContext(Dispatchers.IO) {
         val accessTokenHeaders = if (enableIntegrity) {
             gqlHeaders
         } else {
@@ -129,158 +115,7 @@ class PlayerRepository(
         try {
             val response = if (proxyPlaybackAccessToken && !proxyHost.isNullOrBlank() && proxyPort != null) {
                 val body = graphQLRepository.getPlaybackAccessTokenRequestBody(channelLogin, "", platform, playerType)
-                when {
-                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                        val proxyHeaders = if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                            listOf(android.util.Pair("Proxy-Authorization", Base64.encodeToString("$proxyUser:$proxyPassword".toByteArray(), Base64.NO_WRAP)))
-                        } else emptyList()
-                        val builder = HttpEngine.Builder(context)
-                        val httpEngine = try {
-                            builder.setProxyOptions(ProxyOptions.fromProxyList(
-                                listOf(
-                                    android.net.http.Proxy.createHttpProxy(
-                                        android.net.http.Proxy.SCHEME_HTTP,
-                                        proxyHost,
-                                        proxyPort,
-                                        cronetExecutor.value,
-                                        object : android.net.http.Proxy.HttpConnectCallback {
-                                            override fun onBeforeRequest(request: android.net.http.Proxy.HttpConnectCallback.Request) {
-                                                request.proceed(proxyHeaders)
-                                            }
-
-                                            override fun onResponseReceived(responseHeaders: List<android.util.Pair<String?, String?>?>, statusCode: Int): Int {
-                                                return android.net.http.Proxy.HttpConnectCallback.RESPONSE_ACTION_PROCEED
-                                            }
-                                        }
-                                    )
-                                ),
-                                ProxyOptions.ALL_PROXIES_FAILED_BEHAVIOR_DISALLOW_DIRECT
-                            ))
-                        } catch (e: NoClassDefFoundError) {
-                            null
-                        }?.build()
-                        if (httpEngine != null) {
-                            val response = suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.HttpEngineTimeout()
-                                val request = httpEngine.newUrlRequestBuilder(
-                                    url,
-                                    cronetExecutor.value,
-                                    NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                ).apply {
-                                    proxyRequestHeaders.forEach { addHeader(it.key, it.value) }
-                                    addHeader("Content-Type", "application/json")
-                                    setUploadDataProvider(NetworkUtils.ByteArrayUploadProvider(body.toByteArray()), cronetExecutor.value)
-                                }.build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
-                                }
-                            }
-                            json.decodeFromString<PlaybackAccessTokenResponse>(response.body.decodeToString())
-                        } else {
-                            okHttpClient.value.newBuilder().apply {
-                                proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
-                                if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                    proxyAuthenticator { _, response ->
-                                        response.request.newBuilder().header(
-                                            "Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)
-                                        ).build()
-                                    }
-                                }
-                            }.build().newCall(Request.Builder().apply {
-                                url(url)
-                                proxyRequestHeaders.forEach {
-                                    addHeader(it.key, it.value)
-                                }
-                                header("Content-Type", "application/json")
-                                post(body.toRequestBody())
-                            }.build()).executeAsync().use { response ->
-                                json.decodeFromString<PlaybackAccessTokenResponse>(response.body.string())
-                            }
-                        }
-                    }
-                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                        val cronetEngine = if (CronetProvider.getAllProviders(context).any { it.isEnabled }) {
-                            val proxyHeaders = if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                mapOf("Proxy-Authorization" to Base64.encodeToString("$proxyUser:$proxyPassword".toByteArray(), Base64.NO_WRAP)).entries.toList()
-                            } else emptyList()
-                            val builder = CronetEngine.Builder(context).apply {
-                                val userAgent = "Cronet/" + defaultUserAgent.substringAfter("Cronet/", "").substringBefore(')')
-                                setUserAgent(userAgent)
-                                @QuicOptions.Experimental
-                                setQuicOptions(QuicOptions.builder().setHandshakeUserAgent(userAgent).build())
-                            }
-                            try {
-                                @org.chromium.net.ProxyOptions.Experimental
-                                builder.setProxyOptions(org.chromium.net.ProxyOptions(
-                                    listOf(
-                                        org.chromium.net.Proxy(
-                                            org.chromium.net.Proxy.HTTP,
-                                            proxyHost,
-                                            proxyPort,
-                                            cronetExecutor.value,
-                                            object : org.chromium.net.Proxy.Callback() {
-                                                override fun onBeforeTunnelRequest(request: Request) {
-                                                    request.proceed(proxyHeaders)
-                                                }
-
-                                                override fun onTunnelHeadersReceived(responseHeaders: List<Map.Entry<String?, String?>?>, statusCode: Int): Boolean {
-                                                    return true
-                                                }
-                                            }
-                                        )
-                                    )
-                                ))
-                            } catch (e: UnsupportedOperationException) {
-                                null
-                            }?.build()
-                        } else null
-                        if (cronetEngine != null) {
-                            val response = suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.CronetTimeout()
-                                val request = cronetEngine.newUrlRequestBuilder(
-                                    url,
-                                    NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                    cronetExecutor.value
-                                ).apply {
-                                    proxyRequestHeaders.forEach { addHeader(it.key, it.value) }
-                                    addHeader("Content-Type", "application/json")
-                                    setUploadDataProvider(UploadDataProviders.create(body.toByteArray()), cronetExecutor.value)
-                                }.build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
-                                }
-                            }
-                            json.decodeFromString<PlaybackAccessTokenResponse>(response.body.decodeToString())
-                        } else {
-                            okHttpClient.value.newBuilder().apply {
-                                proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
-                                if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                    proxyAuthenticator { _, response ->
-                                        response.request.newBuilder().header(
-                                            "Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)
-                                        ).build()
-                                    }
-                                }
-                            }.build().newCall(Request.Builder().apply {
-                                url(url)
-                                proxyRequestHeaders.forEach {
-                                    addHeader(it.key, it.value)
-                                }
-                                header("Content-Type", "application/json")
-                                post(body.toRequestBody())
-                            }.build()).executeAsync().use { response ->
-                                json.decodeFromString<PlaybackAccessTokenResponse>(response.body.string())
-                            }
-                        }
-                    }
-                    else -> {
-                        okHttpClient.value.newBuilder().apply {
+                okHttpClient.value.newBuilder().apply {
                             proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
                             if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
                                 proxyAuthenticator { _, response ->
@@ -299,11 +134,8 @@ class PlayerRepository(
                         }.build()).executeAsync().use { response ->
                             json.decodeFromString<PlaybackAccessTokenResponse>(response.body.string())
                         }
-                    }
-                }
             } else {
                 graphQLRepository.loadPlaybackAccessToken(
-                    networkLibrary = networkLibrary,
                     headers = accessTokenHeaders,
                     login = channelLogin,
                     platform = platform,
@@ -332,166 +164,7 @@ class PlayerRepository(
                         }
                     }
                 }
-                when {
-                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                        val proxyHeaders = if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                            listOf(android.util.Pair("Proxy-Authorization", Base64.encodeToString("$proxyUser:$proxyPassword".toByteArray(), Base64.NO_WRAP)))
-                        } else emptyList()
-                        val builder = HttpEngine.Builder(context)
-                        val httpEngine = try {
-                            builder.setProxyOptions(ProxyOptions.fromProxyList(
-                                listOf(
-                                    android.net.http.Proxy.createHttpProxy(
-                                        android.net.http.Proxy.SCHEME_HTTP,
-                                        proxyHost,
-                                        proxyPort,
-                                        cronetExecutor.value,
-                                        object : android.net.http.Proxy.HttpConnectCallback {
-                                            override fun onBeforeRequest(request: android.net.http.Proxy.HttpConnectCallback.Request) {
-                                                request.proceed(proxyHeaders)
-                                            }
-
-                                            override fun onResponseReceived(responseHeaders: List<android.util.Pair<String?, String?>?>, statusCode: Int): Int {
-                                                return android.net.http.Proxy.HttpConnectCallback.RESPONSE_ACTION_PROCEED
-                                            }
-                                        }
-                                    )
-                                ),
-                                ProxyOptions.ALL_PROXIES_FAILED_BEHAVIOR_DISALLOW_DIRECT
-                            ))
-                        } catch (e: NoClassDefFoundError) {
-                            null
-                        }?.build()
-                        if (httpEngine != null) {
-                            val response = suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.HttpEngineTimeout()
-                                val request = httpEngine.newUrlRequestBuilder(
-                                    url,
-                                    cronetExecutor.value,
-                                    NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                ).apply {
-                                    proxyRequestHeaders.forEach { addHeader(it.key, it.value) }
-                                    addHeader("Content-Type", "application/json")
-                                    setUploadDataProvider(NetworkUtils.ByteArrayUploadProvider(body.toByteArray()), cronetExecutor.value)
-                                }.build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
-                                }
-                            }
-                            response.body.inputStream().source().buffer().jsonReader().use {
-                                query.parseResponse(it)
-                            }
-                        } else {
-                            okHttpClient.value.newBuilder().apply {
-                                proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
-                                if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                    proxyAuthenticator { _, response ->
-                                        response.request.newBuilder().header(
-                                            "Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)
-                                        ).build()
-                                    }
-                                }
-                            }.build().newCall(Request.Builder().apply {
-                                url(url)
-                                proxyRequestHeaders.forEach {
-                                    addHeader(it.key, it.value)
-                                }
-                                header("Content-Type", "application/json")
-                                post(body.toRequestBody())
-                            }.build()).executeAsync().use { response ->
-                                response.body.byteStream().source().buffer().jsonReader().use {
-                                    query.parseResponse(it)
-                                }
-                            }
-                        }
-                    }
-                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                        val cronetEngine = if (CronetProvider.getAllProviders(context).any { it.isEnabled }) {
-                            val proxyHeaders = if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                mapOf("Proxy-Authorization" to Base64.encodeToString("$proxyUser:$proxyPassword".toByteArray(), Base64.NO_WRAP)).entries.toList()
-                            } else emptyList()
-                            val builder = CronetEngine.Builder(context).apply {
-                                val userAgent = "Cronet/" + defaultUserAgent.substringAfter("Cronet/", "").substringBefore(')')
-                                setUserAgent(userAgent)
-                                @QuicOptions.Experimental
-                                setQuicOptions(QuicOptions.builder().setHandshakeUserAgent(userAgent).build())
-                            }
-                            try {
-                                @org.chromium.net.ProxyOptions.Experimental
-                                builder.setProxyOptions(org.chromium.net.ProxyOptions(
-                                    listOf(
-                                        org.chromium.net.Proxy(
-                                            org.chromium.net.Proxy.HTTP,
-                                            proxyHost,
-                                            proxyPort,
-                                            cronetExecutor.value,
-                                            object : org.chromium.net.Proxy.Callback() {
-                                                override fun onBeforeTunnelRequest(request: Request) {
-                                                    request.proceed(proxyHeaders)
-                                                }
-
-                                                override fun onTunnelHeadersReceived(responseHeaders: List<Map.Entry<String?, String?>?>, statusCode: Int): Boolean {
-                                                    return true
-                                                }
-                                            }
-                                        )
-                                    )
-                                ))
-                            } catch (e: UnsupportedOperationException) {
-                                null
-                            }?.build()
-                        } else null
-                        if (cronetEngine != null) {
-                            val response = suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.CronetTimeout()
-                                val request = cronetEngine.newUrlRequestBuilder(
-                                    url,
-                                    NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                    cronetExecutor.value
-                                ).apply {
-                                    proxyRequestHeaders.forEach { addHeader(it.key, it.value) }
-                                    addHeader("Content-Type", "application/json")
-                                    setUploadDataProvider(UploadDataProviders.create(body.toByteArray()), cronetExecutor.value)
-                                }.build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
-                                }
-                            }
-                            response.body.inputStream().source().buffer().jsonReader().use {
-                                query.parseResponse(it)
-                            }
-                        } else {
-                            okHttpClient.value.newBuilder().apply {
-                                proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
-                                if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                    proxyAuthenticator { _, response ->
-                                        response.request.newBuilder().header(
-                                            "Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)
-                                        ).build()
-                                    }
-                                }
-                            }.build().newCall(Request.Builder().apply {
-                                url(url)
-                                proxyRequestHeaders.forEach {
-                                    addHeader(it.key, it.value)
-                                }
-                                header("Content-Type", "application/json")
-                                post(body.toRequestBody())
-                            }.build()).executeAsync().use { response ->
-                                response.body.byteStream().source().buffer().jsonReader().use {
-                                    query.parseResponse(it)
-                                }
-                            }
-                        }
-                    }
-                    else -> {
-                        okHttpClient.value.newBuilder().apply {
+                okHttpClient.value.newBuilder().apply {
                             proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
                             if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
                                 proxyAuthenticator { _, response ->
@@ -512,11 +185,8 @@ class PlayerRepository(
                                 query.parseResponse(it)
                             }
                         }
-                    }
-                }
             } else {
                 graphQLRepository.loadQueryStreamPlaybackAccessToken(
-                    networkLibrary = networkLibrary,
                     headers = accessTokenHeaders,
                     login = channelLogin,
                     platform = platform,
@@ -532,7 +202,7 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadVideoPlaylistUrl(networkLibrary: String?, gqlHeaders: Map<String, String>, videoId: String?, supportedCodecs: String?, enableIntegrity: Boolean): Pair<String, List<String>> = withContext(Dispatchers.IO) {
+    suspend fun loadVideoPlaylistUrl(gqlHeaders: Map<String, String>, videoId: String?, supportedCodecs: String?, enableIntegrity: Boolean): Pair<String, List<String>> = withContext(Dispatchers.IO) {
         val accessTokenHeaders = if (enableIntegrity) {
             gqlHeaders
         } else {
@@ -542,7 +212,6 @@ class PlayerRepository(
         }
         val accessToken = try {
             val response = graphQLRepository.loadPlaybackAccessToken(
-                networkLibrary = networkLibrary,
                 headers = accessTokenHeaders,
                 vodId = videoId,
                 platform = "web",
@@ -557,7 +226,6 @@ class PlayerRepository(
         } catch (e: Exception) {
             if (e.message == C.FAILED_INTEGRITY_CHECK) throw e
             val response = graphQLRepository.loadQueryVideoPlaybackAccessToken(
-                networkLibrary = networkLibrary,
                 headers = accessTokenHeaders,
                 videoId = videoId!!,
                 platform = "web",
@@ -604,9 +272,9 @@ class PlayerRepository(
         url to backupQualities
     }
 
-    suspend fun loadClipQualities(networkLibrary: String?, gqlHeaders: Map<String, String>, clipId: String?, enableIntegrity: Boolean): List<VideoQuality>? = withContext(Dispatchers.IO) {
+    suspend fun loadClipQualities(gqlHeaders: Map<String, String>, clipId: String?, enableIntegrity: Boolean): List<VideoQuality>? = withContext(Dispatchers.IO) {
         try {
-            val response = graphQLRepository.loadClipUrls(networkLibrary, gqlHeaders, clipId)
+            val response = graphQLRepository.loadClipUrls(gqlHeaders, clipId)
             if (enableIntegrity) {
                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { throw Exception(it.message) }
             }
@@ -630,7 +298,7 @@ class PlayerRepository(
             }
         } catch (e: Exception) {
             if (e.message == C.FAILED_INTEGRITY_CHECK) throw e
-            val response = graphQLRepository.loadQueryClipUrls(networkLibrary, gqlHeaders, clipId!!)
+            val response = graphQLRepository.loadQueryClipUrls(gqlHeaders, clipId!!)
             if (enableIntegrity) {
                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { throw Exception(it.message) }
             }
@@ -657,96 +325,20 @@ class PlayerRepository(
         }
     }
 
-    suspend fun sendMinuteWatched(networkLibrary: String?, userId: String?, streamId: String?, channelId: String?, channelLogin: String?) = withContext(Dispatchers.IO) {
+    suspend fun sendMinuteWatched(userId: String?, streamId: String?, channelId: String?, channelLogin: String?) = withContext(Dispatchers.IO) {
         val pageResponse = channelLogin?.let {
             val pageUrl = "https://www.twitch.tv/${channelLogin}"
-            when {
-                networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                    val response = suspendCancellableCoroutine { continuation ->
-                        val timeout = NetworkUtils.HttpEngineTimeout()
-                        val request = httpEngine.value!!.newUrlRequestBuilder(
-                            pageUrl,
-                            cronetExecutor.value,
-                            NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                        ).build()
-                        timeout.start(request, continuation)
-                        request.start()
-                        continuation.invokeOnCancellation {
-                            request.cancel()
-                            timeout.stop()
-                        }
-                    }
-                    response.body.decodeToString()
-                }
-                networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                    val response = suspendCancellableCoroutine { continuation ->
-                        val timeout = NetworkUtils.CronetTimeout()
-                        val request = cronetEngine.value!!.newUrlRequestBuilder(
-                            pageUrl,
-                            NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                            cronetExecutor.value
-                        ).build()
-                        timeout.start(request, continuation)
-                        request.start()
-                        continuation.invokeOnCancellation {
-                            request.cancel()
-                            timeout.stop()
-                        }
-                    }
-                    response.body.decodeToString()
-                }
-                else -> {
-                    okHttpClient.value.newCall(Request.Builder().url(pageUrl).build()).executeAsync().use { response ->
+            okHttpClient.value.newCall(Request.Builder().url(pageUrl).build()).executeAsync().use { response ->
                         response.body.string()
                     }
-                }
-            }
         }
         if (!pageResponse.isNullOrBlank()) {
             val settingsRegex = Regex("https://[\\w.]+/config/settings\\.\\w+?\\.js")
             val settingsUrl = settingsRegex.find(pageResponse)?.value
             val settingsResponse = settingsUrl?.let {
-                when {
-                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                        val response = suspendCancellableCoroutine { continuation ->
-                            val timeout = NetworkUtils.HttpEngineTimeout()
-                            val request = httpEngine.value!!.newUrlRequestBuilder(
-                                settingsUrl,
-                                cronetExecutor.value,
-                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                            ).build()
-                            timeout.start(request, continuation)
-                            request.start()
-                            continuation.invokeOnCancellation {
-                                request.cancel()
-                                timeout.stop()
-                            }
-                        }
-                        response.body.decodeToString()
-                    }
-                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                        val response = suspendCancellableCoroutine { continuation ->
-                            val timeout = NetworkUtils.CronetTimeout()
-                            val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                settingsUrl,
-                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                cronetExecutor.value
-                            ).build()
-                            timeout.start(request, continuation)
-                            request.start()
-                            continuation.invokeOnCancellation {
-                                request.cancel()
-                                timeout.stop()
-                            }
-                        }
-                        response.body.decodeToString()
-                    }
-                    else -> {
-                        okHttpClient.value.newCall(Request.Builder().url(settingsUrl).build()).executeAsync().use { response ->
+                okHttpClient.value.newCall(Request.Builder().url(settingsUrl).build()).executeAsync().use { response ->
                             response.body.string()
                         }
-                    }
-                }
             }
             if (!settingsResponse.isNullOrBlank()) {
                 val spadeRegex = Regex("\"(?:beacon_url|spade_url)\":\"(.*?)\"")
@@ -762,212 +354,44 @@ class PlayerRepository(
                         }
                     }.toString()
                     val spadeRequest = "data=" + Base64.encodeToString(body.toByteArray(), Base64.NO_WRAP)
-                    when {
-                        networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                            suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.HttpEngineTimeout()
-                                val request = httpEngine.value!!.newUrlRequestBuilder(
-                                    spadeUrl,
-                                    cronetExecutor.value,
-                                    NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                ).apply {
-                                    addHeader("Content-Type", "application/x-www-form-urlencoded")
-                                    setUploadDataProvider(NetworkUtils.ByteArrayUploadProvider(spadeRequest.toByteArray()), cronetExecutor.value)
-                                }.build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
-                                }
-                            }
-                        }
-                        networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                            suspendCancellableCoroutine<NetworkUtils.CronetResponse> { continuation ->
-                                val timeout = NetworkUtils.CronetTimeout()
-                                val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                    spadeUrl,
-                                    NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                    cronetExecutor.value
-                                ).apply {
-                                    addHeader("Content-Type", "application/x-www-form-urlencoded")
-                                    setUploadDataProvider(UploadDataProviders.create(spadeRequest.toByteArray()), cronetExecutor.value)
-                                }.build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
-                                }
-                            }
-                        }
-                        else -> {
-                            okHttpClient.value.newCall(Request.Builder().apply {
+                    okHttpClient.value.newCall(Request.Builder().apply {
                                 url(spadeUrl)
                                 header("Content-Type", "application/x-www-form-urlencoded")
                                 post(spadeRequest.toRequestBody())
                             }.build()).executeAsync()
-                        }
-                    }
                 }
             }
         }
     }
 
-    suspend fun loadRecentMessages(networkLibrary: String?, recentMessagesUrl: String, channelLogin: String, limit: String): RecentMessagesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadRecentMessages(recentMessagesUrl: String, channelLogin: String, limit: String): RecentMessagesResponse = withContext(Dispatchers.IO) {
         val url = recentMessagesUrl.replace("\$channel", channelLogin) + "?limit=${limit}"
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                json.decodeFromString<RecentMessagesResponse>(response.body.decodeToString())
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                json.decodeFromString<RecentMessagesResponse>(response.body.decodeToString())
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+        okHttpClient.value.newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
                     json.decodeFromString<RecentMessagesResponse>(response.body.string())
                 }
-            }
-        }
     }
 
-    suspend fun loadGlobalSTVEmoteSetResponse(networkLibrary: String?): String = withContext(Dispatchers.IO) {
+    suspend fun loadGlobalSTVEmoteSetResponse(): String = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/emote-sets/global"
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+        okHttpClient.value.newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
                     response.body.string()
                 }
-            }
-        }
     }
 
-    suspend fun loadSTVEmoteSetResponse(networkLibrary: String?, setId: String): String = withContext(Dispatchers.IO) {
+    suspend fun loadSTVEmoteSetResponse(setId: String): String = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/emote-sets/${setId}"
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+        okHttpClient.value.newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
                     response.body.string()
                 }
-            }
-        }
     }
 
     suspend fun loadSTVEmoteSet(response: String, useWebp: Boolean, global: Boolean): Pair<String?, List<Emote>> = withContext(Dispatchers.IO) {
@@ -975,56 +399,14 @@ class PlayerRepository(
         Pair(response.id, parseSTVEmotes(response.emotes, useWebp, if (global) Emote.GLOBAL_STV else Emote.CHANNEL_STV))
     }
 
-    suspend fun loadSTVUserResponse(networkLibrary: String?, channelId: String): String = withContext(Dispatchers.IO) {
+    suspend fun loadSTVUserResponse(channelId: String): String = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/users/twitch/${channelId}"
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+        okHttpClient.value.newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
                     response.body.string()
                 }
-            }
-        }
     }
 
     suspend fun loadSTVUser(response: String, useWebp: Boolean): Pair<String?, List<Emote>?> = withContext(Dispatchers.IO) {
@@ -1067,60 +449,18 @@ class PlayerRepository(
         }
     }
 
-    suspend fun getSTVUser(networkLibrary: String?, userId: String): String? = withContext(Dispatchers.IO) {
+    suspend fun getSTVUser(userId: String): String? = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/users/twitch/${userId}"
-        val response = when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+        val response = okHttpClient.value.newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
                     response.body.string()
                 }
-            }
-        }
         JSONObject(response).optJSONObject("user")?.optString("id")
     }
 
-    suspend fun sendSTVPresence(networkLibrary: String?, stvUserId: String, channelId: String, sessionId: String?, self: Boolean) = withContext(Dispatchers.IO) {
+    suspend fun sendSTVPresence(stvUserId: String, channelId: String, sessionId: String?, self: Boolean) = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/users/${stvUserId}/presences"
         val body = buildJsonObject {
             put("kind", 1)
@@ -1131,108 +471,22 @@ class PlayerRepository(
                 put("id", channelId)
             }
         }.toString()
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        addHeader("Content-Type", "application/json")
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                        setUploadDataProvider(NetworkUtils.ByteArrayUploadProvider(body.toByteArray()), cronetExecutor.value)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                suspendCancellableCoroutine<NetworkUtils.CronetResponse> { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        addHeader("Content-Type", "application/json")
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                        setUploadDataProvider(UploadDataProviders.create(body.toByteArray()), cronetExecutor.value)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+        okHttpClient.value.newCall(Request.Builder().apply {
                     url(url)
                     header("Content-Type", "application/json")
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                     post(body.toRequestBody())
                 }.build()).executeAsync()
-            }
-        }
     }
 
-    suspend fun loadGlobalBTTVEmotesResponse(networkLibrary: String?): String = withContext(Dispatchers.IO) {
+    suspend fun loadGlobalBTTVEmotesResponse(): String = withContext(Dispatchers.IO) {
         val url = "https://api.betterttv.net/3/cached/emotes/global"
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+        okHttpClient.value.newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
                     response.body.string()
                 }
-            }
-        }
     }
 
     suspend fun loadGlobalBTTVEmotes(response: String, useWebp: Boolean): List<Emote> = withContext(Dispatchers.IO) {
@@ -1240,56 +494,14 @@ class PlayerRepository(
         parseBTTVEmotes(response, useWebp, Emote.GLOBAL_BTTV)
     }
 
-    suspend fun loadBTTVEmotesResponse(networkLibrary: String?, channelId: String): String = withContext(Dispatchers.IO) {
+    suspend fun loadBTTVEmotesResponse(channelId: String): String = withContext(Dispatchers.IO) {
         val url = "https://api.betterttv.net/3/cached/users/twitch/${channelId}"
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+        okHttpClient.value.newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
                     response.body.string()
                 }
-            }
-        }
     }
 
     suspend fun loadBTTVEmotes(response: String, useWebp: Boolean): List<Emote> = withContext(Dispatchers.IO) {
@@ -1324,56 +536,14 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadGlobalFFZEmotesResponse(networkLibrary: String?): String = withContext(Dispatchers.IO) {
+    suspend fun loadGlobalFFZEmotesResponse(): String = withContext(Dispatchers.IO) {
         val url = "https://api.frankerfacez.com/v1/set/global"
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+        okHttpClient.value.newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
                     response.body.string()
                 }
-            }
-        }
     }
 
     suspend fun loadGlobalFFZEmotes(response: String, useWebp: Boolean): List<Emote> = withContext(Dispatchers.IO) {
@@ -1383,56 +553,14 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadFFZEmotesResponse(networkLibrary: String?, channelId: String): String = withContext(Dispatchers.IO) {
+    suspend fun loadFFZEmotesResponse(channelId: String): String = withContext(Dispatchers.IO) {
         val url = "https://api.frankerfacez.com/v1/room/id/${channelId}"
-        when {
-            networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.HttpEngineTimeout()
-                    val request = httpEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        cronetExecutor.value,
-                        NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                val response = suspendCancellableCoroutine { continuation ->
-                    val timeout = NetworkUtils.CronetTimeout()
-                    val request = cronetEngine.value!!.newUrlRequestBuilder(
-                        url,
-                        NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                        cronetExecutor.value
-                    ).apply {
-                        addHeader("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    }.build()
-                    timeout.start(request, continuation)
-                    request.start()
-                    continuation.invokeOnCancellation {
-                        request.cancel()
-                        timeout.stop()
-                    }
-                }
-                response.body.decodeToString()
-            }
-            else -> {
-                okHttpClient.value.newCall(Request.Builder().apply {
+        okHttpClient.value.newCall(Request.Builder().apply {
                     url(url)
                     header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                 }.build()).executeAsync().use { response ->
                     response.body.string()
                 }
-            }
-        }
     }
 
     suspend fun loadFFZEmotes(response: String, useWebp: Boolean): List<Emote> = withContext(Dispatchers.IO) {
@@ -1475,9 +603,9 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadGlobalBadges(networkLibrary: String?, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, emoteQuality: String, enableIntegrity: Boolean): List<TwitchBadge> = withContext(Dispatchers.IO) {
+    suspend fun loadGlobalBadges(helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, emoteQuality: String, enableIntegrity: Boolean): List<TwitchBadge> = withContext(Dispatchers.IO) {
         try {
-            val response = graphQLRepository.loadQueryBadges(networkLibrary, gqlHeaders,
+            val response = graphQLRepository.loadQueryBadges(gqlHeaders,
                 when (emoteQuality) {
                     "4" -> BadgeImageSize.QUADRUPLE
                     "3" -> BadgeImageSize.QUADRUPLE
@@ -1508,7 +636,7 @@ class PlayerRepository(
         } catch (e: Exception) {
             if (e.message == C.FAILED_INTEGRITY_CHECK) throw e
             try {
-                val response = graphQLRepository.loadChatBadges(networkLibrary, gqlHeaders, "")
+                val response = graphQLRepository.loadChatBadges(gqlHeaders, "")
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { throw Exception(it.message) }
                 }
@@ -1530,7 +658,7 @@ class PlayerRepository(
             } catch (e: Exception) {
                 if (e.message == C.FAILED_INTEGRITY_CHECK) throw e
                 if (helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) throw Exception()
-                helixRepository.getGlobalBadges(networkLibrary, helixHeaders).data.mapNotNull { set ->
+                helixRepository.getGlobalBadges(helixHeaders).data.mapNotNull { set ->
                     set.setId?.let { setId ->
                         set.versions?.mapNotNull {
                             it.id?.let { version ->
@@ -1550,9 +678,9 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadChannelBadges(networkLibrary: String?, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, channelId: String?, channelLogin: String?, emoteQuality: String, enableIntegrity: Boolean): List<TwitchBadge> = withContext(Dispatchers.IO) {
+    suspend fun loadChannelBadges(helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, channelId: String?, channelLogin: String?, emoteQuality: String, enableIntegrity: Boolean): List<TwitchBadge> = withContext(Dispatchers.IO) {
         try {
-            val response = graphQLRepository.loadQueryUserBadges(networkLibrary, gqlHeaders, channelId, channelLogin.takeIf { channelId.isNullOrBlank() },
+            val response = graphQLRepository.loadQueryUserBadges(gqlHeaders, channelId, channelLogin.takeIf { channelId.isNullOrBlank() },
                 when (emoteQuality) {
                     "4" -> BadgeImageSize.QUADRUPLE
                     "3" -> BadgeImageSize.QUADRUPLE
@@ -1583,7 +711,7 @@ class PlayerRepository(
         } catch (e: Exception) {
             if (e.message == C.FAILED_INTEGRITY_CHECK) throw e
             try {
-                val response = graphQLRepository.loadChatBadges(networkLibrary, gqlHeaders, channelLogin)
+                val response = graphQLRepository.loadChatBadges(gqlHeaders, channelLogin)
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { throw Exception(it.message) }
                 }
@@ -1605,7 +733,7 @@ class PlayerRepository(
             } catch (e: Exception) {
                 if (e.message == C.FAILED_INTEGRITY_CHECK) throw e
                 if (helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) throw Exception()
-                helixRepository.getChannelBadges(networkLibrary, helixHeaders, channelId).data.mapNotNull { set ->
+                helixRepository.getChannelBadges(helixHeaders, channelId).data.mapNotNull { set ->
                     set.setId?.let { setId ->
                         set.versions?.mapNotNull {
                             it.id?.let { version ->
@@ -1625,10 +753,10 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadCheerEmotes(networkLibrary: String?, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, channelId: String?, channelLogin: String?, animateGifs: Boolean, enableIntegrity: Boolean): List<CheerEmote> = withContext(Dispatchers.IO) {
+    suspend fun loadCheerEmotes(helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, channelId: String?, channelLogin: String?, animateGifs: Boolean, enableIntegrity: Boolean): List<CheerEmote> = withContext(Dispatchers.IO) {
         try {
             val emotes = mutableListOf<CheerEmote>()
-            val response = graphQLRepository.loadQueryUserCheerEmotes(networkLibrary, gqlHeaders, channelId, channelLogin.takeIf { channelId.isNullOrBlank() })
+            val response = graphQLRepository.loadQueryUserCheerEmotes(gqlHeaders, channelId, channelLogin.takeIf { channelId.isNullOrBlank() })
             if (enableIntegrity) {
                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { throw Exception(it.message) }
             }
@@ -1703,7 +831,7 @@ class PlayerRepository(
             if (e.message == C.FAILED_INTEGRITY_CHECK) throw e
             try {
                 val emotes = mutableListOf<CheerEmote>()
-                val response = graphQLRepository.loadGlobalCheerEmotes(networkLibrary, gqlHeaders)
+                val response = graphQLRepository.loadGlobalCheerEmotes(gqlHeaders)
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { throw Exception(it.message) }
                 }
@@ -1744,7 +872,7 @@ class PlayerRepository(
                             }
                         }.flatten()
                     }.flatten().let { emotes.addAll(it) }
-                    graphQLRepository.loadChannelCheerEmotes(networkLibrary, gqlHeaders, channelLogin).data?.channel?.cheer?.cheerGroups?.map { group ->
+                    graphQLRepository.loadChannelCheerEmotes(gqlHeaders, channelLogin).data?.channel?.cheer?.cheerGroups?.map { group ->
                         group.nodes.map { emote ->
                             emote.tiers.mapNotNull { tier ->
                                 config.colors.find { it.bits == tier.bits }?.let { item ->
@@ -1774,7 +902,7 @@ class PlayerRepository(
             } catch (e: Exception) {
                 if (e.message == C.FAILED_INTEGRITY_CHECK) throw e
                 if (helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) throw Exception()
-                helixRepository.getCheerEmotes(networkLibrary, helixHeaders, channelId).data.map { set ->
+                helixRepository.getCheerEmotes(helixHeaders, channelId).data.map { set ->
                     set.tiers.mapNotNull { tier ->
                         tier.images.let { it.dark ?: it.light }?.let { formats ->
                             if (animateGifs) {
@@ -1801,13 +929,13 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadUserEmotes(networkLibrary: String?, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, channelId: String?, userId: String?, animateGifs: Boolean, enableIntegrity: Boolean): List<TwitchEmote> = withContext(Dispatchers.IO) {
+    suspend fun loadUserEmotes(helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, channelId: String?, userId: String?, animateGifs: Boolean, enableIntegrity: Boolean): List<TwitchEmote> = withContext(Dispatchers.IO) {
         try {
             if (gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) throw Exception()
             val emotes = mutableListOf<TwitchEmote>()
             var offset: String? = null
             do {
-                val response = graphQLRepository.loadUserEmotes(networkLibrary, gqlHeaders, channelId, offset)
+                val response = graphQLRepository.loadUserEmotes(gqlHeaders, channelId, offset)
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { throw Exception(it.message) }
                 }
@@ -1839,7 +967,7 @@ class PlayerRepository(
             if (e.message == C.FAILED_INTEGRITY_CHECK) throw e
             try {
                 if (gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) throw Exception()
-                val response = graphQLRepository.loadQueryUserEmotes(networkLibrary, gqlHeaders)
+                val response = graphQLRepository.loadQueryUserEmotes(gqlHeaders)
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { throw Exception(it.message) }
                 }
@@ -1868,7 +996,7 @@ class PlayerRepository(
                 val emotes = mutableListOf<TwitchEmote>()
                 var offset: String? = null
                 do {
-                    val response = helixRepository.getUserEmotes(networkLibrary, helixHeaders, userId, channelId, offset)
+                    val response = helixRepository.getUserEmotes(helixHeaders, userId, channelId, offset)
                     response.data.mapNotNull { emote ->
                         emote.name?.let { name ->
                             emote.id?.let { id ->
@@ -1910,8 +1038,8 @@ class PlayerRepository(
         }
     }
 
-    suspend fun loadEmotesFromSet(networkLibrary: String?, helixHeaders: Map<String, String>, setIds: List<String>, animateGifs: Boolean): List<TwitchEmote> = withContext(Dispatchers.IO) {
-        val response = helixRepository.getEmotesFromSet(networkLibrary, helixHeaders, setIds)
+    suspend fun loadEmotesFromSet(helixHeaders: Map<String, String>, setIds: List<String>, animateGifs: Boolean): List<TwitchEmote> = withContext(Dispatchers.IO) {
+        val response = helixRepository.getEmotesFromSet(helixHeaders, setIds)
         response.data.mapNotNull { emote ->
             emote.name?.let { name ->
                 emote.id?.let { id ->

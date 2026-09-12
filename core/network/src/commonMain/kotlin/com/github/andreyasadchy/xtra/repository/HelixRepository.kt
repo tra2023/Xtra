@@ -29,41 +29,41 @@ class HelixRepository(
     private val json: Json,
 ) {
 
-    private suspend fun get(networkLibrary: String?, headers: Map<String, String>, url: String): XtraHttpResponse =
-        client.execute(XtraHttpRequest(XtraHttpRequest.GET, url, headers, engine = networkLibrary))
+    private suspend fun get(headers: Map<String, String>, url: String): XtraHttpResponse =
+        client.execute(XtraHttpRequest(XtraHttpRequest.GET, url, headers,))
 
-    private suspend fun postJson(networkLibrary: String?, headers: Map<String, String>, url: String, body: String): XtraHttpResponse =
-        client.execute(XtraHttpRequest(XtraHttpRequest.POST, url, headers + ("Content-Type" to "application/json"), body.toByteArray(), engine = networkLibrary))
+    private suspend fun postJson(headers: Map<String, String>, url: String, body: String): XtraHttpResponse =
+        client.execute(XtraHttpRequest(XtraHttpRequest.POST, url, headers + ("Content-Type" to "application/json"), body.toByteArray(),))
 
-    private suspend fun delete(networkLibrary: String?, headers: Map<String, String>, url: String): XtraHttpResponse =
-        client.execute(XtraHttpRequest(XtraHttpRequest.DELETE, url, headers, engine = networkLibrary))
+    private suspend fun delete(headers: Map<String, String>, url: String): XtraHttpResponse =
+        client.execute(XtraHttpRequest(XtraHttpRequest.DELETE, url, headers,))
 
-    private suspend fun put(networkLibrary: String?, headers: Map<String, String>, url: String): XtraHttpResponse =
-        client.execute(XtraHttpRequest(XtraHttpRequest.PUT, url, headers, engine = networkLibrary))
+    private suspend fun put(headers: Map<String, String>, url: String): XtraHttpResponse =
+        client.execute(XtraHttpRequest(XtraHttpRequest.PUT, url, headers,))
 
-    private suspend fun patchJson(networkLibrary: String?, headers: Map<String, String>, url: String, body: String): XtraHttpResponse =
-        client.execute(XtraHttpRequest(XtraHttpRequest.PATCH, url, headers + ("Content-Type" to "application/json"), body.toByteArray(), engine = networkLibrary))
+    private suspend fun patchJson(headers: Map<String, String>, url: String, body: String): XtraHttpResponse =
+        client.execute(XtraHttpRequest(XtraHttpRequest.PATCH, url, headers + ("Content-Type" to "application/json"), body.toByteArray(),))
 
     private fun XtraHttpResponse.nullOrError(): String? =
         if (code in 200..299) null else bodyAsString()
 
-    suspend fun getGames(networkLibrary: String?, headers: Map<String, String>, ids: List<String>? = null, names: List<String>? = null): GamesResponse = withContext(Dispatchers.IO) {
+    suspend fun getGames(headers: Map<String, String>, ids: List<String>? = null, names: List<String>? = null): GamesResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/games") {
             params("id", ids)
             params("name", names)
         }
-        json.decodeFromString<GamesResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<GamesResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getTopGames(networkLibrary: String?, headers: Map<String, String>, limit: Int?, offset: String?): GamesResponse = withContext(Dispatchers.IO) {
+    suspend fun getTopGames(headers: Map<String, String>, limit: Int?, offset: String?): GamesResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/games/top") {
             param("first", limit)
             param("after", offset)
         }
-        json.decodeFromString<GamesResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<GamesResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getStreams(networkLibrary: String?, headers: Map<String, String>, ids: List<String>? = null, logins: List<String>? = null, gameId: String? = null, languages: List<String>? = null, limit: Int? = null, offset: String? = null): StreamsResponse = withContext(Dispatchers.IO) {
+    suspend fun getStreams(headers: Map<String, String>, ids: List<String>? = null, logins: List<String>? = null, gameId: String? = null, languages: List<String>? = null, limit: Int? = null, offset: String? = null): StreamsResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/streams") {
             params("user_id", ids)
             params("user_login", logins)
@@ -72,19 +72,19 @@ class HelixRepository(
             param("first", limit)
             param("after", offset)
         }
-        json.decodeFromString<StreamsResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<StreamsResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getFollowedStreams(networkLibrary: String?, headers: Map<String, String>, userId: String?, limit: Int?, offset: String?): StreamsResponse = withContext(Dispatchers.IO) {
+    suspend fun getFollowedStreams(headers: Map<String, String>, userId: String?, limit: Int?, offset: String?): StreamsResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/streams/followed") {
             param("user_id", userId)
             param("first", limit)
             param("after", offset)
         }
-        json.decodeFromString<StreamsResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<StreamsResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getClips(networkLibrary: String?, headers: Map<String, String>, ids: List<String>? = null, channelId: String? = null, gameId: String? = null, startedAt: String? = null, endedAt: String? = null, limit: Int? = null, offset: String? = null): ClipsResponse = withContext(Dispatchers.IO) {
+    suspend fun getClips(headers: Map<String, String>, ids: List<String>? = null, channelId: String? = null, gameId: String? = null, startedAt: String? = null, endedAt: String? = null, limit: Int? = null, offset: String? = null): ClipsResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/clips") {
             params("id", ids)
             param("broadcaster_id", channelId)
@@ -94,10 +94,10 @@ class HelixRepository(
             param("first", limit)
             param("after", offset)
         }
-        json.decodeFromString<ClipsResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<ClipsResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getVideos(networkLibrary: String?, headers: Map<String, String>, ids: List<String>? = null, gameId: String? = null, channelId: String? = null, period: String? = null, broadcastType: String? = null, sort: String? = null, language: String? = null, limit: Int? = null, offset: String? = null): VideosResponse = withContext(Dispatchers.IO) {
+    suspend fun getVideos(headers: Map<String, String>, ids: List<String>? = null, gameId: String? = null, channelId: String? = null, period: String? = null, broadcastType: String? = null, sort: String? = null, language: String? = null, limit: Int? = null, offset: String? = null): VideosResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/videos") {
             params("id", ids)
             param("game_id", gameId)
@@ -109,102 +109,102 @@ class HelixRepository(
             param("first", limit)
             param("after", offset)
         }
-        json.decodeFromString<VideosResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<VideosResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getUsers(networkLibrary: String?, headers: Map<String, String>, ids: List<String>? = null, logins: List<String>? = null): UsersResponse = withContext(Dispatchers.IO) {
+    suspend fun getUsers(headers: Map<String, String>, ids: List<String>? = null, logins: List<String>? = null): UsersResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/users") {
             params("id", ids)
             params("login", logins)
         }
-        json.decodeFromString<UsersResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<UsersResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getSearchGames(networkLibrary: String?, headers: Map<String, String>, query: String?, limit: Int?, offset: String?): GamesResponse = withContext(Dispatchers.IO) {
+    suspend fun getSearchGames(headers: Map<String, String>, query: String?, limit: Int?, offset: String?): GamesResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/search/categories") {
             param("query", query)
             param("first", limit)
             param("after", offset)
         }
-        json.decodeFromString<GamesResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<GamesResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getSearchChannels(networkLibrary: String?, headers: Map<String, String>, query: String?, limit: Int?, offset: String?, live: Boolean? = null): ChannelSearchResponse = withContext(Dispatchers.IO) {
+    suspend fun getSearchChannels(headers: Map<String, String>, query: String?, limit: Int?, offset: String?, live: Boolean? = null): ChannelSearchResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/search/channels") {
             param("query", query)
             param("first", limit)
             param("after", offset)
             param("live_only", live)
         }
-        json.decodeFromString<ChannelSearchResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<ChannelSearchResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getUserFollows(networkLibrary: String?, headers: Map<String, String>, userId: String?, targetId: String? = null, limit: Int? = null, offset: String? = null): FollowsResponse = withContext(Dispatchers.IO) {
+    suspend fun getUserFollows(headers: Map<String, String>, userId: String?, targetId: String? = null, limit: Int? = null, offset: String? = null): FollowsResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/channels/followed") {
             param("user_id", userId)
             param("broadcaster_id", targetId)
             param("first", limit)
             param("after", offset)
         }
-        json.decodeFromString<FollowsResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<FollowsResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getUserFollowers(networkLibrary: String?, headers: Map<String, String>, userId: String?, targetId: String? = null, limit: Int? = null, offset: String? = null): FollowsResponse = withContext(Dispatchers.IO) {
+    suspend fun getUserFollowers(headers: Map<String, String>, userId: String?, targetId: String? = null, limit: Int? = null, offset: String? = null): FollowsResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/channels/followers") {
             param("user_id", targetId)
             param("broadcaster_id", userId)
             param("first", limit)
             param("after", offset)
         }
-        json.decodeFromString<FollowsResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<FollowsResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getUserEmotes(networkLibrary: String?, headers: Map<String, String>, userId: String?, channelId: String?, offset: String?): UserEmotesResponse = withContext(Dispatchers.IO) {
+    suspend fun getUserEmotes(headers: Map<String, String>, userId: String?, channelId: String?, offset: String?): UserEmotesResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/chat/emotes/user") {
             param("user_id", userId)
             param("broadcaster_id", channelId)
             param("after", offset)
         }
-        json.decodeFromString<UserEmotesResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<UserEmotesResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getEmotesFromSet(networkLibrary: String?, headers: Map<String, String>, setIds: List<String>): EmoteSetsResponse = withContext(Dispatchers.IO) {
+    suspend fun getEmotesFromSet(headers: Map<String, String>, setIds: List<String>): EmoteSetsResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/chat/emotes/set") {
             params("emote_set_id", setIds)
         }
-        json.decodeFromString<EmoteSetsResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<EmoteSetsResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getGlobalBadges(networkLibrary: String?, headers: Map<String, String>): BadgesResponse = withContext(Dispatchers.IO) {
+    suspend fun getGlobalBadges(headers: Map<String, String>): BadgesResponse = withContext(Dispatchers.IO) {
         val url = "https://api.twitch.tv/helix/chat/badges/global"
-        json.decodeFromString<BadgesResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<BadgesResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getChannelBadges(networkLibrary: String?, headers: Map<String, String>, userId: String?): BadgesResponse = withContext(Dispatchers.IO) {
+    suspend fun getChannelBadges(headers: Map<String, String>, userId: String?): BadgesResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/chat/badges") {
             param("broadcaster_id", userId)
         }
-        json.decodeFromString<BadgesResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<BadgesResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getCheerEmotes(networkLibrary: String?, headers: Map<String, String>, userId: String?): CheerEmotesResponse = withContext(Dispatchers.IO) {
+    suspend fun getCheerEmotes(headers: Map<String, String>, userId: String?): CheerEmotesResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/bits/cheermotes") {
             param("broadcaster_id", userId)
         }
-        json.decodeFromString<CheerEmotesResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<CheerEmotesResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun getChatters(networkLibrary: String?, headers: Map<String, String>, channelId: String?, userId: String?, limit: Int? = null, offset: String? = null): ChatUsersResponse = withContext(Dispatchers.IO) {
+    suspend fun getChatters(headers: Map<String, String>, channelId: String?, userId: String?, limit: Int? = null, offset: String? = null): ChatUsersResponse = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/chat/chatters") {
             param("broadcaster_id", channelId)
             param("moderator_id", userId)
             param("first", limit)
             param("after", offset)
         }
-        json.decodeFromString<ChatUsersResponse>(get(networkLibrary, headers, url).bodyAsString())
+        json.decodeFromString<ChatUsersResponse>(get(headers, url).bodyAsString())
     }
 
-    suspend fun createEventSubSubscription(networkLibrary: String?, headers: Map<String, String>, userId: String?, channelId: String?, type: String?, sessionId: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun createEventSubSubscription(headers: Map<String, String>, userId: String?, channelId: String?, type: String?, sessionId: String?): String? = withContext(Dispatchers.IO) {
         val url = "https://api.twitch.tv/helix/eventsub/subscriptions"
         val body = buildJsonObject {
             put("type", type)
@@ -218,10 +218,10 @@ class HelixRepository(
                 put("session_id", sessionId)
             }
         }.toString()
-        postJson(networkLibrary, headers, url, body).nullOrError()
+        postJson(headers, url, body).nullOrError()
     }
 
-    suspend fun sendMessage(networkLibrary: String?, headers: Map<String, String>, userId: String?, channelId: String?, message: String?, replyId: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun sendMessage(headers: Map<String, String>, userId: String?, channelId: String?, message: String?, replyId: String?): String? = withContext(Dispatchers.IO) {
         val url = "https://api.twitch.tv/helix/chat/messages"
         val body = buildJsonObject {
             put("broadcaster_id", channelId)
@@ -229,10 +229,10 @@ class HelixRepository(
             put("message", message)
             replyId?.let { put("reply_parent_message_id", it) }
         }.toString()
-        postJson(networkLibrary, headers, url, body).nullOrError()
+        postJson(headers, url, body).nullOrError()
     }
 
-    suspend fun sendAnnouncement(networkLibrary: String?, headers: Map<String, String>, channelId: String?, userId: String?, message: String?, color: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun sendAnnouncement(headers: Map<String, String>, channelId: String?, userId: String?, message: String?, color: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/chat/announcements") {
             param("broadcaster_id", channelId)
             param("moderator_id", userId)
@@ -241,10 +241,10 @@ class HelixRepository(
             put("message", message)
             color?.let { put("color", it) }
         }.toString()
-        postJson(networkLibrary, headers, url, body).nullOrError()
+        postJson(headers, url, body).nullOrError()
     }
 
-    suspend fun banUser(networkLibrary: String?, headers: Map<String, String>, channelId: String?, userId: String?, targetId: String?, duration: String? = null, reason: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun banUser(headers: Map<String, String>, channelId: String?, userId: String?, targetId: String?, duration: String? = null, reason: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/moderation/bans") {
             param("broadcaster_id", channelId)
             param("moderator_id", userId)
@@ -256,32 +256,32 @@ class HelixRepository(
                 put("user_id", targetId)
             }
         }.toString()
-        postJson(networkLibrary, headers, url, body).nullOrError()
+        postJson(headers, url, body).nullOrError()
     }
 
-    suspend fun unbanUser(networkLibrary: String?, headers: Map<String, String>, channelId: String?, userId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun unbanUser(headers: Map<String, String>, channelId: String?, userId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/moderation/bans") {
             param("broadcaster_id", channelId)
             param("moderator_id", userId)
             param("user_id", targetId)
         }
-        delete(networkLibrary, headers, url).nullOrError()
+        delete(headers, url).nullOrError()
     }
 
-    suspend fun deleteMessages(networkLibrary: String?, headers: Map<String, String>, channelId: String?, userId: String?, messageId: String? = null): String? = withContext(Dispatchers.IO) {
+    suspend fun deleteMessages(headers: Map<String, String>, channelId: String?, userId: String?, messageId: String? = null): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/moderation/chat") {
             param("broadcaster_id", channelId)
             param("moderator_id", userId)
             param("message_id", messageId)
         }
-        delete(networkLibrary, headers, url).nullOrError()
+        delete(headers, url).nullOrError()
     }
 
-    suspend fun getChatColor(networkLibrary: String?, headers: Map<String, String>, userId: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun getChatColor(headers: Map<String, String>, userId: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/chat/color") {
             param("user_id", userId)
         }
-        val response = get(networkLibrary, headers, url)
+        val response = get(headers, url)
         if (response.code in 200..299) {
             json.decodeFromString<JsonElement>(response.bodyAsString()).jsonObject["data"]?.jsonArray?.firstOrNull()?.jsonObject?.get("color")?.jsonPrimitive?.contentOrNull
         } else {
@@ -289,21 +289,21 @@ class HelixRepository(
         }
     }
 
-    suspend fun updateChatColor(networkLibrary: String?, headers: Map<String, String>, userId: String?, color: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun updateChatColor(headers: Map<String, String>, userId: String?, color: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/chat/color") {
             param("user_id", userId)
             param("color", color)
         }
-        put(networkLibrary, headers, url).nullOrError()
+        put(headers, url).nullOrError()
     }
 
-    suspend fun startCommercial(networkLibrary: String?, headers: Map<String, String>, channelId: String?, length: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun startCommercial(headers: Map<String, String>, channelId: String?, length: String?): String? = withContext(Dispatchers.IO) {
         val url = "https://api.twitch.tv/helix/channels/commercial"
         val body = buildJsonObject {
             put("broadcaster_id", channelId)
             put("length", length?.toIntOrNull())
         }.toString()
-        val response = postJson(networkLibrary, headers, url, body)
+        val response = postJson(headers, url, body)
         if (response.code in 200..299) {
             json.decodeFromString<JsonElement>(response.bodyAsString()).jsonObject["data"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull
         } else {
@@ -311,7 +311,7 @@ class HelixRepository(
         }
     }
 
-    suspend fun updateChatSettings(networkLibrary: String?, headers: Map<String, String>, channelId: String?, userId: String?, emote: Boolean? = null, followers: Boolean? = null, followersDuration: Int? = null, slow: Boolean? = null, slowDuration: Int? = null, subs: Boolean? = null, unique: Boolean? = null): String? = withContext(Dispatchers.IO) {
+    suspend fun updateChatSettings(headers: Map<String, String>, channelId: String?, userId: String?, emote: Boolean? = null, followers: Boolean? = null, followersDuration: Int? = null, slow: Boolean? = null, slowDuration: Int? = null, subs: Boolean? = null, unique: Boolean? = null): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/chat/settings") {
             param("broadcaster_id", channelId)
             param("moderator_id", userId)
@@ -325,66 +325,66 @@ class HelixRepository(
             subs?.let { put("subscriber_mode", it) }
             unique?.let { put("unique_chat_mode", it) }
         }.toString()
-        patchJson(networkLibrary, headers, url, body).nullOrError()
+        patchJson(headers, url, body).nullOrError()
     }
 
-    suspend fun createStreamMarker(networkLibrary: String?, headers: Map<String, String>, channelId: String?, description: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun createStreamMarker(headers: Map<String, String>, channelId: String?, description: String?): String? = withContext(Dispatchers.IO) {
         val url = "https://api.twitch.tv/helix/streams/markers"
         val body = buildJsonObject {
             put("user_id", channelId)
             description?.let { put("description", it) }
         }.toString()
-        postJson(networkLibrary, headers, url, body).nullOrError()
+        postJson(headers, url, body).nullOrError()
     }
 
-    suspend fun addModerator(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun addModerator(headers: Map<String, String>, channelId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/moderation/moderators") {
             param("broadcaster_id", channelId)
             param("user_id", targetId)
         }
-        get(networkLibrary, headers, url).nullOrError()
+        get(headers, url).nullOrError()
     }
 
-    suspend fun removeModerator(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun removeModerator(headers: Map<String, String>, channelId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/moderation/moderators") {
             param("broadcaster_id", channelId)
             param("user_id", targetId)
         }
-        delete(networkLibrary, headers, url).nullOrError()
+        delete(headers, url).nullOrError()
     }
 
-    suspend fun startRaid(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun startRaid(headers: Map<String, String>, channelId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/raids") {
             param("from_broadcaster_id", channelId)
             param("to_broadcaster_id", targetId)
         }
-        get(networkLibrary, headers, url).nullOrError()
+        get(headers, url).nullOrError()
     }
 
-    suspend fun cancelRaid(networkLibrary: String?, headers: Map<String, String>, channelId: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun cancelRaid(headers: Map<String, String>, channelId: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/raids") {
             param("broadcaster_id", channelId)
         }
-        delete(networkLibrary, headers, url).nullOrError()
+        delete(headers, url).nullOrError()
     }
 
-    suspend fun addVip(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun addVip(headers: Map<String, String>, channelId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/channels/vips") {
             param("broadcaster_id", channelId)
             param("user_id", targetId)
         }
-        get(networkLibrary, headers, url).nullOrError()
+        get(headers, url).nullOrError()
     }
 
-    suspend fun removeVip(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun removeVip(headers: Map<String, String>, channelId: String?, targetId: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/channels/vips") {
             param("broadcaster_id", channelId)
             param("user_id", targetId)
         }
-        delete(networkLibrary, headers, url).nullOrError()
+        delete(headers, url).nullOrError()
     }
 
-    suspend fun sendWhisper(networkLibrary: String?, headers: Map<String, String>, userId: String?, targetId: String?, message: String?): String? = withContext(Dispatchers.IO) {
+    suspend fun sendWhisper(headers: Map<String, String>, userId: String?, targetId: String?, message: String?): String? = withContext(Dispatchers.IO) {
         val url = HelixUrls.build("https://api.twitch.tv/helix/whispers") {
             param("from_user_id", userId)
             param("to_user_id", targetId)
@@ -392,6 +392,6 @@ class HelixRepository(
         val body = buildJsonObject {
             put("message", message)
         }.toString()
-        postJson(networkLibrary, headers, url, body).nullOrError()
+        postJson(headers, url, body).nullOrError()
     }
 }

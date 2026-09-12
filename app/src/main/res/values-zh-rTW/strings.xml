@@ -479,7 +479,6 @@
     <string name="chat_emote_size">表情符號大小</string>
     <string name="chat_badge_size">徽章大小</string>
     <string name="overlay_emotes">疊加表情符號</string>
-    <string name="network_library">網路函式庫</string>
     <string name="navigation_tabs">導覽分頁</string>
     <string name="translate_chat_messages">翻譯聊天訊息</string>
     <string name="downloaded_languages">已下載語言</string>

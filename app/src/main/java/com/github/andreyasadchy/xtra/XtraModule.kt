@@ -1,11 +1,7 @@
 package com.github.andreyasadchy.xtra
 
 import android.app.Application
-import android.net.http.HttpEngine
 import android.os.Build
-import android.os.ext.SdkExtensions
-import android.util.Log
-import com.github.andreyasadchy.xtra.db.AppDatabase
 import com.github.andreyasadchy.xtra.db.getDatabaseBuilder
 import com.github.andreyasadchy.xtra.db.getRoomDatabase
 import com.github.andreyasadchy.xtra.repository.AuthRepository
@@ -25,67 +21,13 @@ import com.github.andreyasadchy.xtra.util.AppXtraHttpClient
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
-import org.chromium.net.CronetEngine
-import org.chromium.net.CronetProvider
-import org.chromium.net.QuicOptions
-import org.chromium.net.RequestFinishedInfo
 import java.security.KeyStore
 import java.security.cert.CertificateFactory
-import java.util.concurrent.Executors
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
 class XtraModule(application: Application) {
-
-    val httpEngine = lazy {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && SdkExtensions.getExtensionVersion(Build.VERSION_CODES.S) >= 7) {
-            HttpEngine.Builder(application).apply {
-                addQuicHint("gql.twitch.tv", 443, 443)
-                addQuicHint("www.twitch.tv", 443, 443)
-                addQuicHint("7tv.io", 443, 443)
-                addQuicHint("cdn.7tv.app", 443, 443)
-                addQuicHint("api.betterttv.net", 443, 443)
-            }.build()
-        } else {
-            null
-        }
-    }
-
-    val cronetEngine = lazy {
-        if (CronetProvider.getAllProviders(application).any { it.isEnabled }) {
-            CronetEngine.Builder(application).apply {
-                val userAgent = "Cronet/" + defaultUserAgent.substringAfter("Cronet/", "").substringBefore(')')
-                setUserAgent(userAgent)
-                @QuicOptions.Experimental
-                setQuicOptions(QuicOptions.builder().setHandshakeUserAgent(userAgent).build())
-                addQuicHint("gql.twitch.tv", 443, 443)
-                addQuicHint("www.twitch.tv", 443, 443)
-                addQuicHint("7tv.io", 443, 443)
-                addQuicHint("cdn.7tv.app", 443, 443)
-                addQuicHint("api.betterttv.net", 443, 443)
-            }.build().also {
-                if (BuildConfig.DEBUG) {
-                    it.addRequestFinishedListener(object : RequestFinishedInfo.Listener(Executors.newSingleThreadExecutor()) {
-                        override fun onRequestFinished(requestInfo: RequestFinishedInfo) {
-                            requestInfo.responseInfo?.let {
-                                Log.i("Cronet", "${it.httpStatusCode} ${it.negotiatedProtocol} ${it.url}")
-                                it.allHeadersAsList?.forEach {
-                                    Log.i("Cronet", "${it.key}: ${it.value}")
-                                }
-                            }
-                        }
-                    })
-                }
-            }
-        } else {
-            null
-        }
-    }
-
-    val cronetExecutor = lazy {
-        Executors.newCachedThreadPool()
-    }
 
     val okHttpClient = lazy {
         OkHttpClient.Builder().apply {
@@ -131,7 +73,7 @@ class XtraModule(application: Application) {
     }
 
     val xtraHttpClient by lazy {
-        AppXtraHttpClient(httpEngine, cronetEngine, cronetExecutor, okHttpClient)
+        AppXtraHttpClient(okHttpClient)
     }
 
     val authRepository by lazy {
@@ -175,7 +117,7 @@ class XtraModule(application: Application) {
     }
 
     val playerRepository by lazy {
-        PlayerRepository(httpEngine, cronetEngine, cronetExecutor, okHttpClient, json, database.recentEmotes(), database.translatedChannels(), database.customProxies(), database.streamProxies(), database.videoSwap(), database.videoPositions(), database.playbackStates(), graphQLRepository, helixRepository)
+        PlayerRepository(okHttpClient, json, database.recentEmotes(), database.translatedChannels(), database.customProxies(), database.streamProxies(), database.videoSwap(), database.videoPositions(), database.playbackStates(), graphQLRepository, helixRepository)
     }
 
     val recentSearchesRepository by lazy {

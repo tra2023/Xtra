@@ -21,7 +21,6 @@ class ChannelClipsDataSource(
     private val helixHeaders: Map<String, String>,
     private val helixRepository: HelixRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, Clip>() {
     private var api: String? = null
     private var offset: String? = null
@@ -63,7 +62,7 @@ class ChannelClipsDataSource(
     }
 
     private suspend fun gqlQueryLoad(params: LoadParams<Int>): LoadResult<Int, Clip> {
-        val response = graphQLRepository.loadQueryUserClips(networkLibrary, gqlHeaders, channelId, channelLogin.takeIf { channelId.isNullOrBlank() }, gqlQueryPeriod, params.loadSize, offset)
+        val response = graphQLRepository.loadQueryUserClips(gqlHeaders, channelId, channelLogin.takeIf { channelId.isNullOrBlank() }, gqlQueryPeriod, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -113,7 +112,7 @@ class ChannelClipsDataSource(
     }
 
     private suspend fun gqlLoad(params: LoadParams<Int>): LoadResult<Int, Clip> {
-        val response = graphQLRepository.loadChannelClips(networkLibrary, gqlHeaders, channelLogin, gqlPeriod, params.loadSize, offset)
+        val response = graphQLRepository.loadChannelClips(gqlHeaders, channelLogin, gqlPeriod, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -152,7 +151,6 @@ class ChannelClipsDataSource(
 
     private suspend fun helixLoad(params: LoadParams<Int>): LoadResult<Int, Clip> {
         val response = helixRepository.getClips(
-            networkLibrary = networkLibrary,
             headers = helixHeaders,
             channelId = channelId,
             startedAt = startedAt,
@@ -162,7 +160,6 @@ class ChannelClipsDataSource(
         )
         val games = response.data.mapNotNull { it.gameId }.let {
             helixRepository.getGames(
-                networkLibrary = networkLibrary,
                 headers = helixHeaders,
                 ids = it,
             ).data

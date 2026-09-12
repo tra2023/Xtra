@@ -14,7 +14,6 @@ class FollowedVideosDataSource(
     private val gqlHeaders: Map<String, String>,
     private val graphQLRepository: GraphQLRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, Video>() {
     private var api: String? = null
     private var offset: String? = null
@@ -50,7 +49,7 @@ class FollowedVideosDataSource(
     }
 
     private suspend fun gqlQueryLoad(params: LoadParams<Int>): LoadResult<Int, Video> {
-        val response = graphQLRepository.loadQueryUserFollowedVideos(networkLibrary, gqlHeaders, gqlQuerySort, gqlQueryType?.let { listOf(it) }, params.loadSize, offset)
+        val response = graphQLRepository.loadQueryUserFollowedVideos(gqlHeaders, gqlQuerySort, gqlQueryType?.let { listOf(it) }, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -89,7 +88,7 @@ class FollowedVideosDataSource(
     }
 
     private suspend fun gqlLoad(params: LoadParams<Int>): LoadResult<Int, Video> {
-        val response = graphQLRepository.loadFollowedVideos(networkLibrary, gqlHeaders, params.loadSize, offset)
+        val response = graphQLRepository.loadFollowedVideos(gqlHeaders, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }

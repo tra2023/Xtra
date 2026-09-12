@@ -12,13 +12,12 @@ class AuthRepository(
     private val json: Json,
 ) {
 
-    suspend fun validate(networkLibrary: String?, token: String): ValidationResponse = withContext(Dispatchers.IO) {
+    suspend fun validate(token: String): ValidationResponse = withContext(Dispatchers.IO) {
         val response = client.execute(
             XtraHttpRequest(
                 method = XtraHttpRequest.GET,
                 url = "https://id.twitch.tv/oauth2/validate",
                 headers = mapOf("Authorization" to token),
-                engine = networkLibrary,
             )
         )
         if (response.code != 401) {
@@ -28,39 +27,36 @@ class AuthRepository(
         }
     }
 
-    suspend fun revoke(networkLibrary: String?, body: String) = withContext(Dispatchers.IO) {
+    suspend fun revoke(body: String) = withContext(Dispatchers.IO) {
         client.execute(
             XtraHttpRequest(
                 method = XtraHttpRequest.POST,
                 url = "https://id.twitch.tv/oauth2/revoke",
                 headers = mapOf("Content-Type" to "application/x-www-form-urlencoded"),
                 body = body.toByteArray(),
-                engine = networkLibrary,
             )
         )
     }
 
-    suspend fun getDeviceCode(networkLibrary: String?, body: String): DeviceCodeResponse = withContext(Dispatchers.IO) {
+    suspend fun getDeviceCode(body: String): DeviceCodeResponse = withContext(Dispatchers.IO) {
         val response = client.execute(
             XtraHttpRequest(
                 method = XtraHttpRequest.POST,
                 url = "https://id.twitch.tv/oauth2/device",
                 headers = mapOf("Content-Type" to "application/x-www-form-urlencoded"),
                 body = body.toByteArray(),
-                engine = networkLibrary,
             )
         )
         json.decodeFromString<DeviceCodeResponse>(response.bodyAsString())
     }
 
-    suspend fun getToken(networkLibrary: String?, body: String): TokenResponse = withContext(Dispatchers.IO) {
+    suspend fun getToken(body: String): TokenResponse = withContext(Dispatchers.IO) {
         val response = client.execute(
             XtraHttpRequest(
                 method = XtraHttpRequest.POST,
                 url = "https://id.twitch.tv/oauth2/token",
                 headers = mapOf("Content-Type" to "application/x-www-form-urlencoded"),
                 body = body.toByteArray(),
-                engine = networkLibrary,
             )
         )
         json.decodeFromString<TokenResponse>(response.bodyAsString())

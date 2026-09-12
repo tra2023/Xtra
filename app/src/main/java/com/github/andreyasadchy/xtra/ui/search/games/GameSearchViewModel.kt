@@ -47,7 +47,6 @@ class GameSearchViewModel(
                 gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext),
                 graphQLRepository = graphQLRepository,
                 enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
-                networkLibrary = applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
             )
         }.flow
     }.cachedIn(viewModelScope)

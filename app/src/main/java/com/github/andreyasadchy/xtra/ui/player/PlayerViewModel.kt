@@ -1,7 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.player
 
-import android.annotation.SuppressLint
-import android.net.http.HttpEngine
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -23,7 +21,6 @@ import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.repository.NotificationsRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import kotlinx.coroutines.Dispatchers
@@ -36,26 +33,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.encodeToJsonElement
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.chromium.net.CronetEngine
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.CancellationException
-import java.util.concurrent.ExecutorService
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 class PlayerViewModel(
-    private val httpEngine: Lazy<HttpEngine?>,
-    private val cronetEngine: Lazy<CronetEngine?>,
-    private val cronetExecutor: Lazy<ExecutorService>,
     private val okHttpClient: Lazy<OkHttpClient>,
     private val json: Json,
     private val graphQLRepository: GraphQLRepository,
@@ -83,14 +74,14 @@ class PlayerViewModel(
         }
     }
 
-    fun loadStreamInfo(channelId: String?, channelLogin: String?, viewerCount: Int?, loop: Boolean, networkLibrary: String?, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadStreamInfo(channelId: String?, channelLogin: String?, viewerCount: Int?, loop: Boolean, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (loop) {
             if (streamUpdateJob?.isActive != true) {
                 streamUpdateJob?.cancel()
                 streamUpdateJob = viewModelScope.launch {
                     while (isActive) {
                         try {
-                            updateStreamInfo(channelId, channelLogin, networkLibrary, helixHeaders, gqlHeaders, enableIntegrity)
+                            updateStreamInfo(channelId, channelLogin, helixHeaders, gqlHeaders, enableIntegrity)
                             delay(5.minutes)
                         } catch (e: Exception) {
                             if (e.message == C.FAILED_INTEGRITY_CHECK) {
@@ -105,7 +96,7 @@ class PlayerViewModel(
             if (viewerCount == null) {
                 viewModelScope.launch {
                     try {
-                        updateStreamInfo(channelId, channelLogin, networkLibrary, helixHeaders, gqlHeaders, enableIntegrity)
+                        updateStreamInfo(channelId, channelLogin, helixHeaders, gqlHeaders, enableIntegrity)
                     } catch (e: Exception) {
                         if (e.message == C.FAILED_INTEGRITY_CHECK) {
                             integrity.emit("stream")
@@ -116,10 +107,9 @@ class PlayerViewModel(
         }
     }
 
-    private suspend fun updateStreamInfo(channelId: String?, channelLogin: String?, networkLibrary: String?, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    private suspend fun updateStreamInfo(channelId: String?, channelLogin: String?, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         stream.value = try {
             val response = graphQLRepository.loadQueryUsersStream(
-                networkLibrary = networkLibrary,
                 headers = gqlHeaders,
                 ids = channelId?.let { listOf(it) },
                 logins = if (channelId.isNullOrBlank()) channelLogin?.let { listOf(it) } else null,
@@ -149,7 +139,6 @@ class PlayerViewModel(
             if (helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) throw Exception()
             try {
                 helixRepository.getStreams(
-                    networkLibrary = networkLibrary,
                     headers = helixHeaders,
                     ids = channelId?.let { listOf(it) },
                     logins = if (channelId.isNullOrBlank()) channelLogin?.let { listOf(it) } else null
@@ -169,7 +158,7 @@ class PlayerViewModel(
                     )
                 }
             } catch (e: Exception) {
-                val response = graphQLRepository.loadViewerCount(networkLibrary, gqlHeaders, channelLogin)
+                val response = graphQLRepository.loadViewerCount(gqlHeaders, channelLogin)
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { throw Exception(it.message) }
                 }
@@ -183,7 +172,7 @@ class PlayerViewModel(
         }
     }
 
-    fun findUnlistedVideo(networkLibrary: String?, qualities: List<VideoQuality>?, streamId: String?, channelLogin: String?, streamCreatedAt: String?) {
+    fun findUnlistedVideo(qualities: List<VideoQuality>?, streamId: String?, channelLogin: String?, streamCreatedAt: String?) {
         val createdAtSeconds = streamCreatedAt?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { time -> time > 0 }?.div(1000) }
         if (!qualities.isNullOrEmpty() && streamId != null && channelLogin != null && createdAtSeconds != null) {
             viewModelScope.launch(Dispatchers.IO) {
@@ -208,53 +197,7 @@ class PlayerViewModel(
                         jobs.add(
                             viewModelScope.launch(Dispatchers.IO) {
                                 try {
-                                    when {
-                                        networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                            val response = suspendCancellableCoroutine { continuation ->
-                                                val timeout = NetworkUtils.HttpEngineTimeout()
-                                                val request = httpEngine.value!!.newUrlRequestBuilder(
-                                                    url,
-                                                    cronetExecutor.value,
-                                                    NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                                ).build()
-                                                timeout.start(request, continuation)
-                                                request.start()
-                                                continuation.invokeOnCancellation {
-                                                    request.cancel()
-                                                    timeout.stop()
-                                                }
-                                            }
-                                            if (response.info.httpStatusCode in 200..299) {
-                                                result.value = url
-                                                jobs.forEach {
-                                                    it.cancel()
-                                                }
-                                            }
-                                        }
-                                        networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                            val response = suspendCancellableCoroutine { continuation ->
-                                                val timeout = NetworkUtils.CronetTimeout()
-                                                val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                                    url,
-                                                    NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                                    cronetExecutor.value
-                                                ).build()
-                                                timeout.start(request, continuation)
-                                                request.start()
-                                                continuation.invokeOnCancellation {
-                                                    request.cancel()
-                                                    timeout.stop()
-                                                }
-                                            }
-                                            if (response.info.httpStatusCode in 200..299) {
-                                                result.value = url
-                                                jobs.forEach {
-                                                    it.cancel()
-                                                }
-                                            }
-                                        }
-                                        else -> {
-                                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                                 if (response.isSuccessful) {
                                                     result.value = url
                                                     jobs.forEach {
@@ -262,8 +205,6 @@ class PlayerViewModel(
                                                     }
                                                 }
                                             }
-                                        }
-                                    }
                                 } catch (e: CancellationException) {
                                     ensureActive()
                                 } catch (e: Exception) {
@@ -300,11 +241,11 @@ class PlayerViewModel(
         }
     }
 
-    fun loadGamesList(videoId: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun loadGamesList(videoId: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (gamesList.value == null) {
             viewModelScope.launch {
                 try {
-                    val response = graphQLRepository.loadQueryVideoMoments(networkLibrary, gqlHeaders, videoId)
+                    val response = graphQLRepository.loadQueryVideoMoments(gqlHeaders, videoId)
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("refreshVideo")
@@ -324,7 +265,7 @@ class PlayerViewModel(
                     }
                 } catch (e: Exception) {
                     try {
-                        val response = graphQLRepository.loadVideoGames(networkLibrary, gqlHeaders, videoId)
+                        val response = graphQLRepository.loadVideoGames(gqlHeaders, videoId)
                         if (enableIntegrity) {
                             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                 integrity.emit("refreshVideo")
@@ -356,7 +297,7 @@ class PlayerViewModel(
         }
     }
 
-    fun saveBookmark(filesDir: String, networkLibrary: String?, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, videoId: String?, title: String?, uploadDate: String?, durationSeconds: Int?, type: String?, animatedPreviewUrl: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?) {
+    fun saveBookmark(filesDir: String, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, videoId: String?, title: String?, uploadDate: String?, durationSeconds: Int?, type: String?, animatedPreviewUrl: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?) {
         viewModelScope.launch {
             val item = videoId?.let { bookmarksRepository.getByVideoId(it) }
             if (item != null) {
@@ -368,51 +309,7 @@ class PlayerViewModel(
                         val path = filesDir + File.separator + "thumbnails" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                when {
-                                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.HttpEngineTimeout()
-                                            val request = httpEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                cronetExecutor.value,
-                                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.CronetTimeout()
-                                            val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                                cronetExecutor.value
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    else -> {
-                                        okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                             if (response.isSuccessful) {
                                                 FileOutputStream(path).use { outputStream ->
                                                     response.body.byteStream().use { inputStream ->
@@ -421,8 +318,6 @@ class PlayerViewModel(
                                                 }
                                             }
                                         }
-                                    }
-                                }
                             } catch (e: Exception) {
 
                             }
@@ -436,51 +331,7 @@ class PlayerViewModel(
                         val path = filesDir + File.separator + "profile_pics" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                when {
-                                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.HttpEngineTimeout()
-                                            val request = httpEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                cronetExecutor.value,
-                                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.CronetTimeout()
-                                            val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                                cronetExecutor.value
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    else -> {
-                                        okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                             if (response.isSuccessful) {
                                                 FileOutputStream(path).use { outputStream ->
                                                     response.body.byteStream().use { inputStream ->
@@ -489,8 +340,6 @@ class PlayerViewModel(
                                                 }
                                             }
                                         }
-                                    }
-                                }
                             } catch (e: Exception) {
 
                             }
@@ -500,7 +349,7 @@ class PlayerViewModel(
                 }
                 val userTypes = channelId?.let {
                     try {
-                        val response = graphQLRepository.loadQueryUsersType(networkLibrary, gqlHeaders, listOf(channelId))
+                        val response = graphQLRepository.loadQueryUsersType(gqlHeaders, listOf(channelId))
                         response.data!!.users?.firstOrNull()?.let {
                             User(
                                 id = it.id,
@@ -519,7 +368,6 @@ class PlayerViewModel(
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                             try {
                                 helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     ids = listOf(channelId)
                                 ).data.firstOrNull()?.let {
@@ -563,14 +411,13 @@ class PlayerViewModel(
         }
     }
 
-    fun isFollowingChannel(userId: String?, channelId: String?, channelLogin: String?, setting: Int, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
+    fun isFollowingChannel(userId: String?, channelId: String?, channelLogin: String?, setting: Int, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
         if (_isFollowing.value == null) {
             viewModelScope.launch {
                 try {
                     if (!channelId.isNullOrBlank()) {
                         _isFollowing.value = if (setting == 0 && !gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() && userId != channelId) {
                             graphQLRepository.loadQueryFollowingUser(
-                                networkLibrary = networkLibrary,
                                 headers = gqlHeaders,
                                 id = channelId,
                                 login = channelLogin.takeIf { channelId.isBlank() },
@@ -586,12 +433,12 @@ class PlayerViewModel(
         }
     }
 
-    fun saveFollowChannel(userId: String?, channelId: String?, channelLogin: String?, channelName: String?, setting: Int, liveNotificationsEnabled: Boolean, disableNotifications: Boolean, startedAt: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun saveFollowChannel(userId: String?, channelId: String?, channelLogin: String?, channelName: String?, setting: Int, liveNotificationsEnabled: Boolean, disableNotifications: Boolean, startedAt: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         viewModelScope.launch {
             try {
                 if (!channelId.isNullOrBlank()) {
                     if (setting == 0 && !gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() && userId != channelId) {
-                        val errorMessage = graphQLRepository.loadFollowUser(networkLibrary, gqlHeaders, channelId, disableNotifications).also { response ->
+                        val errorMessage = graphQLRepository.loadFollowUser(gqlHeaders, channelId, disableNotifications).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("follow")
@@ -634,12 +481,12 @@ class PlayerViewModel(
         }
     }
 
-    fun deleteFollowChannel(userId: String?, channelId: String?, setting: Int, networkLibrary: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun deleteFollowChannel(userId: String?, channelId: String?, setting: Int, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
         viewModelScope.launch {
             try {
                 if (!channelId.isNullOrBlank()) {
                     if (setting == 0 && !gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() && userId != channelId) {
-                        val errorMessage = graphQLRepository.loadUnfollowUser(networkLibrary, gqlHeaders, channelId).also { response ->
+                        val errorMessage = graphQLRepository.loadUnfollowUser(gqlHeaders, channelId).also { response ->
                             if (enableIntegrity) {
                                 response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                     integrity.emit("unfollow")
@@ -671,7 +518,7 @@ class PlayerViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                PlayerViewModel(xtraModule.httpEngine, xtraModule.cronetEngine, xtraModule.cronetExecutor, xtraModule.okHttpClient, xtraModule.json, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.localChannelFollowsRepository, xtraModule.notificationsRepository)
+                PlayerViewModel(xtraModule.okHttpClient, xtraModule.json, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.localChannelFollowsRepository, xtraModule.notificationsRepository)
             }
         }
     }

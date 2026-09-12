@@ -159,7 +159,6 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
     override fun initialize() {
         viewModel.loadTeamInfo(
             teamName = args.teamName,
-            networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
             gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
             enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
         )
@@ -294,7 +293,6 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
     override fun onNetworkRestored() {
         viewModel.loadTeamInfo(
             teamName = args.teamName,
-            networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
             gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
             enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
         )
@@ -306,7 +304,6 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
             "refresh" -> {
                 viewModel.loadTeamInfo(
                     teamName = args.teamName,
-                    networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
                     enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                 )

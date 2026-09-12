@@ -15,7 +15,6 @@ class GamesDataSource(
     private val helixHeaders: Map<String, String>,
     private val helixRepository: HelixRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, Game>() {
     private var api: String? = null
     private var offset: String? = null
@@ -57,7 +56,7 @@ class GamesDataSource(
     }
 
     private suspend fun gqlQueryLoad(params: LoadParams<Int>): LoadResult<Int, Game> {
-        val response = graphQLRepository.loadQueryTopGames(networkLibrary, gqlHeaders, tags, params.loadSize, offset)
+        val response = graphQLRepository.loadQueryTopGames(gqlHeaders, tags, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -93,7 +92,7 @@ class GamesDataSource(
     }
 
     private suspend fun gqlLoad(params: LoadParams<Int>): LoadResult<Int, Game> {
-        val response = graphQLRepository.loadTopGames(networkLibrary, gqlHeaders, tags, params.loadSize, offset)
+        val response = graphQLRepository.loadTopGames(gqlHeaders, tags, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -129,7 +128,6 @@ class GamesDataSource(
 
     private suspend fun helixLoad(params: LoadParams<Int>): LoadResult<Int, Game> {
         val response = helixRepository.getTopGames(
-            networkLibrary = networkLibrary,
             headers = helixHeaders,
             limit = params.loadSize,
             offset = offset,

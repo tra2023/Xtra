@@ -192,7 +192,6 @@ class ChannelAboutFragment : BaseNetworkFragment(), IntegrityDialog.Listener {
         viewModel.loadAbout(
             channelId = args.channelId,
             channelLogin = args.channelLogin,
-            networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
             gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
             enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
         )
@@ -202,7 +201,6 @@ class ChannelAboutFragment : BaseNetworkFragment(), IntegrityDialog.Listener {
         viewModel.loadAbout(
             channelId = args.channelId,
             channelLogin = args.channelLogin,
-            networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
             gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
             enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
         )
@@ -215,7 +213,6 @@ class ChannelAboutFragment : BaseNetworkFragment(), IntegrityDialog.Listener {
                 viewModel.loadAbout(
                     channelId = args.channelId,
                     channelLogin = args.channelLogin,
-                    networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
                     enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                 )

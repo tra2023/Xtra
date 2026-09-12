@@ -14,7 +14,6 @@ class SearchChannelsDataSource(
     private val helixHeaders: Map<String, String>,
     private val helixRepository: HelixRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, User>() {
     private var api: String? = null
     private var offset: String? = null
@@ -64,7 +63,7 @@ class SearchChannelsDataSource(
     }
 
     private suspend fun gqlQueryLoad(params: LoadParams<Int>): LoadResult<Int, User> {
-        val response = graphQLRepository.loadQuerySearchChannels(networkLibrary, gqlHeaders, query, params.loadSize, offset)
+        val response = graphQLRepository.loadQuerySearchChannels(gqlHeaders, query, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -94,7 +93,7 @@ class SearchChannelsDataSource(
     }
 
     private suspend fun gqlLoad(params: LoadParams<Int>): LoadResult<Int, User> {
-        val response = graphQLRepository.loadSearchChannels(networkLibrary, gqlHeaders, query, offset)
+        val response = graphQLRepository.loadSearchChannels(gqlHeaders, query, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -123,7 +122,6 @@ class SearchChannelsDataSource(
 
     private suspend fun helixLoad(params: LoadParams<Int>): LoadResult<Int, User> {
         val response = helixRepository.getSearchChannels(
-            networkLibrary = networkLibrary,
             headers = helixHeaders,
             query = query,
             limit = params.loadSize,

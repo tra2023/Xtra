@@ -113,7 +113,7 @@ class GraphQLRepository(
     private val json: Json,
 ) {
 
-    private suspend fun <T: Query.Data> sendQuery(networkLibrary: String?, headers: Map<String, String>, query: Query<T>): ApolloResponse<T> = withContext(Dispatchers.IO) {
+    private suspend fun <T: Query.Data> sendQuery(headers: Map<String, String>, query: Query<T>): ApolloResponse<T> = withContext(Dispatchers.IO) {
         val url = "https://gql.twitch.tv/gql"
         val body = buildJsonString {
             query.apply {
@@ -133,7 +133,6 @@ class GraphQLRepository(
                 url = url,
                 headers = headers + ("Content-Type" to "application/json"),
                 body = body.toByteArray(),
-                engine = networkLibrary,
             )
         )
         Buffer().write(response.body).jsonReader().use {
@@ -141,7 +140,7 @@ class GraphQLRepository(
         }
     }
 
-    private suspend fun sendPersistedQuery(networkLibrary: String?, headers: Map<String, String>, body: String): String = withContext(Dispatchers.IO) {
+    private suspend fun sendPersistedQuery(headers: Map<String, String>, body: String): String = withContext(Dispatchers.IO) {
         val url = "https://gql.twitch.tv/gql"
         val response = client.execute(
             XtraHttpRequest(
@@ -149,50 +148,49 @@ class GraphQLRepository(
                 url = url,
                 headers = headers + ("Content-Type" to "application/json"),
                 body = body.toByteArray(),
-                engine = networkLibrary,
             )
         )
         response.bodyAsString()
     }
 
-    suspend fun loadQueryBadges(networkLibrary: String?, headers: Map<String, String>, quality: BadgeImageSize): ApolloResponse<BadgesQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryBadges(headers: Map<String, String>, quality: BadgeImageSize): ApolloResponse<BadgesQuery.Data> = withContext(Dispatchers.IO) {
         val query = BadgesQuery(Optional.Present(quality))
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryClip(networkLibrary: String?, headers: Map<String, String>, slug: String): ApolloResponse<ClipQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryClip(headers: Map<String, String>, slug: String): ApolloResponse<ClipQuery.Data> = withContext(Dispatchers.IO) {
         val query = ClipQuery(slug)
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryClipUrls(networkLibrary: String?, headers: Map<String, String>, slug: String): ApolloResponse<ClipUrlsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryClipUrls(headers: Map<String, String>, slug: String): ApolloResponse<ClipUrlsQuery.Data> = withContext(Dispatchers.IO) {
         val query = ClipUrlsQuery(slug)
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryEmote(networkLibrary: String?, headers: Map<String, String>, id: String): ApolloResponse<EmoteQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryEmote(headers: Map<String, String>, id: String): ApolloResponse<EmoteQuery.Data> = withContext(Dispatchers.IO) {
         val query = EmoteQuery(id)
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryGame(networkLibrary: String?, headers: Map<String, String>, id: String? = null, slug: String? = null, name: String? = null): ApolloResponse<GameQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryGame(headers: Map<String, String>, id: String? = null, slug: String? = null, name: String? = null): ApolloResponse<GameQuery.Data> = withContext(Dispatchers.IO) {
         val query = GameQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             slug = if (!slug.isNullOrBlank()) Optional.Present(slug) else Optional.Absent,
             name = if (!name.isNullOrBlank()) Optional.Present(name) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryGameBoxArt(networkLibrary: String?, headers: Map<String, String>, id: String? = null, name: String? = null): ApolloResponse<GameBoxArtQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryGameBoxArt(headers: Map<String, String>, id: String? = null, name: String? = null): ApolloResponse<GameBoxArtQuery.Data> = withContext(Dispatchers.IO) {
         val query = GameBoxArtQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             name = if (!name.isNullOrBlank()) Optional.Present(name) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryGameClips(networkLibrary: String?, headers: Map<String, String>, id: String?, slug: String?, name: String?, languages: List<Language>?, period: ClipsPeriod?, first: Int?, after: String?): ApolloResponse<GameClipsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryGameClips(headers: Map<String, String>, id: String?, slug: String?, name: String?, languages: List<Language>?, period: ClipsPeriod?, first: Int?, after: String?): ApolloResponse<GameClipsQuery.Data> = withContext(Dispatchers.IO) {
         val query = GameClipsQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             slug = if (!slug.isNullOrBlank()) Optional.Present(slug) else Optional.Absent,
@@ -202,10 +200,10 @@ class GraphQLRepository(
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryGameStreams(networkLibrary: String?, headers: Map<String, String>, id: String?, slug: String?, name: String?, sort: StreamSort?, tags: List<String>?, languages: List<Language>?, first: Int?, after: String?): ApolloResponse<GameStreamsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryGameStreams(headers: Map<String, String>, id: String?, slug: String?, name: String?, sort: StreamSort?, tags: List<String>?, languages: List<Language>?, first: Int?, after: String?): ApolloResponse<GameStreamsQuery.Data> = withContext(Dispatchers.IO) {
         val query = GameStreamsQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             slug = if (!slug.isNullOrBlank()) Optional.Present(slug) else Optional.Absent,
@@ -216,10 +214,10 @@ class GraphQLRepository(
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryGameVideos(networkLibrary: String?, headers: Map<String, String>, id: String?, slug: String?, name: String?, languages: List<String>?, sort: VideoSort?, type: List<BroadcastType>?, first: Int?, after: String?): ApolloResponse<GameVideosQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryGameVideos(headers: Map<String, String>, id: String?, slug: String?, name: String?, languages: List<String>?, sort: VideoSort?, type: List<BroadcastType>?, first: Int?, after: String?): ApolloResponse<GameVideosQuery.Data> = withContext(Dispatchers.IO) {
         val query = GameVideosQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             slug = if (!slug.isNullOrBlank()) Optional.Present(slug) else Optional.Absent,
@@ -230,125 +228,125 @@ class GraphQLRepository(
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQuerySearchChannels(networkLibrary: String?, headers: Map<String, String>, query: String, first: Int?, after: String?): ApolloResponse<SearchChannelsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQuerySearchChannels(headers: Map<String, String>, query: String, first: Int?, after: String?): ApolloResponse<SearchChannelsQuery.Data> = withContext(Dispatchers.IO) {
         val query = SearchChannelsQuery(
             query = query,
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQuerySearchFreeformTags(networkLibrary: String?, headers: Map<String, String>, query: String, first: Int?): ApolloResponse<SearchFreeformTagsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQuerySearchFreeformTags(headers: Map<String, String>, query: String, first: Int?): ApolloResponse<SearchFreeformTagsQuery.Data> = withContext(Dispatchers.IO) {
         val query = SearchFreeformTagsQuery(
             query = query,
             first = Optional.Present(first),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQuerySearchGames(networkLibrary: String?, headers: Map<String, String>, query: String, first: Int?, after: String?): ApolloResponse<SearchGamesQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQuerySearchGames(headers: Map<String, String>, query: String, first: Int?, after: String?): ApolloResponse<SearchGamesQuery.Data> = withContext(Dispatchers.IO) {
         val query = SearchGamesQuery(
             query = query,
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQuerySearchGameTags(networkLibrary: String?, headers: Map<String, String>, query: String, first: Int?): ApolloResponse<SearchGameTagsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQuerySearchGameTags(headers: Map<String, String>, query: String, first: Int?): ApolloResponse<SearchGameTagsQuery.Data> = withContext(Dispatchers.IO) {
         val query = SearchGameTagsQuery(
             query = query,
             first = Optional.Present(first),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQuerySearchStreams(networkLibrary: String?, headers: Map<String, String>, query: String, first: Int?, after: String?): ApolloResponse<SearchStreamsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQuerySearchStreams(headers: Map<String, String>, query: String, first: Int?, after: String?): ApolloResponse<SearchStreamsQuery.Data> = withContext(Dispatchers.IO) {
         val query = SearchStreamsQuery(
             query = query,
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQuerySearchVideos(networkLibrary: String?, headers: Map<String, String>, query: String, first: Int?, after: String?): ApolloResponse<SearchVideosQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQuerySearchVideos(headers: Map<String, String>, query: String, first: Int?, after: String?): ApolloResponse<SearchVideosQuery.Data> = withContext(Dispatchers.IO) {
         val query = SearchVideosQuery(
             query = query,
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryFollowingGame(networkLibrary: String?, headers: Map<String, String>, id: String? = null, slug: String? = null, name: String? = null): ApolloResponse<SelfFollowingGameQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryFollowingGame(headers: Map<String, String>, id: String? = null, slug: String? = null, name: String? = null): ApolloResponse<SelfFollowingGameQuery.Data> = withContext(Dispatchers.IO) {
         val query = SelfFollowingGameQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             slug = if (!slug.isNullOrBlank()) Optional.Present(slug) else Optional.Absent,
             name = if (!name.isNullOrBlank()) Optional.Present(name) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryFollowingUser(networkLibrary: String?, headers: Map<String, String>, id: String?, login: String?): ApolloResponse<SelfFollowingUserQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryFollowingUser(headers: Map<String, String>, id: String?, login: String?): ApolloResponse<SelfFollowingUserQuery.Data> = withContext(Dispatchers.IO) {
         val query = SelfFollowingUserQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             login = if (!login.isNullOrBlank()) Optional.Present(login) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryStreamPlaybackAccessToken(networkLibrary: String?, headers: Map<String, String>, login: String, platform: String, playerType: String): ApolloResponse<StreamPlaybackAccessTokenQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryStreamPlaybackAccessToken(headers: Map<String, String>, login: String, platform: String, playerType: String): ApolloResponse<StreamPlaybackAccessTokenQuery.Data> = withContext(Dispatchers.IO) {
         val query = StreamPlaybackAccessTokenQuery(login, platform, playerType)
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryTag(networkLibrary: String?, headers: Map<String, String>, id: String): ApolloResponse<TagQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryTag(headers: Map<String, String>, id: String): ApolloResponse<TagQuery.Data> = withContext(Dispatchers.IO) {
         val query = TagQuery(
             id = id
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryTeam(networkLibrary: String?, headers: Map<String, String>, name: String): ApolloResponse<TeamQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryTeam(headers: Map<String, String>, name: String): ApolloResponse<TeamQuery.Data> = withContext(Dispatchers.IO) {
         val query = TeamQuery(
             name = name,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryTeamLiveMembers(networkLibrary: String?, headers: Map<String, String>, name: String, first: Int?, after: String?): ApolloResponse<TeamLiveMembersQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryTeamLiveMembers(headers: Map<String, String>, name: String, first: Int?, after: String?): ApolloResponse<TeamLiveMembersQuery.Data> = withContext(Dispatchers.IO) {
         val query = TeamLiveMembersQuery(
             name = name,
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryTeamMembers(networkLibrary: String?, headers: Map<String, String>, name: String, first: Int?, after: String?): ApolloResponse<TeamMembersQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryTeamMembers(headers: Map<String, String>, name: String, first: Int?, after: String?): ApolloResponse<TeamMembersQuery.Data> = withContext(Dispatchers.IO) {
         val query = TeamMembersQuery(
             name = name,
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryTopGames(networkLibrary: String?, headers: Map<String, String>, tags: List<String>?, first: Int?, after: String?): ApolloResponse<TopGamesQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryTopGames(headers: Map<String, String>, tags: List<String>?, first: Int?, after: String?): ApolloResponse<TopGamesQuery.Data> = withContext(Dispatchers.IO) {
         val query = TopGamesQuery(
             tags = Optional.Present(tags),
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryTopStreams(networkLibrary: String?, headers: Map<String, String>, sort: StreamSort?, tags: List<String>?, languages: List<Language>?, first: Int?, after: String?): ApolloResponse<TopStreamsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryTopStreams(headers: Map<String, String>, sort: StreamSort?, tags: List<String>?, languages: List<Language>?, first: Int?, after: String?): ApolloResponse<TopStreamsQuery.Data> = withContext(Dispatchers.IO) {
         val query = TopStreamsQuery(
             sort = Optional.Present(sort),
             tags = Optional.Present(tags),
@@ -356,59 +354,59 @@ class GraphQLRepository(
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUser(networkLibrary: String?, headers: Map<String, String>, id: String? = null, login: String? = null): ApolloResponse<UserQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUser(headers: Map<String, String>, id: String? = null, login: String? = null): ApolloResponse<UserQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             login = if (!login.isNullOrBlank()) Optional.Present(login) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserAbout(networkLibrary: String?, headers: Map<String, String>, id: String?, login: String?): ApolloResponse<UserAboutQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserAbout(headers: Map<String, String>, id: String?, login: String?): ApolloResponse<UserAboutQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserAboutQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             login = if (!login.isNullOrBlank()) Optional.Present(login) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserBadges(networkLibrary: String?, headers: Map<String, String>, id: String? = null, login: String? = null, quality: BadgeImageSize?): ApolloResponse<UserBadgesQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserBadges(headers: Map<String, String>, id: String? = null, login: String? = null, quality: BadgeImageSize?): ApolloResponse<UserBadgesQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserBadgesQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             login = if (!login.isNullOrBlank()) Optional.Present(login) else Optional.Absent,
             quality = Optional.Present(quality),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserChannelPage(networkLibrary: String?, headers: Map<String, String>, id: String? = null, login: String? = null): ApolloResponse<UserChannelPageQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserChannelPage(headers: Map<String, String>, id: String? = null, login: String? = null): ApolloResponse<UserChannelPageQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserChannelPageQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             login = if (!login.isNullOrBlank()) Optional.Present(login) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserChatters(networkLibrary: String?, headers: Map<String, String>, id: String? = null, login: String? = null): ApolloResponse<UserChattersQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserChatters(headers: Map<String, String>, id: String? = null, login: String? = null): ApolloResponse<UserChattersQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserChattersQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             login = if (!login.isNullOrBlank()) Optional.Present(login) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserCheerEmotes(networkLibrary: String?, headers: Map<String, String>, id: String? = null, login: String? = null): ApolloResponse<UserCheerEmotesQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserCheerEmotes(headers: Map<String, String>, id: String? = null, login: String? = null): ApolloResponse<UserCheerEmotesQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserCheerEmotesQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             login = if (!login.isNullOrBlank()) Optional.Present(login) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserClips(networkLibrary: String?, headers: Map<String, String>, id: String?, login: String?, period: ClipsPeriod?, first: Int?, after: String?): ApolloResponse<UserClipsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserClips(headers: Map<String, String>, id: String?, login: String?, period: ClipsPeriod?, first: Int?, after: String?): ApolloResponse<UserClipsQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserClipsQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             login = if (!login.isNullOrBlank()) Optional.Present(login) else Optional.Absent,
@@ -416,67 +414,67 @@ class GraphQLRepository(
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserEmotes(networkLibrary: String?, headers: Map<String, String>): ApolloResponse<UserEmotesQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserEmotes(headers: Map<String, String>): ApolloResponse<UserEmotesQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserEmotesQuery()
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserFollowedGames(networkLibrary: String?, headers: Map<String, String>, first: Int?): ApolloResponse<UserFollowedGamesQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserFollowedGames(headers: Map<String, String>, first: Int?): ApolloResponse<UserFollowedGamesQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserFollowedGamesQuery(
             first = Optional.Present(first),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserFollowedStreams(networkLibrary: String?, headers: Map<String, String>, first: Int?, after: String?): ApolloResponse<UserFollowedStreamsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserFollowedStreams(headers: Map<String, String>, first: Int?, after: String?): ApolloResponse<UserFollowedStreamsQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserFollowedStreamsQuery(
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserFollowedUsers(networkLibrary: String?, headers: Map<String, String>, first: Int?, after: String?): ApolloResponse<UserFollowedUsersQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserFollowedUsers(headers: Map<String, String>, first: Int?, after: String?): ApolloResponse<UserFollowedUsersQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserFollowedUsersQuery(
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserFollowedVideos(networkLibrary: String?, headers: Map<String, String>, sort: VideoSort?, type: List<BroadcastType>?, first: Int?, after: String?): ApolloResponse<UserFollowedVideosQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserFollowedVideos(headers: Map<String, String>, sort: VideoSort?, type: List<BroadcastType>?, first: Int?, after: String?): ApolloResponse<UserFollowedVideosQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserFollowedVideosQuery(
             sort = Optional.Present(sort),
             type = Optional.Present(type),
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserMessageClicked(networkLibrary: String?, headers: Map<String, String>, id: String? = null, login: String? = null, targetId: String?): ApolloResponse<UserMessageClickedQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserMessageClicked(headers: Map<String, String>, id: String? = null, login: String? = null, targetId: String?): ApolloResponse<UserMessageClickedQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserMessageClickedQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             login = if (!login.isNullOrBlank()) Optional.Present(login) else Optional.Absent,
             targetId = Optional.Present(targetId),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserResultID(networkLibrary: String?, headers: Map<String, String>, id: String): ApolloResponse<UserResultIDQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserResultID(headers: Map<String, String>, id: String): ApolloResponse<UserResultIDQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserResultIDQuery(id)
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserResultLogin(networkLibrary: String?, headers: Map<String, String>, login: String): ApolloResponse<UserResultLoginQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserResultLogin(headers: Map<String, String>, login: String): ApolloResponse<UserResultLoginQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserResultLoginQuery(login)
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUserVideos(networkLibrary: String?, headers: Map<String, String>, id: String?, login: String?, sort: VideoSort?, types: List<BroadcastType>?, first: Int?, after: String?): ApolloResponse<UserVideosQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUserVideos(headers: Map<String, String>, id: String?, login: String?, sort: VideoSort?, types: List<BroadcastType>?, first: Int?, after: String?): ApolloResponse<UserVideosQuery.Data> = withContext(Dispatchers.IO) {
         val query = UserVideosQuery(
             id = if (!id.isNullOrBlank()) Optional.Present(id) else Optional.Absent,
             login = if (!login.isNullOrBlank()) Optional.Present(login) else Optional.Absent,
@@ -485,49 +483,49 @@ class GraphQLRepository(
             first = Optional.Present(first),
             after = Optional.Present(after),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUsersLastBroadcast(networkLibrary: String?, headers: Map<String, String>, ids: List<String>? = null, logins: List<String>? = null): ApolloResponse<UsersLastBroadcastQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUsersLastBroadcast(headers: Map<String, String>, ids: List<String>? = null, logins: List<String>? = null): ApolloResponse<UsersLastBroadcastQuery.Data> = withContext(Dispatchers.IO) {
         val query = UsersLastBroadcastQuery(
             ids = if (!ids.isNullOrEmpty()) Optional.Present(ids) else Optional.Absent,
             logins = if (ids.isNullOrEmpty() && !logins.isNullOrEmpty()) Optional.Present(logins) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUsersStream(networkLibrary: String?, headers: Map<String, String>, ids: List<String>? = null, logins: List<String>? = null): ApolloResponse<UsersStreamQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUsersStream(headers: Map<String, String>, ids: List<String>? = null, logins: List<String>? = null): ApolloResponse<UsersStreamQuery.Data> = withContext(Dispatchers.IO) {
         val query = UsersStreamQuery(
             ids = if (!ids.isNullOrEmpty()) Optional.Present(ids) else Optional.Absent,
             logins = if (!logins.isNullOrEmpty()) Optional.Present(logins) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryUsersType(networkLibrary: String?, headers: Map<String, String>, ids: List<String>? = null, logins: List<String>? = null): ApolloResponse<UsersTypeQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryUsersType(headers: Map<String, String>, ids: List<String>? = null, logins: List<String>? = null): ApolloResponse<UsersTypeQuery.Data> = withContext(Dispatchers.IO) {
         val query = UsersTypeQuery(
             ids = if (!ids.isNullOrEmpty()) Optional.Present(ids) else Optional.Absent,
             logins = if (!logins.isNullOrEmpty()) Optional.Present(logins) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryVideo(networkLibrary: String?, headers: Map<String, String>, id: String?): ApolloResponse<VideoQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryVideo(headers: Map<String, String>, id: String?): ApolloResponse<VideoQuery.Data> = withContext(Dispatchers.IO) {
         val query = VideoQuery(Optional.Present(id))
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryVideoComments(networkLibrary: String?, headers: Map<String, String>, videoId: String?, offset: Int? = null, cursor: String? = null): ApolloResponse<VideoCommentsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryVideoComments(headers: Map<String, String>, videoId: String?, offset: Int? = null, cursor: String? = null): ApolloResponse<VideoCommentsQuery.Data> = withContext(Dispatchers.IO) {
         val query = VideoCommentsQuery(
             id = Optional.Present(videoId),
             first = Optional.Present(100),
             after = Optional.Present(cursor),
             offset = if (offset != null) Optional.Present(offset) else Optional.Absent,
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryVideoCommentsDownload(networkLibrary: String?, timeout: Long, headers: Map<String, String>, videoId: String?, offset: Int? = null, cursor: String? = null): VideoMessagesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadQueryVideoCommentsDownload(timeout: Long, headers: Map<String, String>, videoId: String?, offset: Int? = null, cursor: String? = null): VideoMessagesResponse = withContext(Dispatchers.IO) {
         val url = "https://gql.twitch.tv/gql"
         val query = VideoCommentsQuery(
             id = Optional.Present(videoId),
@@ -553,25 +551,24 @@ class GraphQLRepository(
                 url = url,
                 headers = headers + ("Content-Type" to "application/json"),
                 body = body.toByteArray(),
-                engine = networkLibrary,
                 timeoutMs = timeout,
             )
         )
         json.decodeFromString<VideoMessagesResponse>(response.bodyAsString())
     }
 
-    suspend fun loadQueryVideoMoments(networkLibrary: String?, headers: Map<String, String>, videoId: String?): ApolloResponse<VideoMomentsQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryVideoMoments(headers: Map<String, String>, videoId: String?): ApolloResponse<VideoMomentsQuery.Data> = withContext(Dispatchers.IO) {
         val query = VideoMomentsQuery(
             id = Optional.Present(videoId),
             first = Optional.Present(100),
             after = Optional.Present(null),
         )
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
-    suspend fun loadQueryVideoPlaybackAccessToken(networkLibrary: String?, headers: Map<String, String>, videoId: String, platform: String, playerType: String): ApolloResponse<VideoPlaybackAccessTokenQuery.Data> = withContext(Dispatchers.IO) {
+    suspend fun loadQueryVideoPlaybackAccessToken(headers: Map<String, String>, videoId: String, platform: String, playerType: String): ApolloResponse<VideoPlaybackAccessTokenQuery.Data> = withContext(Dispatchers.IO) {
         val query = VideoPlaybackAccessTokenQuery(videoId, platform, playerType)
-        sendQuery(networkLibrary, headers, query)
+        sendQuery(headers, query)
     }
 
     fun getPlaybackAccessTokenRequestBody(login: String?, vodId: String?, platform: String?, playerType: String?): String {
@@ -594,12 +591,12 @@ class GraphQLRepository(
         }.toString()
     }
 
-    suspend fun loadPlaybackAccessToken(networkLibrary: String?, headers: Map<String, String>, login: String? = null, vodId: String? = null, platform: String?, playerType: String?): PlaybackAccessTokenResponse = withContext(Dispatchers.IO) {
+    suspend fun loadPlaybackAccessToken(headers: Map<String, String>, login: String? = null, vodId: String? = null, platform: String?, playerType: String?): PlaybackAccessTokenResponse = withContext(Dispatchers.IO) {
         val body = getPlaybackAccessTokenRequestBody(login, vodId, platform, playerType)
-        json.decodeFromString<PlaybackAccessTokenResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<PlaybackAccessTokenResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadClipUrls(networkLibrary: String?, headers: Map<String, String>, slug: String?): ClipUrlsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadClipUrls(headers: Map<String, String>, slug: String?): ClipUrlsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -613,10 +610,10 @@ class GraphQLRepository(
                 put("platform", "web")
             }
         }.toString()
-        json.decodeFromString<ClipUrlsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ClipUrlsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadClipData(networkLibrary: String?, headers: Map<String, String>, slug: String?): ClipDataResponse = withContext(Dispatchers.IO) {
+    suspend fun loadClipData(headers: Map<String, String>, slug: String?): ClipDataResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -629,10 +626,10 @@ class GraphQLRepository(
                 put("clipSlug", slug)
             }
         }.toString()
-        json.decodeFromString<ClipDataResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ClipDataResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadClipVideo(networkLibrary: String?, headers: Map<String, String>, slug: String?): ClipVideoResponse = withContext(Dispatchers.IO) {
+    suspend fun loadClipVideo(headers: Map<String, String>, slug: String?): ClipVideoResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -645,10 +642,10 @@ class GraphQLRepository(
                 put("clipSlug", slug)
             }
         }.toString()
-        json.decodeFromString<ClipVideoResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ClipVideoResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadTag(networkLibrary: String?, headers: Map<String, String>, id: String): TagResponse = withContext(Dispatchers.IO) {
+    suspend fun loadTag(headers: Map<String, String>, id: String): TagResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -661,10 +658,10 @@ class GraphQLRepository(
                 put("id", id)
             }
         }.toString()
-        json.decodeFromString<TagResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<TagResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadTopGames(networkLibrary: String?, headers: Map<String, String>, tags: List<String>?, limit: Int?, cursor: String?): GamesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadTopGames(headers: Map<String, String>, tags: List<String>?, limit: Int?, cursor: String?): GamesResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -686,10 +683,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<GamesResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<GamesResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadTopStreams(networkLibrary: String?, headers: Map<String, String>, sort: String?, tags: List<String>?, languages: List<String>?, limit: Int?, cursor: String?): StreamsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadTopStreams(headers: Map<String, String>, sort: String?, tags: List<String>?, languages: List<String>?, limit: Int?, cursor: String?): StreamsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -720,10 +717,10 @@ class GraphQLRepository(
                 put("sortTypeIsRecency", sort == "RECENT")
             }
         }.toString()
-        json.decodeFromString<StreamsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<StreamsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadGameStreams(networkLibrary: String?, headers: Map<String, String>, gameSlug: String?, sort: String?, tags: List<String>?, languages: List<String>?, limit: Int?, cursor: String?): GameStreamsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadGameStreams(headers: Map<String, String>, gameSlug: String?, sort: String?, tags: List<String>?, languages: List<String>?, limit: Int?, cursor: String?): GameStreamsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -754,10 +751,10 @@ class GraphQLRepository(
                 put("sortTypeIsRecency", sort == "RECENT")
             }
         }.toString()
-        json.decodeFromString<GameStreamsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<GameStreamsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadGameVideos(networkLibrary: String?, headers: Map<String, String>, gameSlug: String?, type: String?, sort: String?, languages: List<String>?, limit: Int?, cursor: String?): GameVideosResponse = withContext(Dispatchers.IO) {
+    suspend fun loadGameVideos(headers: Map<String, String>, gameSlug: String?, type: String?, sort: String?, languages: List<String>?, limit: Int?, cursor: String?): GameVideosResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -784,10 +781,10 @@ class GraphQLRepository(
                 put("videoSort", sort)
             }
         }.toString()
-        json.decodeFromString<GameVideosResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<GameVideosResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadGameClips(networkLibrary: String?, headers: Map<String, String>, gameSlug: String?, period: String?, languages: List<String>?, limit: Int?, cursor: String?): GameClipsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadGameClips(headers: Map<String, String>, gameSlug: String?, period: String?, languages: List<String>?, limit: Int?, cursor: String?): GameClipsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -811,10 +808,10 @@ class GraphQLRepository(
                 put("limit", limit)
             }
         }.toString()
-        json.decodeFromString<GameClipsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<GameClipsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadChannelSuggestions(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?): ChannelSuggestionsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadChannelSuggestions(headers: Map<String, String>, channelLogin: String?): ChannelSuggestionsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -843,10 +840,10 @@ class GraphQLRepository(
                 put("X-Device-Id", Uuid.random().toHexString())
             }
         } else headers
-        json.decodeFromString<ChannelSuggestionsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ChannelSuggestionsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadChannelVideos(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?, type: String?, sort: String?, limit: Int?, cursor: String?): ChannelVideosResponse = withContext(Dispatchers.IO) {
+    suspend fun loadChannelVideos(headers: Map<String, String>, channelLogin: String?, type: String?, sort: String?, limit: Int?, cursor: String?): ChannelVideosResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -864,10 +861,10 @@ class GraphQLRepository(
                 put("videoSort", sort)
             }
         }.toString()
-        json.decodeFromString<ChannelVideosResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ChannelVideosResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadChannelClips(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?, period: String?, limit: Int?, cursor: String?): ChannelClipsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadChannelClips(headers: Map<String, String>, channelLogin: String?, period: String?, limit: Int?, cursor: String?): ChannelClipsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -886,10 +883,10 @@ class GraphQLRepository(
                 put("login", channelLogin)
             }
         }.toString()
-        json.decodeFromString<ChannelClipsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ChannelClipsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadSearchChannels(networkLibrary: String?, headers: Map<String, String>, query: String?, cursor: String?): SearchChannelsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadSearchChannels(headers: Map<String, String>, query: String?, cursor: String?): SearchChannelsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -914,10 +911,10 @@ class GraphQLRepository(
                 put("query", query)
             }
         }.toString()
-        json.decodeFromString<SearchChannelsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<SearchChannelsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadSearchGames(networkLibrary: String?, headers: Map<String, String>, query: String?, cursor: String?): SearchGamesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadSearchGames(headers: Map<String, String>, query: String?, cursor: String?): SearchGamesResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -942,10 +939,10 @@ class GraphQLRepository(
                 put("query", query)
             }
         }.toString()
-        json.decodeFromString<SearchGamesResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<SearchGamesResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadSearchVideos(networkLibrary: String?, headers: Map<String, String>, query: String?, cursor: String?): SearchVideosResponse = withContext(Dispatchers.IO) {
+    suspend fun loadSearchVideos(headers: Map<String, String>, query: String?, cursor: String?): SearchVideosResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -970,10 +967,10 @@ class GraphQLRepository(
                 put("query", query)
             }
         }.toString()
-        json.decodeFromString<SearchVideosResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<SearchVideosResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadFreeformTags(networkLibrary: String?, headers: Map<String, String>, query: String?, limit: Int?): SearchStreamTagsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadFreeformTags(headers: Map<String, String>, query: String?, limit: Int?): SearchStreamTagsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -987,10 +984,10 @@ class GraphQLRepository(
                 put("userQuery", query ?: "")
             }
         }.toString()
-        json.decodeFromString<SearchStreamTagsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<SearchStreamTagsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadGameTags(networkLibrary: String?, headers: Map<String, String>, query: String?, limit: Int?): SearchGameTagsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadGameTags(headers: Map<String, String>, query: String?, limit: Int?): SearchGameTagsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1004,10 +1001,10 @@ class GraphQLRepository(
                 put("userQuery", query ?: "")
             }
         }.toString()
-        json.decodeFromString<SearchGameTagsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<SearchGameTagsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadChatBadges(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?): BadgesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadChatBadges(headers: Map<String, String>, channelLogin: String?): BadgesResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1020,10 +1017,10 @@ class GraphQLRepository(
                 put("channelLogin", channelLogin)
             }
         }.toString()
-        json.decodeFromString<BadgesResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<BadgesResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadGlobalCheerEmotes(networkLibrary: String?, headers: Map<String, String>): GlobalCheerEmotesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadGlobalCheerEmotes(headers: Map<String, String>): GlobalCheerEmotesResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1033,10 +1030,10 @@ class GraphQLRepository(
             }
             put("operationName", "BitsConfigContext_Global")
         }.toString()
-        json.decodeFromString<GlobalCheerEmotesResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<GlobalCheerEmotesResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadChannelCheerEmotes(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?): ChannelCheerEmotesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadChannelCheerEmotes(headers: Map<String, String>, channelLogin: String?): ChannelCheerEmotesResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1049,7 +1046,7 @@ class GraphQLRepository(
                 put("login", channelLogin)
             }
         }.toString()
-        json.decodeFromString<ChannelCheerEmotesResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ChannelCheerEmotesResponse>(sendPersistedQuery(headers, body))
     }
 
     private fun getVideoMessagesRequestBody(videoId: String?, offset: Int?, cursor: String?): String {
@@ -1069,12 +1066,12 @@ class GraphQLRepository(
         }.toString()
     }
 
-    suspend fun loadVideoMessages(networkLibrary: String?, headers: Map<String, String>, videoId: String?, offset: Int? = null, cursor: String? = null): VideoMessagesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadVideoMessages(headers: Map<String, String>, videoId: String?, offset: Int? = null, cursor: String? = null): VideoMessagesResponse = withContext(Dispatchers.IO) {
         val body = getVideoMessagesRequestBody(videoId, offset, cursor)
-        json.decodeFromString<VideoMessagesResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<VideoMessagesResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadVideoGames(networkLibrary: String?, headers: Map<String, String>, videoId: String?): VideoGamesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadVideoGames(headers: Map<String, String>, videoId: String?): VideoGamesResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1087,10 +1084,10 @@ class GraphQLRepository(
                 put("videoID", videoId)
             }
         }.toString()
-        json.decodeFromString<VideoGamesResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<VideoGamesResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadChannelViewerList(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?): ChannelViewerListResponse = withContext(Dispatchers.IO) {
+    suspend fun loadChannelViewerList(headers: Map<String, String>, channelLogin: String?): ChannelViewerListResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1103,10 +1100,10 @@ class GraphQLRepository(
                 put("login", channelLogin)
             }
         }.toString()
-        json.decodeFromString<ChannelViewerListResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ChannelViewerListResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadViewerCount(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?): ViewerCountResponse = withContext(Dispatchers.IO) {
+    suspend fun loadViewerCount(headers: Map<String, String>, channelLogin: String?): ViewerCountResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1119,10 +1116,10 @@ class GraphQLRepository(
                 put("channelLogin", channelLogin)
             }
         }.toString()
-        json.decodeFromString<ViewerCountResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ViewerCountResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadEmoteCard(networkLibrary: String?, headers: Map<String, String>, emoteId: String?): EmoteCardResponse = withContext(Dispatchers.IO) {
+    suspend fun loadEmoteCard(headers: Map<String, String>, emoteId: String?): EmoteCardResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1137,10 +1134,10 @@ class GraphQLRepository(
                 put("artistEnabled", true)
             }
         }.toString()
-        json.decodeFromString<EmoteCardResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<EmoteCardResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadFollowedStreams(networkLibrary: String?, headers: Map<String, String>, limit: Int?, cursor: String?): FollowedStreamsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadFollowedStreams(headers: Map<String, String>, limit: Int?, cursor: String?): FollowedStreamsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1156,10 +1153,10 @@ class GraphQLRepository(
                 put("limit", limit)
             }
         }.toString()
-        json.decodeFromString<FollowedStreamsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<FollowedStreamsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadFollowedVideos(networkLibrary: String?, headers: Map<String, String>, limit: Int?, cursor: String?): FollowedVideosResponse = withContext(Dispatchers.IO) {
+    suspend fun loadFollowedVideos(headers: Map<String, String>, limit: Int?, cursor: String?): FollowedVideosResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1174,10 +1171,10 @@ class GraphQLRepository(
                 put("limit", limit)
             }
         }.toString()
-        json.decodeFromString<FollowedVideosResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<FollowedVideosResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadFollowedChannels(networkLibrary: String?, headers: Map<String, String>, limit: Int?, cursor: String?): FollowedChannelsResponse = withContext(Dispatchers.IO) {
+    suspend fun loadFollowedChannels(headers: Map<String, String>, limit: Int?, cursor: String?): FollowedChannelsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1192,10 +1189,10 @@ class GraphQLRepository(
                 put("order", "DESC")
             }
         }.toString()
-        json.decodeFromString<FollowedChannelsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<FollowedChannelsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadFollowedGames(networkLibrary: String?, headers: Map<String, String>, limit: Int?): FollowedGamesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadFollowedGames(headers: Map<String, String>, limit: Int?): FollowedGamesResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1209,10 +1206,10 @@ class GraphQLRepository(
                 put("type", "ALL")
             }
         }.toString()
-        json.decodeFromString<FollowedGamesResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<FollowedGamesResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadFollowUser(networkLibrary: String?, headers: Map<String, String>, userId: String?, disableNotifications: Boolean): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun loadFollowUser(headers: Map<String, String>, userId: String?, disableNotifications: Boolean): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1228,10 +1225,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadUnfollowUser(networkLibrary: String?, headers: Map<String, String>, userId: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun loadUnfollowUser(headers: Map<String, String>, userId: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1246,10 +1243,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadToggleNotificationsUser(networkLibrary: String?, headers: Map<String, String>, userId: String?, disableNotifications: Boolean): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun loadToggleNotificationsUser(headers: Map<String, String>, userId: String?, disableNotifications: Boolean): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1265,10 +1262,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadFollowGame(networkLibrary: String?, headers: Map<String, String>, gameId: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun loadFollowGame(headers: Map<String, String>, gameId: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1283,10 +1280,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadUnfollowGame(networkLibrary: String?, headers: Map<String, String>, gameId: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun loadUnfollowGame(headers: Map<String, String>, gameId: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1301,10 +1298,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadChannelPointsContext(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?): ChannelPointContextResponse = withContext(Dispatchers.IO) {
+    suspend fun loadChannelPointsContext(headers: Map<String, String>, channelLogin: String?): ChannelPointContextResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1317,10 +1314,10 @@ class GraphQLRepository(
                 put("channelLogin", channelLogin)
             }
         }.toString()
-        json.decodeFromString<ChannelPointContextResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ChannelPointContextResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadClaimPoints(networkLibrary: String?, headers: Map<String, String>, channelId: String?, claimId: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun loadClaimPoints(headers: Map<String, String>, channelId: String?, claimId: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1336,10 +1333,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadJoinRaid(networkLibrary: String?, headers: Map<String, String>, raidId: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun loadJoinRaid(headers: Map<String, String>, raidId: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1354,10 +1351,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun loadUserEmotes(networkLibrary: String?, headers: Map<String, String>, channelId: String?, cursor: String?): UserEmotesResponse = withContext(Dispatchers.IO) {
+    suspend fun loadUserEmotes(headers: Map<String, String>, channelId: String?, cursor: String?): UserEmotesResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1373,10 +1370,10 @@ class GraphQLRepository(
                 put("withOwner", true)
             }
         }.toString()
-        json.decodeFromString<UserEmotesResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<UserEmotesResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun sendMessage(networkLibrary: String?, headers: Map<String, String>, channelId: String?, message: String?, replyId: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun sendMessage(headers: Map<String, String>, channelId: String?, message: String?, replyId: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1393,10 +1390,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun sendAnnouncement(networkLibrary: String?, headers: Map<String, String>, channelId: String?, message: String?, color: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun sendAnnouncement(headers: Map<String, String>, channelId: String?, message: String?, color: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1413,10 +1410,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun banUser(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetLogin: String?, duration: String? = null, reason: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun banUser(headers: Map<String, String>, channelId: String?, targetLogin: String?, duration: String? = null, reason: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1434,10 +1431,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun unbanUser(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun unbanUser(headers: Map<String, String>, channelId: String?, targetLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1453,10 +1450,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun updateChatColor(networkLibrary: String?, headers: Map<String, String>, color: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun updateChatColor(headers: Map<String, String>, color: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1471,10 +1468,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun updateChatSettings(networkLibrary: String?, headers: Map<String, String>, channelId: String?, emote: Boolean? = null): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun updateChatSettings(headers: Map<String, String>, channelId: String?, emote: Boolean? = null): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1490,10 +1487,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun setFollowersOnlyMode(networkLibrary: String?, headers: Map<String, String>, channelId: String?, duration: Int?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun setFollowersOnlyMode(headers: Map<String, String>, channelId: String?, duration: Int?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1509,10 +1506,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun setSlowMode(networkLibrary: String?, headers: Map<String, String>, channelId: String?, duration: Int?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun setSlowMode(headers: Map<String, String>, channelId: String?, duration: Int?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1528,10 +1525,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun createStreamMarker(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun createStreamMarker(headers: Map<String, String>, channelLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1544,10 +1541,10 @@ class GraphQLRepository(
                 put("channelLogin", channelLogin)
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun getModerators(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?): ModeratorsResponse = withContext(Dispatchers.IO) {
+    suspend fun getModerators(headers: Map<String, String>, channelLogin: String?): ModeratorsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1560,10 +1557,10 @@ class GraphQLRepository(
                 put("login", channelLogin)
             }
         }.toString()
-        json.decodeFromString<ModeratorsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ModeratorsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun addModerator(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun addModerator(headers: Map<String, String>, channelId: String?, targetLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1579,10 +1576,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun removeModerator(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun removeModerator(headers: Map<String, String>, channelId: String?, targetLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1598,10 +1595,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun startRaid(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetId: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun startRaid(headers: Map<String, String>, channelId: String?, targetId: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1617,10 +1614,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun cancelRaid(networkLibrary: String?, headers: Map<String, String>, channelId: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun cancelRaid(headers: Map<String, String>, channelId: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1635,10 +1632,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun getVips(networkLibrary: String?, headers: Map<String, String>, channelLogin: String?): VipsResponse = withContext(Dispatchers.IO) {
+    suspend fun getVips(headers: Map<String, String>, channelLogin: String?): VipsResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1651,10 +1648,10 @@ class GraphQLRepository(
                 put("login", channelLogin)
             }
         }.toString()
-        json.decodeFromString<VipsResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<VipsResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun addVip(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun addVip(headers: Map<String, String>, channelId: String?, targetLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1670,10 +1667,10 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 
-    suspend fun removeVip(networkLibrary: String?, headers: Map<String, String>, channelId: String?, targetLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
+    suspend fun removeVip(headers: Map<String, String>, channelId: String?, targetLogin: String?): ErrorResponse = withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             putJsonObject("extensions") {
                 putJsonObject("persistedQuery") {
@@ -1689,6 +1686,6 @@ class GraphQLRepository(
                 }
             }
         }.toString()
-        json.decodeFromString<ErrorResponse>(sendPersistedQuery(networkLibrary, headers, body))
+        json.decodeFromString<ErrorResponse>(sendPersistedQuery(headers, body))
     }
 }

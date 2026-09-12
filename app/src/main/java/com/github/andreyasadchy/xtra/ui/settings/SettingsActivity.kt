@@ -10,7 +10,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.ext.SdkExtensions
 import android.provider.Settings
 import android.text.InputType
 import android.text.format.Formatter
@@ -79,7 +78,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import org.chromium.net.CronetProvider
 import java.util.Collections
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
@@ -279,7 +277,6 @@ class SettingsActivity : AppCompatActivity() {
                     }
                     viewModel.restoreSettings(
                         list = list,
-                        networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                         gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), true),
                         helixHeaders = TwitchApiHelper.getHelixHeaders(requireContext())
                     )
@@ -345,7 +342,6 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 viewModel.toggleNotifications(
                     enabled = newValue as Boolean,
-                    networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), true),
                     helixHeaders = TwitchApiHelper.getHelixHeaders(requireContext())
                 )
@@ -404,25 +400,6 @@ class SettingsActivity : AppCompatActivity() {
                 findNavController().navigate(SettingsNavGraphDirections.actionGlobalApiTokenSettingsFragment())
                 true
             }
-            val httpEngine = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && SdkExtensions.getExtensionVersion(Build.VERSION_CODES.S) >= 7
-            val cronet = CronetProvider.getAllProviders(requireContext()).any { it.isEnabled }
-            if (!httpEngine || !cronet) {
-                findPreference<ListPreference>(C.NETWORK_LIBRARY)?.apply {
-                    when {
-                        !httpEngine && !cronet -> {
-                            isVisible = false
-                        }
-                        !cronet -> {
-                            setEntries(R.array.networkLibraryEntriesNoCronet)
-                            setEntryValues(R.array.networkLibraryEntriesNoCronet)
-                        }
-                        else -> {
-                            setEntries(R.array.networkLibraryEntriesNoHttpEngine)
-                            setEntryValues(R.array.networkLibraryEntriesNoHttpEngine)
-                        }
-                    }
-                }
-            }
             findPreference<Preference>("download_settings")?.setOnPreferenceClickListener {
                 requireActivity().findViewById<AppBarLayout>(R.id.appBar)?.setExpanded(true)
                 findNavController().navigate(SettingsNavGraphDirections.actionGlobalDownloadSettingsFragment())
@@ -430,7 +407,6 @@ class SettingsActivity : AppCompatActivity() {
             }
             findPreference<Preference>("check_updates")?.setOnPreferenceClickListener {
                 viewModel.checkUpdates(
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     requireContext().prefs().getString(C.UPDATE_URL, null) ?: "https://api.github.com/repos/crackededed/xtra/releases/tags/latest",
                     requireContext().tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0)
                 )
@@ -535,7 +511,7 @@ class SettingsActivity : AppCompatActivity() {
                                             binding.textView.text = getString(R.string.downloading_update)
                                             binding.progressBar.visibility = View.GONE
                                         }
-                                        viewModel.downloadUpdate(requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP), it)
+                                        viewModel.downloadUpdate(it)
                                         val dialog = requireActivity().getAlertDialogBuilder()
                                             .setView(binding.root)
                                             .setNegativeButton(getString(android.R.string.cancel), null)

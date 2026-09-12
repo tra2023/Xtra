@@ -17,15 +17,15 @@ class NotificationsRepository(
     private val helixRepository: HelixRepository,
 ) {
 
-    suspend fun getNewStreams(networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>): List<Stream> = withContext(Dispatchers.IO) {
+    suspend fun getNewStreams(gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>): List<Stream> = withContext(Dispatchers.IO) {
         val list = mutableListOf<Stream>()
         notificationUsersDao.getAll().map { it.channelId }.takeIf { it.isNotEmpty() }?.let {
             try {
-                gqlQueryLocal(networkLibrary, gqlHeaders, it)
+                gqlQueryLocal(gqlHeaders, it)
             } catch (e: Exception) {
                 if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                     try {
-                        helixLocal(networkLibrary, helixHeaders, it)
+                        helixLocal(helixHeaders, it)
                     } catch (e: Exception) {
                         return@withContext emptyList()
                     }
@@ -34,7 +34,7 @@ class NotificationsRepository(
         }
         if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
             try {
-                gqlQueryLoad(networkLibrary, gqlHeaders)
+                gqlQueryLoad(gqlHeaders)
             } catch (e: Exception) {
                 return@withContext emptyList()
             }.mapNotNull { item ->
@@ -61,11 +61,11 @@ class NotificationsRepository(
         list.filter { it.channelId in newStreams }
     }
 
-    private suspend fun gqlQueryLoad(networkLibrary: String?, gqlHeaders: Map<String, String>): List<Stream> {
+    private suspend fun gqlQueryLoad(gqlHeaders: Map<String, String>): List<Stream> {
         val list = mutableListOf<Stream>()
         var offset: String? = null
         do {
-            val response = graphQLRepository.loadQueryUserFollowedStreams(networkLibrary, gqlHeaders, 100, offset)
+            val response = graphQLRepository.loadQueryUserFollowedStreams(gqlHeaders, 100, offset)
             val data = response.data!!.user!!.followedLiveUsers!!
             val items = data.edges!!
             items.mapNotNull { item ->
@@ -94,9 +94,9 @@ class NotificationsRepository(
         return list
     }
 
-    private suspend fun gqlQueryLocal(networkLibrary: String?, gqlHeaders: Map<String, String>, ids: List<String>): List<Stream> {
+    private suspend fun gqlQueryLocal(gqlHeaders: Map<String, String>, ids: List<String>): List<Stream> {
         val items = ids.chunked(100).map { list ->
-            graphQLRepository.loadQueryUsersStream(networkLibrary, gqlHeaders, list)
+            graphQLRepository.loadQueryUsersStream(gqlHeaders, list)
         }.flatMap { it.data!!.users!! }
         val list = items.mapNotNull { item ->
             item?.let {
@@ -123,17 +123,15 @@ class NotificationsRepository(
         return list
     }
 
-    private suspend fun helixLocal(networkLibrary: String?, helixHeaders: Map<String, String>, ids: List<String>): List<Stream> {
+    private suspend fun helixLocal(helixHeaders: Map<String, String>, ids: List<String>): List<Stream> {
         val items = ids.chunked(100).map {
             helixRepository.getStreams(
-                networkLibrary = networkLibrary,
                 headers = helixHeaders,
                 ids = it
             )
         }.flatMap { it.data }
         val users = items.mapNotNull { it.channelId }.chunked(100).map {
             helixRepository.getUsers(
-                networkLibrary = networkLibrary,
                 headers = helixHeaders,
                 ids = it
             )

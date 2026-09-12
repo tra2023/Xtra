@@ -1,7 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.saved.bookmarks
 
-import android.annotation.SuppressLint
-import android.net.http.HttpEngine
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -19,7 +17,6 @@ import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import kotlinx.coroutines.Dispatchers
@@ -28,23 +25,16 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.chromium.net.CronetEngine
 import java.io.File
 import java.io.FileOutputStream
-import java.util.concurrent.ExecutorService
-
 class BookmarksViewModel(
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
     private val bookmarksRepository: BookmarksRepository,
     private val channelSortRepository: ChannelSortRepository,
     playerRepository: PlayerRepository,
-    private val httpEngine: Lazy<HttpEngine?>,
-    private val cronetEngine: Lazy<CronetEngine?>,
-    private val cronetExecutor: Lazy<ExecutorService>,
     private val okHttpClient: Lazy<OkHttpClient>,
 ) : ViewModel() {
 
@@ -84,7 +74,7 @@ class BookmarksViewModel(
         }
     }
 
-    fun updateUsers(networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun updateUsers(gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
         if (!updatedUsers) {
             viewModelScope.launch {
                 val bookmarks = bookmarksRepository.getAll()
@@ -93,7 +83,7 @@ class BookmarksViewModel(
                     bookmark.userId?.takeIf { ignored.find { it.userId == bookmark.userId } == null }
                 }.chunked(100).forEach { ids ->
                     try {
-                        val response = graphQLRepository.loadQueryUsersType(networkLibrary, gqlHeaders, ids)
+                        val response = graphQLRepository.loadQueryUsersType(gqlHeaders, ids)
                         if (enableIntegrity) {
                             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                                 integrity.emit("users")
@@ -120,7 +110,6 @@ class BookmarksViewModel(
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                             try {
                                 helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     ids = ids,
                                 ).data.map {
@@ -156,11 +145,11 @@ class BookmarksViewModel(
         }
     }
 
-    fun updateVideo(filesDir: String, videoId: String?, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
+    fun updateVideo(filesDir: String, videoId: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
         viewModelScope.launch {
             if (!videoId.isNullOrBlank()) {
                 val video = try {
-                    val response = graphQLRepository.loadQueryVideo(networkLibrary, gqlHeaders, videoId)
+                    val response = graphQLRepository.loadQueryVideo(gqlHeaders, videoId)
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("video")
@@ -188,7 +177,6 @@ class BookmarksViewModel(
                     if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                         try {
                             helixRepository.getVideos(
-                                networkLibrary = networkLibrary,
                                 headers = helixHeaders,
                                 ids = listOf(videoId),
                             ).data.firstOrNull()?.let {
@@ -217,51 +205,7 @@ class BookmarksViewModel(
                             val path = filesDir + File.separator + "thumbnails" + File.separator + id
                             viewModelScope.launch(Dispatchers.IO) {
                                 try {
-                                    when {
-                                        networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                            val response = suspendCancellableCoroutine { continuation ->
-                                                val timeout = NetworkUtils.HttpEngineTimeout()
-                                                val request = httpEngine.value!!.newUrlRequestBuilder(
-                                                    url,
-                                                    cronetExecutor.value,
-                                                    NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                                ).build()
-                                                timeout.start(request, continuation)
-                                                request.start()
-                                                continuation.invokeOnCancellation {
-                                                    request.cancel()
-                                                    timeout.stop()
-                                                }
-                                            }
-                                            if (response.info.httpStatusCode in 200..299) {
-                                                FileOutputStream(path).use {
-                                                    it.write(response.body)
-                                                }
-                                            }
-                                        }
-                                        networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                            val response = suspendCancellableCoroutine { continuation ->
-                                                val timeout = NetworkUtils.CronetTimeout()
-                                                val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                                    url,
-                                                    NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                                    cronetExecutor.value
-                                                ).build()
-                                                timeout.start(request, continuation)
-                                                request.start()
-                                                continuation.invokeOnCancellation {
-                                                    request.cancel()
-                                                    timeout.stop()
-                                                }
-                                            }
-                                            if (response.info.httpStatusCode in 200..299) {
-                                                FileOutputStream(path).use {
-                                                    it.write(response.body)
-                                                }
-                                            }
-                                        }
-                                        else -> {
-                                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                                 if (response.isSuccessful) {
                                                     FileOutputStream(path).use { outputStream ->
                                                         response.body.byteStream().use { inputStream ->
@@ -270,8 +214,6 @@ class BookmarksViewModel(
                                                     }
                                                 }
                                             }
-                                        }
-                                    }
                                 } catch (e: Exception) {
 
                                 }
@@ -304,14 +246,13 @@ class BookmarksViewModel(
         }
     }
 
-    fun updateVideos(filesDir: String, networkLibrary: String?, helixHeaders: Map<String, String>) {
+    fun updateVideos(filesDir: String, helixHeaders: Map<String, String>) {
         if (!updatedVideos) {
             viewModelScope.launch {
                 val bookmarks = bookmarksRepository.getAll()
                 bookmarks.mapNotNull { it.videoId }.chunked(100).forEach { ids ->
                     try {
                         helixRepository.getVideos(
-                            networkLibrary = networkLibrary,
                             headers = helixHeaders,
                             ids = ids,
                         ).data.map {
@@ -346,51 +287,7 @@ class BookmarksViewModel(
                                     val path = filesDir + File.separator + "thumbnails" + File.separator + video.id
                                     viewModelScope.launch(Dispatchers.IO) {
                                         try {
-                                            when {
-                                                networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                                    val response = suspendCancellableCoroutine { continuation ->
-                                                        val timeout = NetworkUtils.HttpEngineTimeout()
-                                                        val request = httpEngine.value!!.newUrlRequestBuilder(
-                                                            url,
-                                                            cronetExecutor.value,
-                                                            NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                                        ).build()
-                                                        timeout.start(request, continuation)
-                                                        request.start()
-                                                        continuation.invokeOnCancellation {
-                                                            request.cancel()
-                                                            timeout.stop()
-                                                        }
-                                                    }
-                                                    if (response.info.httpStatusCode in 200..299) {
-                                                        FileOutputStream(path).use {
-                                                            it.write(response.body)
-                                                        }
-                                                    }
-                                                }
-                                                networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                                    val response = suspendCancellableCoroutine { continuation ->
-                                                        val timeout = NetworkUtils.CronetTimeout()
-                                                        val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                                            url,
-                                                            NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                                            cronetExecutor.value
-                                                        ).build()
-                                                        timeout.start(request, continuation)
-                                                        request.start()
-                                                        continuation.invokeOnCancellation {
-                                                            request.cancel()
-                                                            timeout.stop()
-                                                        }
-                                                    }
-                                                    if (response.info.httpStatusCode in 200..299) {
-                                                        FileOutputStream(path).use {
-                                                            it.write(response.body)
-                                                        }
-                                                    }
-                                                }
-                                                else -> {
-                                                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                                         if (response.isSuccessful) {
                                                             FileOutputStream(path).use { outputStream ->
                                                                 response.body.byteStream().use { inputStream ->
@@ -399,8 +296,6 @@ class BookmarksViewModel(
                                                             }
                                                         }
                                                     }
-                                                }
-                                            }
                                         } catch (e: Exception) {
 
                                         }
@@ -458,7 +353,7 @@ class BookmarksViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                BookmarksViewModel(xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.bookmarksRepository, xtraModule.channelSortRepository, xtraModule.playerRepository, xtraModule.httpEngine, xtraModule.cronetEngine, xtraModule.cronetExecutor, xtraModule.okHttpClient)
+                BookmarksViewModel(xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.bookmarksRepository, xtraModule.channelSortRepository, xtraModule.playerRepository, xtraModule.okHttpClient)
             }
         }
     }

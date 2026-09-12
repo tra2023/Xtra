@@ -64,7 +64,6 @@ class BookmarksFragment : BaseNetworkFragment(), Scrollable, Sortable, Bookmarks
             viewModel.updateVideo(
                 requireContext().filesDir.path,
                 it,
-                requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                 TwitchApiHelper.getGQLHeaders(requireContext()),
                 TwitchApiHelper.getHelixHeaders(requireContext()),
                 requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
@@ -232,7 +231,6 @@ class BookmarksFragment : BaseNetworkFragment(), Scrollable, Sortable, Bookmarks
                 }
             }
             viewModel.updateUsers(
-                requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                 TwitchApiHelper.getGQLHeaders(requireContext()),
                 TwitchApiHelper.getHelixHeaders(requireContext()),
                 requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
@@ -240,7 +238,7 @@ class BookmarksFragment : BaseNetworkFragment(), Scrollable, Sortable, Bookmarks
         }
         val helixHeaders = TwitchApiHelper.getHelixHeaders(requireContext())
         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-            viewModel.updateVideos(requireContext().filesDir.path, requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP), helixHeaders)
+            viewModel.updateVideos(requireContext().filesDir.path, helixHeaders)
         }
     }
 
@@ -295,7 +293,6 @@ class BookmarksFragment : BaseNetworkFragment(), Scrollable, Sortable, Bookmarks
         when (callback) {
             "users" -> {
                 viewModel.updateUsers(
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     TwitchApiHelper.getGQLHeaders(requireContext()),
                     TwitchApiHelper.getHelixHeaders(requireContext()),
                     requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),

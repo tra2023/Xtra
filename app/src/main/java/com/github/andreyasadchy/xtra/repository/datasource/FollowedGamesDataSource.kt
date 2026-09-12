@@ -13,7 +13,6 @@ class FollowedGamesDataSource(
     private val gqlHeaders: Map<String, String>,
     private val graphQLRepository: GraphQLRepository,
     private val enableIntegrity: Boolean,
-    private val networkLibrary: String?,
 ) : PagingSource<Int, Game>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Game> {
@@ -71,7 +70,7 @@ class FollowedGamesDataSource(
     }
 
     private suspend fun gqlQueryLoad(): LoadResult<Int, Game> {
-        val response = graphQLRepository.loadQueryUserFollowedGames(networkLibrary, gqlHeaders, 100)
+        val response = graphQLRepository.loadQueryUserFollowedGames(gqlHeaders, 100)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -101,7 +100,7 @@ class FollowedGamesDataSource(
     }
 
     private suspend fun gqlLoad(): LoadResult<Int, Game> {
-        val response = graphQLRepository.loadFollowedGames(networkLibrary, gqlHeaders, 100)
+        val response = graphQLRepository.loadFollowedGames(gqlHeaders, 100)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }

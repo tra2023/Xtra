@@ -144,7 +144,6 @@ class ImageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener
             args.getString(EMOTE_ID)?.let {
                 viewModel.loadEmoteCard(
                     it,
-                    requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                     TwitchApiHelper.getGQLHeaders(requireContext()),
                     requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                 )
@@ -196,7 +195,6 @@ class ImageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener
                 requireArguments().getString(EMOTE_ID)?.let {
                     viewModel.loadEmoteCard(
                         it,
-                        requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                         TwitchApiHelper.getGQLHeaders(requireContext()),
                         requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                     )

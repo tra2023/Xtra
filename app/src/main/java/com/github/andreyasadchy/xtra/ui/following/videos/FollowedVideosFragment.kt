@@ -70,7 +70,6 @@ class FollowedVideosFragment : PagedListFragment(), Scrollable, Sortable, Videos
             viewModel.saveBookmark(
                 requireContext().filesDir.path,
                 it,
-                requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
                 TwitchApiHelper.getGQLHeaders(requireContext()),
                 TwitchApiHelper.getHelixHeaders(requireContext()),
             )

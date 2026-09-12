@@ -1,8 +1,6 @@
 package com.github.andreyasadchy.xtra.ui.channel.videos
 
-import android.annotation.SuppressLint
 import android.content.Context
-import android.net.http.HttpEngine
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -29,7 +27,6 @@ import com.github.andreyasadchy.xtra.repository.datasource.ChannelVideosDataSour
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentArgs
 import com.github.andreyasadchy.xtra.ui.common.VideosSortDialog
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
@@ -38,14 +35,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.chromium.net.CronetEngine
 import java.io.File
 import java.io.FileOutputStream
-import java.util.concurrent.ExecutorService
-
 class ChannelVideosViewModel(
     private val applicationContext: Context,
     private val channelSortRepository: ChannelSortRepository,
@@ -53,9 +46,6 @@ class ChannelVideosViewModel(
     private val bookmarksRepository: BookmarksRepository,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
-    private val httpEngine: Lazy<HttpEngine?>,
-    private val cronetEngine: Lazy<CronetEngine?>,
-    private val cronetExecutor: Lazy<ExecutorService>,
     private val okHttpClient: Lazy<OkHttpClient>,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -129,7 +119,6 @@ class ChannelVideosViewModel(
                 helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext),
                 helixRepository = helixRepository,
                 enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
-                networkLibrary = applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
             )
         }.flow
     }.cachedIn(viewModelScope)
@@ -156,7 +145,7 @@ class ChannelVideosViewModel(
         val type: String?,
     )
 
-    fun saveBookmark(filesDir: String, video: Video, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
+    fun saveBookmark(filesDir: String, video: Video, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
         viewModelScope.launch {
             val item = video.id?.let { bookmarksRepository.getByVideoId(it) }
             if (item != null) {
@@ -168,51 +157,7 @@ class ChannelVideosViewModel(
                         val path = filesDir + File.separator + "thumbnails" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                when {
-                                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.HttpEngineTimeout()
-                                            val request = httpEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                cronetExecutor.value,
-                                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.CronetTimeout()
-                                            val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                                cronetExecutor.value
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    else -> {
-                                        okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                             if (response.isSuccessful) {
                                                 FileOutputStream(path).use { outputStream ->
                                                     response.body.byteStream().use { inputStream ->
@@ -221,8 +166,6 @@ class ChannelVideosViewModel(
                                                 }
                                             }
                                         }
-                                    }
-                                }
                             } catch (e: Exception) {
 
                             }
@@ -236,51 +179,7 @@ class ChannelVideosViewModel(
                         val path = filesDir + File.separator + "profile_pics" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                when {
-                                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.HttpEngineTimeout()
-                                            val request = httpEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                cronetExecutor.value,
-                                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                                        val response = suspendCancellableCoroutine { continuation ->
-                                            val timeout = NetworkUtils.CronetTimeout()
-                                            val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                                url,
-                                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                                cronetExecutor.value
-                                            ).build()
-                                            timeout.start(request, continuation)
-                                            request.start()
-                                            continuation.invokeOnCancellation {
-                                                request.cancel()
-                                                timeout.stop()
-                                            }
-                                        }
-                                        if (response.info.httpStatusCode in 200..299) {
-                                            FileOutputStream(path).use {
-                                                it.write(response.body)
-                                            }
-                                        }
-                                    }
-                                    else -> {
-                                        okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                             if (response.isSuccessful) {
                                                 FileOutputStream(path).use { outputStream ->
                                                     response.body.byteStream().use { inputStream ->
@@ -289,8 +188,6 @@ class ChannelVideosViewModel(
                                                 }
                                             }
                                         }
-                                    }
-                                }
                             } catch (e: Exception) {
 
                             }
@@ -300,7 +197,7 @@ class ChannelVideosViewModel(
                 }
                 val userTypes = video.channelId?.let {
                     try {
-                        val response = graphQLRepository.loadQueryUsersType(networkLibrary, gqlHeaders, listOf(it))
+                        val response = graphQLRepository.loadQueryUsersType(gqlHeaders, listOf(it))
                         response.data!!.users?.firstOrNull()?.let {
                             User(
                                 id = it.id,
@@ -319,7 +216,6 @@ class ChannelVideosViewModel(
                         if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                             try {
                                 helixRepository.getUsers(
-                                    networkLibrary = networkLibrary,
                                     headers = helixHeaders,
                                     ids = listOf(it)
                                 ).data.firstOrNull()?.let {
@@ -369,7 +265,7 @@ class ChannelVideosViewModel(
                 val savedStateHandle = createSavedStateHandle()
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                ChannelVideosViewModel(application.applicationContext, xtraModule.channelSortRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.httpEngine, xtraModule.cronetEngine, xtraModule.cronetExecutor, xtraModule.okHttpClient, savedStateHandle)
+                ChannelVideosViewModel(application.applicationContext, xtraModule.channelSortRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.okHttpClient, savedStateHandle)
             }
         }
     }

@@ -1,12 +1,10 @@
 package com.github.andreyasadchy.xtra.ui.settings
 
-import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.net.Uri
-import android.net.http.HttpEngine
 import android.provider.DocumentsContract
 import android.util.JsonReader
 import androidx.appcompat.app.AppCompatDelegate
@@ -45,7 +43,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -55,11 +52,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.chromium.net.CronetEngine
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
 import kotlin.system.exitProcess
@@ -72,9 +67,6 @@ class SettingsViewModel(
     private val recentSearchesRepository: RecentSearchesRepository,
     private val notificationsRepository: NotificationsRepository,
     private val appDatabase: AppDatabase,
-    private val httpEngine: Lazy<HttpEngine?>,
-    private val cronetEngine: Lazy<CronetEngine?>,
-    private val cronetExecutor: Lazy<ExecutorService>,
     private val okHttpClient: Lazy<OkHttpClient>,
     private val json: Json,
 ) : ViewModel() {
@@ -265,51 +257,13 @@ class SettingsViewModel(
         }
     }
 
-    fun checkUpdates(networkLibrary: String?, url: String, lastChecked: Long) {
+    fun checkUpdates(url: String, lastChecked: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             updateUrl.emit(
                 try {
-                    val response = when {
-                        networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                            val response = suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.HttpEngineTimeout()
-                                val request = httpEngine.value!!.newUrlRequestBuilder(
-                                    url,
-                                    cronetExecutor.value,
-                                    NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                ).build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
-                                }
-                            }
-                            json.decodeFromString<JsonObject>(response.body.decodeToString())
-                        }
-                        networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                            val response = suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.CronetTimeout()
-                                val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                    url,
-                                    NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                    cronetExecutor.value
-                                ).build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
-                                }
-                            }
-                            json.decodeFromString<JsonObject>(response.body.decodeToString())
-                        }
-                        else -> {
-                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                    val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                                 json.decodeFromString<JsonObject>(response.body.string())
                             }
-                        }
-                    }
                     response["assets"]?.jsonArray?.find {
                         it.jsonObject.getValue("content_type").jsonPrimitive.contentOrNull == "application/vnd.android.package-archive"
                     }?.jsonObject?.let { obj ->
@@ -329,7 +283,7 @@ class SettingsViewModel(
         }
     }
 
-    fun downloadUpdate(networkLibrary: String?, url: String) {
+    fun downloadUpdate(url: String) {
         updateJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val progressListener = NetworkUtils.ProgressListener { bytesRead ->
@@ -337,55 +291,13 @@ class SettingsViewModel(
                         updateProgress.emit(bytesRead)
                     }
                 }
-                val response = when {
-                    networkLibrary == C.HTTP_ENGINE && httpEngine.value != null -> @SuppressLint("NewApi") {
-                        val response = suspendCancellableCoroutine { continuation ->
-                            val timeout = NetworkUtils.HttpEngineTimeout()
-                            val request = httpEngine.value!!.newUrlRequestBuilder(
-                                url,
-                                cronetExecutor.value,
-                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout, progressListener)
-                            ).build()
-                            timeout.start(request, continuation)
-                            request.start()
-                            continuation.invokeOnCancellation {
-                                request.cancel()
-                                timeout.stop()
-                            }
-                        }
-                        if (response.info.httpStatusCode in 200..299) {
-                            response.body
-                        } else null
-                    }
-                    networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                        val response = suspendCancellableCoroutine { continuation ->
-                            val timeout = NetworkUtils.CronetTimeout()
-                            val request = cronetEngine.value!!.newUrlRequestBuilder(
-                                url,
-                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout, progressListener),
-                                cronetExecutor.value
-                            ).build()
-                            timeout.start(request, continuation)
-                            request.start()
-                            continuation.invokeOnCancellation {
-                                request.cancel()
-                                timeout.stop()
-                            }
-                        }
-                        if (response.info.httpStatusCode in 200..299) {
-                            response.body
-                        } else null
-                    }
-                    else -> {
-                        okHttpClient.value.newBuilder().apply {
+                val response = okHttpClient.value.newBuilder().apply {
                             addNetworkInterceptor(NetworkUtils.ProgressInterceptor(progressListener))
                         }.build().newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
                             if (response.isSuccessful) {
                                 response.body.bytes()
                             } else null
                         }
-                    }
-                }
                 if (response != null && response.isNotEmpty()) {
                     val packageInstaller = applicationContext.packageManager.packageInstaller
                     val sessionId = packageInstaller.createSession(
@@ -448,7 +360,7 @@ class SettingsViewModel(
         }
     }
 
-    fun restoreSettings(list: List<String>, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
+    fun restoreSettings(list: List<String>, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
         viewModelScope.launch(Dispatchers.IO) {
             list.take(2).forEach { url ->
                 if (url.endsWith(".xml")) {
@@ -460,7 +372,7 @@ class SettingsViewModel(
                     val prefs = applicationContext.contentResolver.openInputStream(url.toUri())!!.bufferedReader().use {
                         it.readText()
                     }
-                    toggleNotifications(prefs.contains("name=\"${C.LIVE_NOTIFICATIONS_ENABLED}\" value=\"true\""), networkLibrary, gqlHeaders, helixHeaders)
+                    toggleNotifications(prefs.contains("name=\"${C.LIVE_NOTIFICATIONS_ENABLED}\" value=\"true\""), gqlHeaders, helixHeaders)
                     val language = Regex("<string name=\"${C.UI_LANGUAGE}\">(.+?)</string>").find(prefs)?.groups?.get(1)?.value
                     AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(language.takeIf { it != "auto" }))
                 } else {
@@ -483,10 +395,10 @@ class SettingsViewModel(
         }
     }
 
-    fun toggleNotifications(enabled: Boolean, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
+    fun toggleNotifications(enabled: Boolean, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
         viewModelScope.launch(Dispatchers.IO) {
             if (enabled) {
-                notificationsRepository.getNewStreams(networkLibrary, gqlHeaders, helixHeaders)
+                notificationsRepository.getNewStreams(gqlHeaders, helixHeaders)
                 WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
                     "live_notifications",
                     ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
@@ -510,7 +422,7 @@ class SettingsViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                SettingsViewModel(application.applicationContext, xtraModule.playerRepository, xtraModule.offlineVideosRepository, xtraModule.recentSearchesRepository, xtraModule.notificationsRepository, xtraModule.database, xtraModule.httpEngine, xtraModule.cronetEngine, xtraModule.cronetExecutor, xtraModule.okHttpClient, xtraModule.json)
+                SettingsViewModel(application.applicationContext, xtraModule.playerRepository, xtraModule.offlineVideosRepository, xtraModule.recentSearchesRepository, xtraModule.notificationsRepository, xtraModule.database, xtraModule.okHttpClient, xtraModule.json)
             }
         }
     }
