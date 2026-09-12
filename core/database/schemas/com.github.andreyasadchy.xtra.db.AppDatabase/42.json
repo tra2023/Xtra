@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 40,
-    "identityHash": "f21402fa4311959a67c7a6789bf8a96f",
+    "version": 42,
+    "identityHash": "464cc9f1361cc0b1024114934384bcef",
     "entities": [
       {
         "tableName": "videos",
@@ -609,24 +609,6 @@
         }
       },
       {
-        "tableName": "translate_all_messages",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`channelId` TEXT NOT NULL, PRIMARY KEY(`channelId`))",
-        "fields": [
-          {
-            "fieldPath": "channelId",
-            "columnName": "channelId",
-            "affinity": "TEXT",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "channelId"
-          ]
-        }
-      },
-      {
         "tableName": "filters",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`gameId` TEXT, `gameSlug` TEXT, `gameName` TEXT, `tags` TEXT, `languages` TEXT, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)",
         "fields": [
@@ -707,7 +689,7 @@
       },
       {
         "tableName": "playback_states",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`type` TEXT, `streamId` TEXT, `videoId` TEXT, `clipId` TEXT, `offlineVideoId` INTEGER, `channelId` TEXT, `channelLogin` TEXT, `channelName` TEXT, `channelImage` TEXT, `gameId` TEXT, `gameSlug` TEXT, `gameName` TEXT, `title` TEXT, `thumbnail` TEXT, `createdAt` TEXT, `viewerCount` INTEGER, `durationSeconds` INTEGER, `videoType` TEXT, `videoOffsetSeconds` INTEGER, `videoCreatedAt` TEXT, `videoAnimatedPreviewURL` TEXT, `position` INTEGER, `paused` INTEGER NOT NULL, `qualities` TEXT, `quality` TEXT, `previousQuality` TEXT, `restoreQuality` INTEGER NOT NULL, `playlistUrl` TEXT, `restorePlaylist` INTEGER NOT NULL, `useCustomProxy` INTEGER NOT NULL, `currentCustomProxy` INTEGER NOT NULL, `useStreamProxy` INTEGER NOT NULL, `currentStreamProxy` INTEGER NOT NULL, `skipAccessToken` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`type` TEXT, `streamId` TEXT, `videoId` TEXT, `clipId` TEXT, `offlineVideoId` INTEGER, `channelId` TEXT, `channelLogin` TEXT, `channelName` TEXT, `channelImage` TEXT, `gameId` TEXT, `gameSlug` TEXT, `gameName` TEXT, `title` TEXT, `thumbnail` TEXT, `createdAt` TEXT, `viewerCount` INTEGER, `durationSeconds` INTEGER, `videoType` TEXT, `videoOffsetSeconds` INTEGER, `videoCreatedAt` TEXT, `videoAnimatedPreviewURL` TEXT, `position` INTEGER, `paused` INTEGER NOT NULL, `qualities` TEXT, `quality` TEXT, `previousQuality` TEXT, `restoreQuality` INTEGER NOT NULL, `playlistUrl` TEXT, `restorePlaylist` INTEGER NOT NULL, `skipAccessToken` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)",
         "fields": [
           {
             "fieldPath": "type",
@@ -858,141 +840,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "useCustomProxy",
-            "columnName": "useCustomProxy",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "currentCustomProxy",
-            "columnName": "currentCustomProxy",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "useStreamProxy",
-            "columnName": "useStreamProxy",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "currentStreamProxy",
-            "columnName": "currentStreamProxy",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
             "fieldPath": "skipAccessToken",
             "columnName": "skipAccessToken",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "id"
-          ]
-        }
-      },
-      {
-        "tableName": "custom_proxies",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`url` TEXT, `addQueryParams` INTEGER NOT NULL, `position` INTEGER NOT NULL, `enabled` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)",
-        "fields": [
-          {
-            "fieldPath": "url",
-            "columnName": "url",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "addQueryParams",
-            "columnName": "addQueryParams",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "position",
-            "columnName": "position",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "enabled",
-            "columnName": "enabled",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "id"
-          ]
-        }
-      },
-      {
-        "tableName": "stream_proxies",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`host` TEXT, `port` INTEGER, `username` TEXT, `password` TEXT, `proxyPlaybackAccessToken` INTEGER NOT NULL, `proxyMultivariantPlaylist` INTEGER NOT NULL, `proxyMediaPlaylist` INTEGER NOT NULL, `position` INTEGER NOT NULL, `enabled` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)",
-        "fields": [
-          {
-            "fieldPath": "host",
-            "columnName": "host",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "port",
-            "columnName": "port",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "username",
-            "columnName": "username",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "password",
-            "columnName": "password",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "proxyPlaybackAccessToken",
-            "columnName": "proxyPlaybackAccessToken",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "proxyMultivariantPlaylist",
-            "columnName": "proxyMultivariantPlaylist",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "proxyMediaPlaylist",
-            "columnName": "proxyMediaPlaylist",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "position",
-            "columnName": "position",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "enabled",
-            "columnName": "enabled",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -1053,7 +902,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f21402fa4311959a67c7a6789bf8a96f')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '464cc9f1361cc0b1024114934384bcef')"
     ]
   }
 }
