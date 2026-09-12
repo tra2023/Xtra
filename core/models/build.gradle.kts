@@ -8,7 +8,7 @@ kotlin {
     android {
         namespace = "com.github.andreyasadchy.xtra.models"
         compileSdk = 37
-        minSdk = 23
+        minSdk = 36
     }
     jvm()
 
