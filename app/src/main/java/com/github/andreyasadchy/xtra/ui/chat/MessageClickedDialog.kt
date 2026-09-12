@@ -5,7 +5,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -35,14 +34,11 @@ import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.google.mlkit.nl.translate.TranslateLanguage
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.util.Locale
 import kotlin.time.Instant
 
 class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener {
@@ -52,14 +48,12 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
         fun onReplyClicked(replyId: String?, userLogin: String?, userName: String?, message: String?)
         fun onCopyMessageClicked(message: String)
         fun onViewProfileClicked(id: String?, login: String?, name: String?, channelImage: String?)
-        fun onTranslateMessageClicked(chatMessage: ChatMessage, languageTag: String?)
     }
 
     companion object {
         private const val KEY_MESSAGING = "messaging"
         private const val KEY_CHANNEL_ID = "channelId"
         private val savedUsers = mutableListOf<Pair<User, String?>>()
-        private var selectedLanguage: String? = null
 
         fun newInstance(messagingEnabled: Boolean, channelId: String?): MessageClickedDialog {
             return MessageClickedDialog().apply {
@@ -260,33 +254,6 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
                 clipboard?.setPrimaryClip(ClipData.newPlainText("label", chatMessage.fullMsg))
                 dismiss()
             }
-            if (requireContext().prefs().getBoolean(C.CHAT_TRANSLATE, false) && (chatMessage.message != null || chatMessage.systemMsg != null) && Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
-                translateMessage.visibility = View.VISIBLE
-                translateMessage.setOnClickListener {
-                    listener.onTranslateMessageClicked(chatMessage, null)
-                }
-                translateMessageSelectLanguage.visibility = View.VISIBLE
-                translateMessageSelectLanguage.setOnClickListener {
-                    val languages = TranslateLanguage.getAllLanguages()
-                    val names = languages.map { Locale.forLanguageTag(it).displayName }.toTypedArray()
-                    requireContext().getAlertDialogBuilder()
-                        .setSingleChoiceItems(names, languages.indexOf(selectedLanguage)) { _, which ->
-                            languages.getOrNull(which)?.let { language ->
-                                selectedLanguage = language
-                            }
-                        }
-                        .setPositiveButton(android.R.string.ok) { _, _ ->
-                            selectedLanguage?.let {
-                                listener.onTranslateMessageClicked(chatMessage, it)
-                            }
-                        }
-                        .setNegativeButton(getString(android.R.string.cancel), null)
-                        .show()
-                }
-            } else {
-                translateMessage.visibility = View.GONE
-                translateMessageSelectLanguage.visibility = View.GONE
-            }
         }
     }
 
@@ -394,18 +361,6 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
                 }
             }.forEach {
                 adapter.notifyItemChanged(it)
-            }
-        }
-    }
-
-    fun updateTranslation(chatMessage: ChatMessage, previousTranslation: String?) {
-        adapter?.let { adapter ->
-            synchronized(adapter.messages) {
-                adapter.messages.indexOf(chatMessage).takeIf { it != -1 }
-            }?.let {
-                (binding.recyclerView.layoutManager?.findViewByPosition(it) as? TextView)?.let {
-                    adapter.updateTranslation(chatMessage, it, previousTranslation)
-                } ?: adapter.notifyItemChanged(it)
             }
         }
     }

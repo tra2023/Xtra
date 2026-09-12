@@ -1382,24 +1382,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
         PlayerVolumeDialog.newInstance(getCurrentVolume()).show(childFragmentManager, "closeOnPip")
     }
 
-    fun getTranslateAllMessages(): Boolean? {
-        return if (!playbackService?.channelId.isNullOrBlank()) {
-            chatFragment?.getTranslateAllMessages()
-        } else null
-    }
-
-    fun saveTranslatedChannel() {
-        playbackService?.channelId?.let {
-            chatFragment?.saveTranslatedChannel(it)
-        }
-    }
-
-    fun deleteTranslatedChannel() {
-        playbackService?.channelId?.let {
-            chatFragment?.deleteTranslatedChannel(it)
-        }
-    }
-
     fun toggleChatBar() {
         with(binding) {
             requireView().findViewById<LinearLayout>(R.id.messageView)?.let {

@@ -57,14 +57,13 @@ object ChatAdapterUtils {
     private const val PI_DEGREES = 180f
     private const val TWO_PI_DEGREES = 360f
 
-    fun prepareChatMessage(chatMessage: ChatMessage, context: Context, itemView: View, enableTimestamps: Boolean, timestampFormat: String?, firstMsgVisibility: Int, firstChatMsg: String, redeemedChatMsg: String, redeemedNoMsg: String, rewardChatMsg: String, replyMessage: String, imageClick: ((String?, String?, String?, Boolean?, Int?, Boolean?, String?) -> Unit)?, useRandomColors: Boolean, random: Random, useReadableColors: Boolean, isLightTheme: Boolean, nameDisplay: String?, useBoldNames: Boolean, showNamePaints: Boolean, namePaints: List<NamePaint>, showSTVBadges: Boolean, stvBadges: List<STVBadge>, showGifMessages: Boolean, showPersonalEmotes: Boolean, personalEmoteSets: Map<String, List<Emote>>, stvUsers: List<STVUser>, enableOverlayEmotes: Boolean, showSystemMessageEmotes: Boolean, loggedInUser: String?, chatUrl: String?, getEmoteBytes: ((String, Pair<Long, Int>) -> ByteArray?)?, userColors: HashMap<String, Int>, savedColors: HashMap<String, Int>, translateAllMessages: Boolean, translateMessage: (ChatMessage, String?) -> Unit, showLanguageDownloadDialog: (ChatMessage, String) -> Unit, hideErrors: Boolean, localTwitchEmotes: List<TwitchEmote>, thirdPartyEmotes: List<Emote>, globalBadges: List<TwitchBadge>, channelBadges: List<TwitchBadge>, cheerEmotes: List<CheerEmote>, savedLocalTwitchEmotes: MutableMap<String, ByteArray>, savedLocalBadges: MutableMap<String, ByteArray>, savedLocalCheerEmotes: MutableMap<String, ByteArray>, savedLocalEmotes: MutableMap<String, ByteArray>): MessageResult {
+    fun prepareChatMessage(chatMessage: ChatMessage, context: Context, itemView: View, enableTimestamps: Boolean, timestampFormat: String?, firstMsgVisibility: Int, firstChatMsg: String, redeemedChatMsg: String, redeemedNoMsg: String, rewardChatMsg: String, replyMessage: String, imageClick: ((String?, String?, String?, Boolean?, Int?, Boolean?, String?) -> Unit)?, useRandomColors: Boolean, random: Random, useReadableColors: Boolean, isLightTheme: Boolean, nameDisplay: String?, useBoldNames: Boolean, showNamePaints: Boolean, namePaints: List<NamePaint>, showSTVBadges: Boolean, stvBadges: List<STVBadge>, showGifMessages: Boolean, showPersonalEmotes: Boolean, personalEmoteSets: Map<String, List<Emote>>, stvUsers: List<STVUser>, enableOverlayEmotes: Boolean, showSystemMessageEmotes: Boolean, loggedInUser: String?, chatUrl: String?, getEmoteBytes: ((String, Pair<Long, Int>) -> ByteArray?)?, userColors: HashMap<String, Int>, savedColors: HashMap<String, Int>, localTwitchEmotes: List<TwitchEmote>, thirdPartyEmotes: List<Emote>, globalBadges: List<TwitchBadge>, channelBadges: List<TwitchBadge>, cheerEmotes: List<CheerEmote>, savedLocalTwitchEmotes: MutableMap<String, ByteArray>, savedLocalBadges: MutableMap<String, ByteArray>, savedLocalCheerEmotes: MutableMap<String, ByteArray>, savedLocalEmotes: MutableMap<String, ByteArray>): MessageResult {
         val builder = SpannableStringBuilder()
         val images = ArrayList<Image>()
         var imagePaint: NamePaint? = null
         var userName: String? = null
         var userNameStartIndex: Int? = null
         var wasMentioned = false
-        var translated = false
         var builderIndex = 0
         when {
             chatMessage.type == ChatMessage.REPLY_MESSAGE -> {
@@ -109,15 +108,6 @@ object ChatAdapterUtils {
                         prepareEmotes(chatMessage, systemMsg, builder, builderIndex, images, imageClick, useReadableColors, isLightTheme, enableOverlayEmotes, useBoldNames, loggedInUser, chatUrl, getEmoteBytes, savedColors, localTwitchEmotes, showPersonalEmotes, personalEmoteSets, null, thirdPartyEmotes, cheerEmotes, savedLocalTwitchEmotes, savedLocalCheerEmotes, savedLocalEmotes)
                     }
                     builderIndex = builder.length
-                    if (chatMessage.translatedMessage != null) {
-                        translated = true
-                        val result = addTranslation(chatMessage, builder, builderIndex, savedColors, useReadableColors, isLightTheme, showLanguageDownloadDialog, hideErrors)
-                        builderIndex = result
-                    } else {
-                        if (translateAllMessages) {
-                            translateMessage(chatMessage, null)
-                        }
-                    }
                 } else {
                     val reward = chatMessage.reward
                     val rewardTitle = reward?.title
@@ -408,15 +398,6 @@ object ChatAdapterUtils {
                         builderIndex = builder.length
                     }
                 }
-                if (chatMessage.translatedMessage != null) {
-                    translated = true
-                    val result = addTranslation(chatMessage, builder, builderIndex, savedColors, useReadableColors, isLightTheme, showLanguageDownloadDialog, hideErrors)
-                    builderIndex = result
-                } else {
-                    if (translateAllMessages) {
-                        translateMessage(chatMessage, null)
-                    }
-                }
                 when {
                     chatMessage.isFirst && firstMsgVisibility < 2 -> itemView.setBackgroundResource(R.color.chatMessageFirst)
                     chatMessage.reward?.id != null && firstMsgVisibility < 2 -> itemView.setBackgroundResource(R.color.chatMessageReward)
@@ -426,7 +407,7 @@ object ChatAdapterUtils {
                 }
             }
         }
-        return MessageResult(builder, images, imagePaint, userName, userNameStartIndex, translated)
+        return MessageResult(builder, images, imagePaint, userName, userNameStartIndex)
     }
 
     class MessageResult(
@@ -435,29 +416,7 @@ object ChatAdapterUtils {
         val imagePaint: NamePaint?,
         val userName: String?,
         val userNameStartIndex: Int?,
-        val translated: Boolean,
     )
-
-    fun addTranslation(chatMessage: ChatMessage, builder: SpannableStringBuilder, startIndex: Int, savedColors: HashMap<String, Int>, useReadableColors: Boolean, isLightTheme: Boolean, showLanguageDownloadDialog: (ChatMessage, String) -> Unit, hideErrors: Boolean): Int {
-        var builderIndex = startIndex
-        if (!hideErrors || !chatMessage.translationFailed) {
-            val translatedMessage = "\n${chatMessage.translatedMessage}"
-            builder.append(translatedMessage)
-            builder.setSpan(ForegroundColorSpan(getSavedColor("#999999", savedColors, useReadableColors, isLightTheme)), builderIndex, builderIndex + translatedMessage.length, SPAN_EXCLUSIVE_EXCLUSIVE)
-            val messageLanguage = chatMessage.messageLanguage
-            if (messageLanguage != null) {
-                builder.setSpan(object : ClickableSpan() {
-                    override fun onClick(widget: View) {
-                        showLanguageDownloadDialog(chatMessage, messageLanguage)
-                    }
-
-                    override fun updateDrawState(ds: TextPaint) {}
-                }, builderIndex, builderIndex + translatedMessage.length, SPAN_EXCLUSIVE_EXCLUSIVE)
-            }
-            builderIndex += translatedMessage.length
-        }
-        return builderIndex
-    }
 
     private fun getSavedColor(color: String, savedColors: HashMap<String, Int>, useReadableColors: Boolean, isLightTheme: Boolean): Int {
         return savedColors[color] ?: Color.parseColor(color).let { newColor ->
@@ -732,7 +691,7 @@ object ChatAdapterUtils {
         }
     }
 
-    fun loadImages(fragment: Fragment, itemView: View, bind: (SpannableStringBuilder) -> Unit, images: List<Image>, imagePaint: NamePaint?, userName: String?, userNameStartIndex: Int?, backgroundColor: Int, imageLibrary: String?, builder: SpannableStringBuilder, translated: Boolean, emoteSize: Int, badgeSize: Int, gifSize: Int, emoteQuality: String, animateGifs: Boolean, enableOverlayEmotes: Boolean, chatMessage: ChatMessage, savedColors: HashMap<String, Int>, useReadableColors: Boolean, isLightTheme: Boolean, showLanguageDownloadDialog: (ChatMessage, String) -> Unit, hideErrors: Boolean) {
+    fun loadImages(fragment: Fragment, itemView: View, bind: (SpannableStringBuilder) -> Unit, images: List<Image>, imagePaint: NamePaint?, userName: String?, userNameStartIndex: Int?, backgroundColor: Int, imageLibrary: String?, builder: SpannableStringBuilder, emoteSize: Int, badgeSize: Int, gifSize: Int, emoteQuality: String, animateGifs: Boolean, enableOverlayEmotes: Boolean) {
         if (imagePaint != null) {
             if (imageLibrary == "0") {
                 fragment.requireContext().imageLoader.enqueue(
@@ -774,9 +733,6 @@ object ChatAdapterUtils {
                                             SPAN_EXCLUSIVE_EXCLUSIVE
                                         )
                                     } catch (e: IndexOutOfBoundsException) {
-                                    }
-                                    if (!translated && chatMessage.translatedMessage != null) {
-                                        addTranslation(chatMessage, builder, builder.length, savedColors, useReadableColors, isLightTheme, showLanguageDownloadDialog, hideErrors)
                                     }
                                     bind(builder)
                                 }
@@ -821,9 +777,6 @@ object ChatAdapterUtils {
                                 )
                             } catch (e: IndexOutOfBoundsException) {
                             }
-                            if (!translated && chatMessage.translatedMessage != null) {
-                                addTranslation(chatMessage, builder, builder.length, savedColors, useReadableColors, isLightTheme, showLanguageDownloadDialog, hideErrors)
-                            }
                             bind(builder)
                         }
 
@@ -864,19 +817,16 @@ object ChatAdapterUtils {
                 }
                 if (image.overlayEmote != null) {
                     val drawables = arrayOf(result)
-                    nextOverlayEmote(imageLibrary, fragment, drawables, image.overlayEmote!!, image, itemView, bind, builder, translated, emoteSize, emoteQuality, animateGifs, enableOverlayEmotes, chatMessage, savedColors, useReadableColors, isLightTheme, showLanguageDownloadDialog, hideErrors)
+                    nextOverlayEmote(imageLibrary, fragment, drawables, image.overlayEmote!!, image, itemView, bind, builder, emoteSize, emoteQuality, animateGifs)
                 } else {
                     builder.setSpan(CenteredImageSpan(result), image.start, image.end, SPAN_EXCLUSIVE_EXCLUSIVE)
-                    if (!translated && chatMessage.translatedMessage != null) {
-                        addTranslation(chatMessage, builder, builder.length, savedColors, useReadableColors, isLightTheme, showLanguageDownloadDialog, hideErrors)
-                    }
                     bind(builder)
                 }
             }
         }
     }
 
-    private fun nextOverlayEmote(imageLibrary: String?, fragment: Fragment, drawables: Array<Drawable>, image: Image, bottomImage: Image, itemView: View, bind: (SpannableStringBuilder) -> Unit, builder: SpannableStringBuilder, translated: Boolean, emoteSize: Int, emoteQuality: String, animateGifs: Boolean, enableOverlayEmotes: Boolean, chatMessage: ChatMessage, savedColors: HashMap<String, Int>, useReadableColors: Boolean, isLightTheme: Boolean, showLanguageDownloadDialog: (ChatMessage, String) -> Unit, hideErrors: Boolean) {
+    private fun nextOverlayEmote(imageLibrary: String?, fragment: Fragment, drawables: Array<Drawable>, image: Image, bottomImage: Image, itemView: View, bind: (SpannableStringBuilder) -> Unit, builder: SpannableStringBuilder, emoteSize: Int, emoteQuality: String, animateGifs: Boolean) {
         loadImage(imageLibrary, fragment, image, emoteQuality) { result ->
             val widthRatio = result.intrinsicWidth.toFloat() / result.intrinsicHeight.toFloat()
             val size = if (widthRatio == 1f) {
@@ -903,16 +853,13 @@ object ChatAdapterUtils {
             }
             val array = drawables.plus(result)
             if (image.overlayEmote != null) {
-                nextOverlayEmote(imageLibrary, fragment, array, image.overlayEmote!!, bottomImage, itemView, bind, builder, translated, emoteSize, emoteQuality, animateGifs, enableOverlayEmotes, chatMessage, savedColors, useReadableColors, isLightTheme, showLanguageDownloadDialog, hideErrors)
+                nextOverlayEmote(imageLibrary, fragment, array, image.overlayEmote!!, bottomImage, itemView, bind, builder, emoteSize, emoteQuality, animateGifs)
             } else {
                 val layer = LayerDrawable(array)
                 val width = array.maxOf { it.bounds.right }
                 val height = array.maxOf { it.bounds.bottom }
                 layer.setBounds(0, 0, width, height)
                 builder.setSpan(CenteredImageSpan(layer), bottomImage.start, bottomImage.end, SPAN_EXCLUSIVE_EXCLUSIVE)
-                if (!translated && chatMessage.translatedMessage != null) {
-                    addTranslation(chatMessage, builder, builder.length, savedColors, useReadableColors, isLightTheme, showLanguageDownloadDialog, hideErrors)
-                }
                 bind(builder)
             }
         }

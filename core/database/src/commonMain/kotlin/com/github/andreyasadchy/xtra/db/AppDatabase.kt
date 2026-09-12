@@ -19,7 +19,6 @@ import com.github.andreyasadchy.xtra.model.ui.LocalGameFollow
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.model.ui.RecentSearch
 import com.github.andreyasadchy.xtra.model.ui.SavedFilter
-import com.github.andreyasadchy.xtra.model.ui.TranslatedChannel
 import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import kotlinx.coroutines.Dispatchers
 
@@ -36,13 +35,12 @@ import kotlinx.coroutines.Dispatchers
         GameSort::class,
         ShownNotification::class,
         NotificationUser::class,
-        TranslatedChannel::class,
         SavedFilter::class,
         RecentSearch::class,
         PlaybackState::class,
         VideoSwap::class,
     ],
-    version = 41,
+    version = 42,
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -59,7 +57,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun gameSort(): GameSortDao
     abstract fun shownNotifications(): ShownNotificationsDao
     abstract fun notificationUsers(): NotificationUsersDao
-    abstract fun translatedChannels(): TranslatedChannelsDao
     abstract fun savedFilters(): SavedFiltersDao
     abstract fun recentSearches(): RecentSearchesDao
     abstract fun playbackStates(): PlaybackStatesDao

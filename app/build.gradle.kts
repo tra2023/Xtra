@@ -53,20 +53,9 @@ android {
     lint {
         disable += "ContentDescription"
     }
-    packaging.jniLibs.excludes.addAll(listOf(
-        "lib/x86/libtranslate_jni.so",
-        "lib/x86/liblanguage_id_l2c_jni.so",
-        "lib/x86_64/libtranslate_jni.so",
-        "lib/x86_64/liblanguage_id_l2c_jni.so",
-        "lib/armeabi-v7a/libtranslate_jni.so",
-        "lib/armeabi-v7a/liblanguage_id_l2c_jni.so",
-    ))
 }
 
 dependencies {
-    implementation("com.google.mlkit:language-id:17.0.6")
-    implementation("com.google.mlkit:translate:17.0.3")
-
     implementation(libs.material)
     implementation(libs.markwon.core)
     implementation(libs.markwon.linkify)

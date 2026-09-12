@@ -31,7 +31,6 @@ import com.github.andreyasadchy.xtra.model.chat.STVUser
 import com.github.andreyasadchy.xtra.model.chat.TwitchBadge
 import com.github.andreyasadchy.xtra.model.chat.TwitchEmote
 import com.github.andreyasadchy.xtra.model.chat.VideoChatMessage
-import com.github.andreyasadchy.xtra.model.ui.TranslatedChannel
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
@@ -142,7 +141,6 @@ class ChatViewModel(
     val stvUsers = mutableListOf<STVUser>()
     var channelSTVEmoteSetId: String? = null
     var userSTVEmoteSetId: String? = null
-    val translateAllMessages = MutableStateFlow<Boolean?>(null)
 
     val reloadMessages = MutableStateFlow(false)
     val hideRaid = MutableStateFlow(false)
@@ -937,24 +935,6 @@ class ChatViewModel(
 
                 }
             }
-        }
-    }
-
-    fun checkTranslateAllMessages(id: String) {
-        viewModelScope.launch {
-            translateAllMessages.value = playerRepository.getTranslatedChannel(id) != null
-        }
-    }
-
-    fun saveTranslatedChannel(channelId: String) {
-        viewModelScope.launch {
-            playerRepository.saveTranslatedChannel(TranslatedChannel(channelId))
-        }
-    }
-
-    fun deleteTranslatedChannel(channelId: String) {
-        viewModelScope.launch {
-            playerRepository.deleteTranslatedChannel(TranslatedChannel(channelId))
         }
     }
 

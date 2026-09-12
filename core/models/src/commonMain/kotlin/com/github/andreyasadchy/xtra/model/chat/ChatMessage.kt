@@ -22,9 +22,6 @@ class ChatMessage(
     val replyParent: ChatMessage? = null,
     val timestamp: Long? = null,
     val fullMsg: String? = null,
-    var translatedMessage: String? = null,
-    var translationFailed: Boolean = false,
-    var messageLanguage: String? = null,
 ) {
     companion object {
         const val SYSTEM_MESSAGE = 0

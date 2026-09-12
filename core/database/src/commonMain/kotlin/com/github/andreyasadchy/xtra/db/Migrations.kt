@@ -278,6 +278,12 @@ val MIGRATION_39_40 = object : Migration(39, 40) {
     }
 }
 
+val MIGRATION_41_42 = object : Migration(41, 42) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("DROP TABLE IF EXISTS translate_all_messages")
+    }
+}
+
 val MIGRATION_40_41 = object : Migration(40, 41) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("CREATE TABLE IF NOT EXISTS playback_states1 (type TEXT, streamId TEXT, videoId TEXT, clipId TEXT, offlineVideoId INTEGER, channelId TEXT, channelLogin TEXT, channelName TEXT, channelImage TEXT, gameId TEXT, gameSlug TEXT, gameName TEXT, title TEXT, thumbnail TEXT, createdAt TEXT, viewerCount INTEGER, durationSeconds INTEGER, videoType TEXT, videoOffsetSeconds INTEGER, videoCreatedAt TEXT, videoAnimatedPreviewURL TEXT, position INTEGER, paused INTEGER NOT NULL, qualities TEXT, quality TEXT, previousQuality TEXT, restoreQuality INTEGER NOT NULL, playlistUrl TEXT, restorePlaylist INTEGER NOT NULL, skipAccessToken INTEGER NOT NULL, id INTEGER NOT NULL, PRIMARY KEY (id))")
@@ -321,5 +327,6 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_37_38,
     MIGRATION_38_39,
     MIGRATION_39_40,
-    MIGRATION_40_41
+    MIGRATION_40_41,
+    MIGRATION_41_42
 )

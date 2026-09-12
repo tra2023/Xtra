@@ -173,24 +173,6 @@
                 tools:visibility="visible" />
 
             <Button
-                android:id="@+id/translateMessage"
-                style="?attr/bottomSheetButtonStyle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/translate_message"
-                android:visibility="gone"
-                tools:visibility="visible" />
-
-            <Button
-                android:id="@+id/translateMessageSelectLanguage"
-                style="?attr/bottomSheetButtonStyle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/translate_from_selected"
-                android:visibility="gone"
-                tools:visibility="visible" />
-
-            <Button
                 android:id="@+id/viewProfile"
                 style="?attr/bottomSheetButtonStyle"
                 android:layout_width="match_parent"

@@ -4,7 +4,6 @@ import android.graphics.drawable.Animatable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.LayerDrawable
 import android.text.Spannable
-import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
 import android.text.method.LinkMovementMethod
@@ -73,9 +72,6 @@ class ReplyClickedChatAdapter(
     private val emoteQuality: String,
     private val animateGifs: Boolean,
     private val enableOverlayEmotes: Boolean,
-    private val translateAllMessages: Boolean,
-    private val translateMessage: (ChatMessage, String?) -> Unit,
-    private val showLanguageDownloadDialog: (ChatMessage, String) -> Unit,
     private val random: Random,
     private val userColors: HashMap<String, Int>,
     private val savedColors: HashMap<String, Int>,
@@ -111,7 +107,7 @@ class ReplyClickedChatAdapter(
             redeemedChatMsg, redeemedNoMsg, rewardChatMsg, replyMessage, { url, name, format, isAnimated, source, thirdParty, emoteId -> imageClick(url, name, format, isAnimated, source, thirdParty, emoteId) },
             useRandomColors, random, useReadableColors, isLightTheme, nameDisplay, useBoldNames, showNamePaints, namePaints, showSTVBadges,
             stvBadges, showGifMessages, showPersonalEmotes, personalEmoteSets, stvUsers, showSystemMessageEmotes, enableOverlayEmotes, loggedInUser, chatUrl,
-            getEmoteBytes, userColors, savedColors, translateAllMessages, translateMessage, showLanguageDownloadDialog, false, localTwitchEmotes,
+            getEmoteBytes, userColors, savedColors, localTwitchEmotes,
             thirdPartyEmotes, globalBadges, channelBadges, cheerEmotes, savedLocalTwitchEmotes, savedLocalBadges, savedLocalCheerEmotes, savedLocalEmotes
         )
         if (chatMessage == selectedMessage) {
@@ -120,8 +116,7 @@ class ReplyClickedChatAdapter(
         holder.bind(chatMessage, result.builder)
         ChatAdapterUtils.loadImages(
             fragment, holder.textView, { holder.bind(chatMessage, it) }, result.images, result.imagePaint, result.userName, result.userNameStartIndex,
-            backgroundColor, imageLibrary, result.builder, result.translated, emoteSize, badgeSize, gifSize, emoteQuality, animateGifs, enableOverlayEmotes,
-            chatMessage, savedColors, useReadableColors, isLightTheme, showLanguageDownloadDialog, false
+            backgroundColor, imageLibrary, result.builder, emoteSize, badgeSize, gifSize, emoteQuality, animateGifs, enableOverlayEmotes
         )
     }
 
@@ -148,21 +143,6 @@ class ReplyClickedChatAdapter(
                 it.backgroundColor = (item.background as? ColorDrawable)?.color
                 view.setSpan(it, view.getSpanStart(it), view.getSpanEnd(it), SPAN_EXCLUSIVE_EXCLUSIVE)
             }
-        }
-    }
-
-    fun updateTranslation(chatMessage: ChatMessage, item: TextView, previousTranslation: String?) {
-        (item.text as? SpannableString)?.let { text ->
-            val builder = SpannableStringBuilder()
-            builder.append(
-                if (previousTranslation != null) {
-                    text.dropLast(previousTranslation.length + 1)
-                } else {
-                    text
-                }
-            )
-            ChatAdapterUtils.addTranslation(chatMessage, builder, builder.length, savedColors, useReadableColors, isLightTheme, showLanguageDownloadDialog, false)
-            item.text = builder
         }
     }
 

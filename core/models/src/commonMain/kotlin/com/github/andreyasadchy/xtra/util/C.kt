@@ -206,8 +206,6 @@ object C {
     const val CHAT_RECENT = "chat_recent"
     const val CHAT_RECENT_LIMIT = "chat_recent_limit"
     const val CHAT_RECENT_MESSAGES_URL = "chat_recent_messages_url"
-    const val CHAT_TRANSLATE = "chat_translate"
-    const val CHAT_TRANSLATE_TARGET = "chat_translate_target"
     const val CHAT_SHOW_USER_NOTICE = "chat_show_usernotice"
     const val CHAT_SHOW_CLEAR_MSG = "chat_show_clearmsg"
     const val CHAT_SHOW_CLEAR_CHAT = "chat_show_clearchat"

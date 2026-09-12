@@ -5,7 +5,6 @@ import androidx.core.net.toUri
 import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.db.PlaybackStatesDao
 import com.github.andreyasadchy.xtra.db.RecentEmotesDao
-import com.github.andreyasadchy.xtra.db.TranslatedChannelsDao
 import com.github.andreyasadchy.xtra.db.VideoPositionsDao
 import com.github.andreyasadchy.xtra.db.VideoSwapDao
 import com.github.andreyasadchy.xtra.graphql.type.BadgeImageSize
@@ -25,7 +24,6 @@ import com.github.andreyasadchy.xtra.model.misc.FFZResponse
 import com.github.andreyasadchy.xtra.model.misc.RecentMessagesResponse
 import com.github.andreyasadchy.xtra.model.misc.STVChannelResponse
 import com.github.andreyasadchy.xtra.model.misc.STVEmoteSetResponse
-import com.github.andreyasadchy.xtra.model.ui.TranslatedChannel
 import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
@@ -51,7 +49,6 @@ class PlayerRepository(
     private val okHttpClient: Lazy<OkHttpClient>,
     private val json: Json,
     private val recentEmotes: RecentEmotesDao,
-    private val translatedChannelsDao: TranslatedChannelsDao,
     private val videoSwapDao: VideoSwapDao,
     private val videoPositions: VideoPositionsDao,
     private val playbackStatesDao: PlaybackStatesDao,
@@ -1010,18 +1007,6 @@ class PlayerRepository(
             emotes.toList().subList(listSize - RecentEmote.MAX_SIZE, listSize)
         }
         recentEmotes.ensureMaxSizeAndInsert(list)
-    }
-
-    suspend fun getTranslatedChannel(id: String) = withContext(Dispatchers.IO) {
-        translatedChannelsDao.getById(id)
-    }
-
-    suspend fun saveTranslatedChannel(item: TranslatedChannel) = withContext(Dispatchers.IO) {
-        translatedChannelsDao.insert(item)
-    }
-
-    suspend fun deleteTranslatedChannel(item: TranslatedChannel) = withContext(Dispatchers.IO) {
-        translatedChannelsDao.delete(item)
     }
 
     suspend fun getVideoSwapItems() = withContext(Dispatchers.IO) {
