@@ -1,7 +1,6 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
 import android.graphics.drawable.Animatable
-import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -15,11 +14,6 @@ import coil3.imageLoader
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.model.GlideUrl
-import com.bumptech.glide.request.target.CustomTarget
-import com.bumptech.glide.request.transition.Transition
 import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.DialogChatImageClickBinding
@@ -84,46 +78,25 @@ class ImageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener
         }
         with(binding) {
             val args = requireArguments()
-            val imageLibrary = requireContext().prefs().getString(C.CHAT_IMAGE_LIBRARY, "0")
-            if (imageLibrary == "0" || (imageLibrary == "1" && !args.getString(IMAGE_FORMAT).equals("webp", true))) {
-                requireContext().imageLoader.enqueue(
-                    ImageRequest.Builder(requireContext()).apply {
-                        data(args.getString(IMAGE_URL))
-                        if (args.getBoolean(IMAGE_THIRD_PARTY)) {
-                            httpHeaders(NetworkHeaders.Builder().apply {
-                                add("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                            }.build())
-                        }
-                        target(
-                            onSuccess = {
-                                val result = it.asDrawable(resources)
-                                if (result is Animatable && args.getBoolean(IMAGE_ANIMATED) && requireContext().prefs().getBoolean(C.ANIMATED_EMOTES, true)) {
-                                    (result as Animatable).start()
-                                }
-                                image.setImageDrawable(result)
+            requireContext().imageLoader.enqueue(
+                ImageRequest.Builder(requireContext()).apply {
+                    data(args.getString(IMAGE_URL))
+                    if (args.getBoolean(IMAGE_THIRD_PARTY)) {
+                        httpHeaders(NetworkHeaders.Builder().apply {
+                            add("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
+                        }.build())
+                    }
+                    target(
+                        onSuccess = {
+                            val result = it.asDrawable(resources)
+                            if (result is Animatable && args.getBoolean(IMAGE_ANIMATED) && requireContext().prefs().getBoolean(C.ANIMATED_EMOTES, true)) {
+                                (result as Animatable).start()
                             }
-                        )
-                    }.build()
-                )
-            } else {
-                Glide.with(this@ImageClickedDialog)
-                    .load(args.getString(IMAGE_URL).let {
-                        if (args.getBoolean(IMAGE_THIRD_PARTY)) {
-                            GlideUrl(it) { mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME) }
-                        } else it
-                    })
-                    .diskCacheStrategy(DiskCacheStrategy.DATA)
-                    .into(object : CustomTarget<Drawable>() {
-                        override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
-                            if (resource is Animatable && args.getBoolean(IMAGE_ANIMATED) && requireContext().prefs().getBoolean(C.ANIMATED_EMOTES, true)) {
-                                (resource as Animatable).start()
-                            }
-                            image.setImageDrawable(resource)
+                            image.setImageDrawable(result)
                         }
-
-                        override fun onLoadCleared(placeholder: Drawable?) {}
-                    })
-            }
+                    )
+                }.build()
+            )
             args.getString(IMAGE_NAME)?.let {
                 imageName.visibility = View.VISIBLE
                 imageName.text = it

@@ -1262,7 +1262,6 @@ class MainActivity : AppCompatActivity() {
             prefs.edit {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
                     putBoolean(C.CHAT_USE_WEBP, false)
-                    putString(C.CHAT_IMAGE_LIBRARY, "1")
                 }
                 putInt(C.SETTINGS_VERSION, 9)
             }

@@ -13,10 +13,6 @@ import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.request.target
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.model.GlideUrl
-import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.Chatter
@@ -33,7 +29,6 @@ class AutoCompleteAdapter<T>(
 ): ArrayAdapter<T?>(context, resource, textViewResourceId) {
 
     private var objects = originalValues
-    private val imageLibrary = context.prefs().getString(C.CHAT_IMAGE_LIBRARY, "0")
     private val emoteQuality = context.prefs().getString(C.CHAT_IMAGE_QUALITY, "4") ?: "4"
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
@@ -43,44 +38,25 @@ class AutoCompleteAdapter<T>(
             is Emote -> {
                 view.findViewById<ImageView>(R.id.image)?.let {
                     it.visibility = View.VISIBLE
-                    if (imageLibrary == "0" || (imageLibrary == "1" && !item.format.equals("webp", true))) {
-                        context.imageLoader.enqueue(
-                            ImageRequest.Builder(context).apply {
-                                data(
-                                    when (emoteQuality) {
-                                        "4" -> item.url4x ?: item.url3x ?: item.url2x ?: item.url1x
-                                        "3" -> item.url3x ?: item.url2x ?: item.url1x
-                                        "2" -> item.url2x ?: item.url1x
-                                        else -> item.url1x
-                                    }
-                                )
-                                if (item.thirdParty) {
-                                    httpHeaders(NetworkHeaders.Builder().apply {
-                                        add("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                                    }.build())
-                                }
-                                crossfade(true)
-                                target(it)
-                            }.build()
-                        )
-                    } else {
-                        Glide.with(context)
-                            .load(
+                    context.imageLoader.enqueue(
+                        ImageRequest.Builder(context).apply {
+                            data(
                                 when (emoteQuality) {
                                     "4" -> item.url4x ?: item.url3x ?: item.url2x ?: item.url1x
                                     "3" -> item.url3x ?: item.url2x ?: item.url1x
                                     "2" -> item.url2x ?: item.url1x
                                     else -> item.url1x
-                                }.let {
-                                    if (item.thirdParty) {
-                                        GlideUrl(it) { mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME) }
-                                    } else it
                                 }
                             )
-                            .diskCacheStrategy(DiskCacheStrategy.DATA)
-                            .transition(DrawableTransitionOptions.withCrossFade())
-                            .into(it)
-                    }
+                            if (item.thirdParty) {
+                                httpHeaders(NetworkHeaders.Builder().apply {
+                                    add("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
+                                }.build())
+                            }
+                            crossfade(true)
+                            target(it)
+                        }.build()
+                    )
                 }
                 view.findViewById<TextView>(R.id.name)?.text = item.name
             }

@@ -96,11 +96,6 @@ dependencies {
     implementation(libs.coil.gif)
     implementation(libs.coil.okhttp)
 
-    implementation(libs.glide)
-    ksp(libs.glide.ksp)
-    implementation(libs.glide.okhttp)
-    implementation(libs.glide.webpdecoder)
-
     implementation(libs.coroutines)
     implementation(project(":core:database"))
     implementation(project(":core:models"))

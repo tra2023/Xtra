@@ -186,7 +186,6 @@ object C {
     const val PLAYER_STREAM_HEADERS = "player_stream_headers"
     const val PLAYER_SHOW_UPTIME = "player_show_uptime"
     const val ANIMATED_EMOTES = "animatedGifEmotes"
-    const val CHAT_IMAGE_LIBRARY = "chat_image_library"
     const val CHAT_USE_WEBP = "chat_use_webp"
     const val CHAT_IMAGE_QUALITY = "chat_image_quality"
     const val CHAT_SIZE_MODIFIER = "chat_size_modifier"

@@ -63,7 +63,6 @@ class ReplyClickedChatAdapter(
     private val getEmoteBytes: ((String, Pair<Long, Int>) -> ByteArray?)?,
     private val fragment: Fragment,
     private val backgroundColor: Int,
-    private val imageLibrary: String?,
     private val messageTextSize: Float,
     private val emoteSize: Int,
     private val badgeSize: Int,
@@ -116,7 +115,7 @@ class ReplyClickedChatAdapter(
         holder.bind(chatMessage, result.builder)
         ChatAdapterUtils.loadImages(
             fragment, holder.textView, { holder.bind(chatMessage, it) }, result.images, result.imagePaint, result.userName, result.userNameStartIndex,
-            backgroundColor, imageLibrary, result.builder, emoteSize, badgeSize, gifSize, emoteQuality, animateGifs, enableOverlayEmotes
+            backgroundColor, result.builder, emoteSize, badgeSize, gifSize, emoteQuality, animateGifs, enableOverlayEmotes
         )
     }
 
