@@ -104,7 +104,7 @@ class ChatAdapter(
         holder.bind(chatMessage, result.builder)
         ChatAdapterUtils.loadImages(
             fragment, holder.textView, { holder.bind(chatMessage, it) }, result.images, result.imagePaint, result.userName, result.userNameStartIndex,
-            backgroundColor, result.builder, emoteSize, badgeSize, gifSize, emoteQuality, animateGifs, enableOverlayEmotes
+            backgroundColor, result.builder, emoteSize, badgeSize, gifSize, emoteQuality, animateGifs
         )
     }
 

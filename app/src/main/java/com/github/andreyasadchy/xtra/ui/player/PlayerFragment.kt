@@ -13,7 +13,6 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.Icon
-import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.text.format.DateFormat
@@ -195,7 +194,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 if (isPortrait) {
                     slidingLayout.updatePadding(left = 0, top = insets.top, right = 0)
                 } else {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && cornerPadding) {
+                    if (cornerPadding) {
                         val rootWindowInsets = view.rootView.rootWindowInsets
                         val topLeft = rootWindowInsets.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)
                         val topRight = rootWindowInsets.getRoundedCorner(RoundedCorner.POSITION_TOP_RIGHT)
@@ -221,7 +220,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 chatLayout.updatePadding(bottom = insets.bottom)
                 WindowInsetsCompat.CONSUMED
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            if (requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                 viewLifecycleOwner.lifecycleScope.launch {
                     repeatOnLifecycle(Lifecycle.State.STARTED) {
                         requireActivity().trackPipAnimationHintView(playerLayout)
@@ -761,7 +760,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                         changePlayerMode()
                     }
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && requireContext().prefs().getBoolean(C.PLAYER_AUDIO_COMPRESSOR_BUTTON, true)) {
+                if (requireContext().prefs().getBoolean(C.PLAYER_AUDIO_COMPRESSOR_BUTTON, true)) {
                     audioCompressor.visibility = View.VISIBLE
                     if (requireContext().prefs().getBoolean(C.PLAYER_AUDIO_COMPRESSOR, false)) {
                         audioCompressor.setImageResource(R.drawable.baseline_audio_compressor_on_24dp)
@@ -1320,8 +1319,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 codec == "avc1" || codec == "mp4a" || codec.isNullOrBlank()
             }
             qualities.map { quality ->
-                val qualityNameProp = quality.name
-                when (qualityNameProp) {
+                when (val qualityNameProp = quality.name) {
                     VideoQuality.AUTO_QUALITY -> getString(R.string.auto)
                     VideoQuality.SOURCE_QUALITY -> getString(R.string.source)
                     VideoQuality.AUDIO_ONLY_QUALITY -> getString(R.string.audio_only)
@@ -1671,8 +1669,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     playerControls.root.postDelayed(controllerHideAction, 3000)
                 }
                 controllerHideOnTouch = true
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
+                if (requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
                     requireContext().prefs().getBoolean(C.PLAYER_PICTURE_IN_PICTURE, true)
                 ) {
                     requireActivity().setPictureInPictureParams(PictureInPictureParams.Builder().setAutoEnterEnabled(true).build())
@@ -1682,8 +1679,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 showController(force = true)
                 updateProgress()
                 requireView().keepScreenOn = true
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+                if (requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
                 ) {
                     requireActivity().setPictureInPictureParams(PictureInPictureParams.Builder().setAutoEnterEnabled(false).build())
                 }
@@ -1804,7 +1800,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
 
     private fun getHorizontalInsets(windowInsets: WindowInsetsCompat?): Int {
         return if (windowInsets != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && requireContext().prefs().getBoolean(C.PLAYER_ROUNDED_CORNER_PADDING, false)) {
+            if (requireContext().prefs().getBoolean(C.PLAYER_ROUNDED_CORNER_PADDING, false)) {
                 val rootWindowInsets = requireView().rootWindowInsets
                 val topLeft = rootWindowInsets.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)
                 val topRight = rootWindowInsets.getRoundedCorner(RoundedCorner.POSITION_TOP_RIGHT)
@@ -1855,8 +1851,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
     }
 
     protected fun setPipActions(playing: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
+        if (requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
             requireContext().prefs().getBoolean(C.PLAYER_PICTURE_IN_PICTURE, true)
         ) {
             requireActivity().setPictureInPictureParams(
@@ -1906,12 +1901,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
 
     override fun onResume() {
         super.onResume()
-        val isInPIPMode = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> requireActivity().isInPictureInPictureMode
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> !useController && isMaximized
-            else -> false
-        }
-        if (isInPIPMode) {
+        if (requireActivity().isInPictureInPictureMode) {
             if (isPortrait) {
                 binding.chatLayout.visibility = View.GONE
             } else {
@@ -1937,12 +1927,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             } else {
                 disableBackground()
             }
-            val isInPIPMode = when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> requireActivity().isInPictureInPictureMode
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> !useController && isMaximized
-                else -> false
-            }
-            if (!isInPIPMode) {
+            if (!requireActivity().isInPictureInPictureMode) {
                 (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(chatLayout.windowToken, 0)
                 chatLayout.clearFocus()
                 initLayout()

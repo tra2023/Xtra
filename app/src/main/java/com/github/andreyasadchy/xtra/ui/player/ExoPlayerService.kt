@@ -1090,11 +1090,11 @@ class ExoPlayerService : BasePlaybackService() {
 
     suspend fun checkPlaylist(url: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val playlist = xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                        response.body.byteStream().use {
-                            PlaylistUtils.parseMediaPlaylist(it)
-                        }
-                    }
+            val playlist = xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build())
+                .executeAsync().use { response ->
+                    val body = response.body.string()
+                    PlaylistUtils.parseMediaPlaylist(body)
+                }
             playlist.segments.lastOrNull()?.let { segment ->
                 segment.title == "Amazon"
                         || segment.title == "Adform"

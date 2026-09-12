@@ -161,7 +161,7 @@ class PlayerRepository(
         token?.let { value ->
             val json = try {
                 JSONObject(value)
-            } catch (e: JSONException) {
+            } catch (_: JSONException) {
                 null
             }
             val array = json?.optJSONObject("chansub")?.optJSONArray("restricted_bitrates")
@@ -224,9 +224,9 @@ class PlayerRepository(
                 (assets.find { it?.portraitMetadata?.portraitClipLayout.isNullOrBlank() } ?: assets.firstOrNull())?.videoQualities?.mapIndexedNotNull { index, quality ->
                     val sourceURL = quality?.sourceURL
                     if (!sourceURL.isNullOrBlank()) {
-                        val qualityValue = quality?.quality
+                        val qualityValue = quality.quality
                         val name = if (!qualityValue.isNullOrBlank()) {
-                            val frameRate = quality?.frameRate?.roundToInt() ?: ""
+                            val frameRate = quality.frameRate?.roundToInt() ?: ""
                             "${qualityValue}p${frameRate}"
                         } else {
                             index.toString()
@@ -235,7 +235,9 @@ class PlayerRepository(
                             appendQueryParameter("sig", accessToken?.signature)
                             appendQueryParameter("token", accessToken?.value)
                         }.build().toString()
-                        VideoQuality(name, qualityValue?.toIntOrNull(), quality?.frameRate?.toFloat(), quality?.bitrate, quality?.codecs, url)
+                        VideoQuality(
+                            name, qualityValue?.toIntOrNull(), quality.frameRate?.toFloat(), quality.bitrate, quality.codecs, url
+                        )
                     } else null
                 }
             }
@@ -892,16 +894,16 @@ class PlayerRepository(
                     set.emotes?.mapNotNull { emote ->
                         val token = emote?.token
                         val owner = emote?.owner
-                        if (token != null && (!emote?.type?.toString().equals("follower", true) || (owner?.id == null || owner.id == channelId))) {
+                        if (token != null && (!emote.type?.toString().equals("follower", true) || (owner?.id == null || owner.id == channelId))) {
                             TwitchEmote(
-                                id = emote?.id,
-                                name = if (emote?.type == EmoteType.SMILIES) {
+                                id = emote.id,
+                                name = if (emote.type == EmoteType.SMILIES) {
                                     token.replace("\\", "").replace("?", "")
                                         .replace("&lt;", "<").replace("&gt;", ">")
                                         .replace(Regex("\\((.)\\|.\\)")) { it.groups[1]?.value ?: "" }
                                         .replace(Regex("\\[(.).*?]")) { it.groups[1]?.value ?: "" }
                                 } else token,
-                                setId = emote?.setID,
+                                setId = emote.setID,
                                 ownerId = owner?.id
                             )
                         } else null

@@ -42,6 +42,7 @@ import java.text.NumberFormat
 import java.util.Random
 import kotlin.math.floor
 import kotlin.math.pow
+import androidx.core.graphics.toColorInt
 
 object ChatAdapterUtils {
 
@@ -81,7 +82,6 @@ object ChatAdapterUtils {
                     builder.append(message)
                     builder.setSpan(ForegroundColorSpan(getSavedColor("#999999", savedColors, useReadableColors, isLightTheme)), builderIndex, builderIndex + message.length, SPAN_EXCLUSIVE_EXCLUSIVE)
                     prepareEmotes(chatMessage, message, builder, builderIndex, images, null, useReadableColors, isLightTheme, enableOverlayEmotes, useBoldNames, loggedInUser, chatUrl, getEmoteBytes, savedColors, localTwitchEmotes, showPersonalEmotes, personalEmoteSets, null, thirdPartyEmotes, cheerEmotes, savedLocalTwitchEmotes, savedLocalCheerEmotes, savedLocalEmotes)
-                    builderIndex = builder.length
                 }
                 itemView.setBackgroundResource(0)
             }
@@ -102,7 +102,6 @@ object ChatAdapterUtils {
                     if (showSystemMessageEmotes) {
                         prepareEmotes(chatMessage, systemMsg, builder, builderIndex, images, imageClick, useReadableColors, isLightTheme, enableOverlayEmotes, useBoldNames, loggedInUser, chatUrl, getEmoteBytes, savedColors, localTwitchEmotes, showPersonalEmotes, personalEmoteSets, null, thirdPartyEmotes, cheerEmotes, savedLocalTwitchEmotes, savedLocalCheerEmotes, savedLocalEmotes)
                     }
-                    builderIndex = builder.length
                 } else {
                     val reward = chatMessage.reward
                     val rewardTitle = reward?.title
@@ -141,7 +140,6 @@ object ChatAdapterUtils {
                             val cost = NumberFormat.getInstance().format(rewardCost)
                             builder.append(cost)
                             builder.setSpan(ForegroundColorSpan(getSavedColor("#999999", savedColors, useReadableColors, isLightTheme)), builderIndex, builderIndex + cost.length, SPAN_EXCLUSIVE_EXCLUSIVE)
-                            builderIndex += cost.length
                         }
                     }
                 }
@@ -302,7 +300,6 @@ object ChatAdapterUtils {
                         messageUserName
                     }
                     val localUserName = userName
-                    if (localUserName != null) {
                     builder.append(localUserName)
                     builder.setSpan(ForegroundColorSpan(color), builderIndex, builderIndex + localUserName.length, SPAN_EXCLUSIVE_EXCLUSIVE)
                     if (useBoldNames) {
@@ -353,7 +350,6 @@ object ChatAdapterUtils {
                         builder.append(" ")
                         builderIndex += 1
                     }
-                    }
                 }
                 if (showGifMessages && !chatMessage.gif.isNullOrBlank()) {
                     builder.append("\n")
@@ -380,7 +376,6 @@ object ChatAdapterUtils {
                         start = builderIndex,
                         end = builderIndex + 1
                     ))
-                    builderIndex += 1
                 } else {
                     val chatMessageText = chatMessage.message
                     if (chatMessageText != null) {
@@ -390,7 +385,6 @@ object ChatAdapterUtils {
                         }
                         val result = prepareEmotes(chatMessage, chatMessageText, builder, builderIndex, images, imageClick, useReadableColors, isLightTheme, enableOverlayEmotes, useBoldNames, loggedInUser, chatUrl, getEmoteBytes, savedColors, localTwitchEmotes, showPersonalEmotes, personalEmoteSets, stvUser, thirdPartyEmotes, cheerEmotes, savedLocalTwitchEmotes, savedLocalCheerEmotes, savedLocalEmotes)
                         wasMentioned = result
-                        builderIndex = builder.length
                     }
                 }
                 when {
@@ -414,7 +408,7 @@ object ChatAdapterUtils {
     )
 
     private fun getSavedColor(color: String, savedColors: HashMap<String, Int>, useReadableColors: Boolean, isLightTheme: Boolean): Int {
-        return savedColors[color] ?: Color.parseColor(color).let { newColor ->
+        return savedColors[color] ?: color.toColorInt().let { newColor ->
             if (useReadableColors) {
                 adaptUsernameColor(newColor, isLightTheme)
             } else {
@@ -667,7 +661,7 @@ object ChatAdapterUtils {
                 previousImage = null
                 builderIndex += value.length + 1
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
 
         }
         return wasMentioned
@@ -686,7 +680,7 @@ object ChatAdapterUtils {
         }
     }
 
-    fun loadImages(fragment: Fragment, itemView: View, bind: (SpannableStringBuilder) -> Unit, images: List<Image>, imagePaint: NamePaint?, userName: String?, userNameStartIndex: Int?, backgroundColor: Int, builder: SpannableStringBuilder, emoteSize: Int, badgeSize: Int, gifSize: Int, emoteQuality: String, animateGifs: Boolean, enableOverlayEmotes: Boolean) {
+    fun loadImages(fragment: Fragment, itemView: View, bind: (SpannableStringBuilder) -> Unit, images: List<Image>, imagePaint: NamePaint?, userName: String?, userNameStartIndex: Int?, backgroundColor: Int, builder: SpannableStringBuilder, emoteSize: Int, badgeSize: Int, gifSize: Int, emoteQuality: String, animateGifs: Boolean) {
         if (imagePaint != null) {
             fragment.requireContext().imageLoader.enqueue(
                 ImageRequest.Builder(fragment.requireContext()).apply {
@@ -726,7 +720,7 @@ object ChatAdapterUtils {
                                         userNameStartIndex + userName.length,
                                         SPAN_EXCLUSIVE_EXCLUSIVE
                                     )
-                                } catch (e: IndexOutOfBoundsException) {
+                                } catch (_: IndexOutOfBoundsException) {
                                 }
                                 bind(builder)
                             }
