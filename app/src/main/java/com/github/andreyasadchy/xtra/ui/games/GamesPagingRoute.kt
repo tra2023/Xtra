@@ -1,5 +1,6 @@
 package com.github.andreyasadchy.xtra.ui.games
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -34,6 +37,7 @@ import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.shared.browse.GamesGridContent
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -63,6 +67,18 @@ fun GamesPagingRoute(
     val lazyGames = flow.collectAsLazyPagingItems()
     val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
+
+    // Same columns the old GridRecyclerView read from settings.
+    val configuration = LocalConfiguration.current
+    val context = LocalContext.current
+    val columns = remember(configuration.orientation) {
+        val prefs = context.prefs()
+        if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+            prefs.getString(C.PORTRAIT_COLUMN_COUNT, "1")?.toIntOrNull() ?: 1
+        } else {
+            prefs.getString(C.LANDSCAPE_COLUMN_COUNT, "2")?.toIntOrNull() ?: 2
+        }
+    }
 
     val refreshTick by refreshSignal.collectAsState()
     LaunchedEffect(refreshTick) {
@@ -128,6 +144,7 @@ fun GamesPagingRoute(
                     showBroadcasters = showBroadcasters,
                     broadcastersLabel = broadcastersLabel,
                     gridState = gridState,
+                    columns = columns,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
