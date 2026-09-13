@@ -5,9 +5,11 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.annotation.ExperimentalCoilApi
-import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.network.cachecontrol.CacheControlCacheStrategy
+import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.util.DebugLogger
-import com.github.andreyasadchy.xtra.util.coil.CacheControlCacheStrategy
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 
 class XtraApp : Application(), SingletonImageLoader.Factory {
 
@@ -30,8 +32,10 @@ class XtraApp : Application(), SingletonImageLoader.Factory {
                 logger(DebugLogger())
             }
             components {
-                add(OkHttpNetworkFetcherFactory(
-                    callFactory = { xtraModule.okHttpClient.value },
+                // Ktor + CIO works on Android and JVM desktop (Compose Multiplatform).
+                // The rest of the app still uses OkHttp for API/downloads — only images go via Ktor.
+                add(KtorNetworkFetcherFactory(
+                    httpClient = { HttpClient(CIO) },
                     cacheStrategy = { CacheControlCacheStrategy() }
                 ))
             }
