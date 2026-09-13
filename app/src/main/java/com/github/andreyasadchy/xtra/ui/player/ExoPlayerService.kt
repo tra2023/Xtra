@@ -59,8 +59,9 @@ import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.player.lowlatency.OkHttpDataSource
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.repository.getBytesOrNull
+import com.github.andreyasadchy.xtra.repository.getString
 import com.github.andreyasadchy.xtra.util.MediaButtonReceiver
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
 import com.github.andreyasadchy.xtra.util.prefs
@@ -70,7 +71,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import okhttp3.Request
 import java.io.FileInputStream
 import java.util.Timer
 import kotlin.concurrent.schedule
@@ -1073,11 +1073,7 @@ class ExoPlayerService : BasePlaybackService() {
 
     suspend fun checkPlaylist(url: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val playlist = xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build())
-                .executeAsync().use { response ->
-                    val body = response.body.string()
-                    PlaylistUtils.parseMediaPlaylist(body)
-                }
+            val playlist = PlaylistUtils.parseMediaPlaylist(xtraModule.xtraHttpClient.getString(url))
             playlist.segments.lastOrNull()?.let { segment ->
                 segment.title == "Amazon"
                         || segment.title == "Adform"
@@ -1259,11 +1255,7 @@ class ExoPlayerService : BasePlaybackService() {
                     try {
                         val scheme = url.toUri().scheme
                         val response = if (scheme == "https" || scheme == "http") {
-                            xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        if (response.isSuccessful) {
-                                            response.body.bytes()
-                                        } else null
-                                    }
+                            xtraModule.xtraHttpClient.getBytesOrNull(url)
                         } else {
                             FileInputStream(url).use {
                                 it.readBytes()
@@ -1323,11 +1315,7 @@ class ExoPlayerService : BasePlaybackService() {
                     try {
                         val scheme = url.toUri().scheme
                         val response = if (scheme == "https" || scheme == "http") {
-                            xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        if (response.isSuccessful) {
-                                            response.body.bytes()
-                                        } else null
-                                    }
+                            xtraModule.xtraHttpClient.getBytesOrNull(url)
                         } else {
                             FileInputStream(url).use {
                                 it.readBytes()

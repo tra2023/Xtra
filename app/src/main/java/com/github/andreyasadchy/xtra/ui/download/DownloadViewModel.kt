@@ -10,8 +10,9 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.VideoQuality
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
+import com.github.andreyasadchy.xtra.repository.XtraHttpClient
+import com.github.andreyasadchy.xtra.repository.getStringOrNull
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -19,13 +20,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONException
 class DownloadViewModel(
     private val applicationContext: Context,
-    private val okHttpClient: Lazy<OkHttpClient>,
+    private val xtraHttpClient: XtraHttpClient,
     private val playerRepository: PlayerRepository,
 ) : ViewModel() {
 
@@ -48,11 +47,7 @@ class DownloadViewModel(
                         val list = if (!channelLogin.isNullOrBlank()) {
                             val url = playerRepository.loadStreamPlaylistUrl(gqlHeaders, channelLogin, platform, playerType, supportedCodecs, enableIntegrity)
                             val playlist = withContext(Dispatchers.IO) {
-                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                            if (response.isSuccessful) {
-                                                response.body.string()
-                                            } else null
-                                        }
+                                xtraHttpClient.getStringOrNull(url)
                             }
                             if (!playlist.isNullOrBlank()) {
                                 val stableVariantIds = Regex("STABLE-VARIANT-ID=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
@@ -117,11 +112,7 @@ class DownloadViewModel(
                         val url = result.first
                         backupQualities = result.second
                         val playlist = withContext(Dispatchers.IO) {
-                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        if (response.isSuccessful) {
-                                            response.body.string()
-                                        } else null
-                                    }
+                            xtraHttpClient.getStringOrNull(url)
                         }
                         if (!playlist.isNullOrBlank()) {
                             val stableVariantIds = Regex("STABLE-VARIANT-ID=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
@@ -315,7 +306,7 @@ class DownloadViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                DownloadViewModel(application.applicationContext, xtraModule.okHttpClient, xtraModule.playerRepository)
+                DownloadViewModel(application.applicationContext, xtraModule.xtraHttpClient, xtraModule.playerRepository)
             }
         }
     }

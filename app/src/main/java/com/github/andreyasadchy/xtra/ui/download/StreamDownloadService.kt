@@ -32,9 +32,11 @@ import com.github.andreyasadchy.xtra.model.chat.TwitchEmote
 import com.github.andreyasadchy.xtra.model.ui.DownloadProgress
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.model.ui.Stream
+import com.github.andreyasadchy.xtra.repository.getBytes
+import com.github.andreyasadchy.xtra.repository.getBytesOrNull
+import com.github.andreyasadchy.xtra.repository.getStringOrNull
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.chat.ChatReadWebSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatUtils
@@ -58,7 +60,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import okhttp3.Request
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -73,13 +74,6 @@ import kotlin.time.Instant
 class StreamDownloadService : LifecycleService() {
 
     lateinit var xtraModule: XtraModule
-    private val okHttpClient = lazy {
-        xtraModule.okHttpClient.value.newBuilder().apply {
-            connectTimeout(5, TimeUnit.MINUTES)
-            writeTimeout(5, TimeUnit.MINUTES)
-            readTimeout(5, TimeUnit.MINUTES)
-        }.build()
-    }
 
     private var notificationManager: NotificationManager? = null
     private val downloadJobs = mutableListOf<DownloadJob>()
@@ -162,7 +156,7 @@ class StreamDownloadService : LifecycleService() {
                                 OfflineVideo.STATUS_PENDING
                             }
                         }
-                        bytes = downloadProgress.bytes
+                        this.bytes = downloadProgress.bytes
                         chatBytes = downloadProgress.chatBytes
                         lastSegmentUrl = downloadProgress.lastSegmentUrl
                         liveCommentsArrayStarted = downloadProgress.liveCommentsArrayStarted
@@ -203,11 +197,7 @@ class StreamDownloadService : LifecycleService() {
         var endTime = startWait?.let { System.currentTimeMillis() + it }
         var playlistUrl = xtraModule.playerRepository.loadStreamPlaylistUrl(gqlHeaders, channelLogin, platform, playerType, supportedCodecs, false)
         while (true) {
-            val playlist = okHttpClient.value.newCall(Request.Builder().url(playlistUrl).build()).executeAsync().use { response ->
-                        if (response.isSuccessful) {
-                            response.body.string()
-                        } else null
-                    }
+            val playlist = xtraModule.xtraHttpClient.getStringOrNull(playlistUrl, timeoutMs = TimeUnit.MINUTES.toMillis(5))
             if (!playlist.isNullOrBlank()) {
                 val qualities = getQualities(playlist)
                 if (qualities.isNotEmpty()) {
@@ -352,11 +342,7 @@ class StreamDownloadService : LifecycleService() {
 
     private suspend fun loadPlaylist(playlistUrl: String): String? = withContext(Dispatchers.IO) {
         try {
-            okHttpClient.value.newCall(Request.Builder().url(playlistUrl).build()).executeAsync().use { response ->
-                if (response.isSuccessful) {
-                    response.body.string()
-                } else null
-            }
+            xtraModule.xtraHttpClient.getStringOrNull(playlistUrl, timeoutMs = TimeUnit.MINUTES.toMillis(5))
         } catch (e: Exception) {
             null
         }
@@ -399,15 +385,7 @@ class StreamDownloadService : LifecycleService() {
         var startTime = System.currentTimeMillis()
         var lastUrl = downloadProgress.lastSegmentUrl
         var initSegmentUri: String?
-        val playlist = okHttpClient.value.newCall(Request.Builder().url(sourceUrl).build()).executeAsync().use { response ->
-                    if (response.isSuccessful) {
-                        response.body.byteStream().use {
-                            PlaylistUtils.parseMediaPlaylist(it)
-                        }
-                    } else {
-                        return@withContext
-                    }
-                }
+        val playlist = xtraModule.xtraHttpClient.getStringOrNull(sourceUrl, timeoutMs = TimeUnit.MINUTES.toMillis(5))?.let { PlaylistUtils.parseMediaPlaylist(it) } ?: return@withContext
         val firstUrls = if (playlist.segments.isNotEmpty()) {
             val urls = playlist.segments.takeLastWhile { it.uri != lastUrl }
             urls.lastOrNull()?.let { lastUrl = it.uri }
@@ -452,18 +430,15 @@ class StreamDownloadService : LifecycleService() {
                 "$path${File.separator}$fileName"
             }
             val initSegmentBytes = initSegmentUri?.let { url ->
-                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                            if (isShared) {
-                                contentResolver.openOutputStream(fileUri.toUri(), "wa")!!
-                            } else {
-                                FileOutputStream(fileUri)
-                            }.use { outputStream ->
-                                response.body.byteStream().use { inputStream ->
-                                    inputStream.copyTo(outputStream)
-                                }
-                            }
-                            response.body.contentLength()
-                        }
+                val bytes = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
+                if (isShared) {
+                    contentResolver.openOutputStream(fileUri.toUri(), "wa")!!
+                } else {
+                    FileOutputStream(fileUri)
+                }.use { outputStream ->
+                    outputStream.write(bytes)
+                }
+                bytes.size.toLong()
             }
             xtraModule.offlineVideosRepository.update(offlineVideo.apply {
                 url = fileUri
@@ -486,31 +461,28 @@ class StreamDownloadService : LifecycleService() {
         val firstJobs = firstUrls.mapIndexed { index, url ->
             requestSemaphore.acquire()
             launch(Dispatchers.IO) {
-                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                            val mutex = Mutex()
-                            if (count.value != index) {
-                                mutex.lock()
-                                mutexMap[index] = mutex
-                            }
-                            mutex.withLock {
-                                if (isShared) {
-                                    contentResolver.openOutputStream(videoFileUri.toUri(), "wa")!!
-                                } else {
-                                    FileOutputStream(videoFileUri)
-                                }.use { outputStream ->
-                                    response.body.byteStream().use { inputStream ->
-                                        inputStream.copyTo(outputStream)
-                                    }
-                                    downloadProgress.bytes += response.body.contentLength()
-                                    downloadProgress.lastSegmentUrl += lastUrl
-                                }
-                            }
-                        }
+                val bytes = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
+                val mutex = Mutex()
+                if (count.value != index) {
+                    mutex.lock()
+                    mutexMap[index] = mutex
+                }
+                mutex.withLock {
+                    if (isShared) {
+                        contentResolver.openOutputStream(videoFileUri.toUri(), "wa")!!
+                    } else {
+                        FileOutputStream(videoFileUri)
+                    }.use { outputStream ->
+                        outputStream.write(bytes)
+                        downloadProgress.bytes += bytes.size
+                        downloadProgress.lastSegmentUrl += lastUrl
+                    }
+                }
                 val currentTime = System.currentTimeMillis()
                 if (currentTime - downloadProgress.lastSaved >= 5000L) {
                     downloadProgress.lastSaved = currentTime
                     xtraModule.offlineVideosRepository.update(offlineVideo.apply {
-                        bytes = downloadProgress.bytes
+                        this.bytes = downloadProgress.bytes
                         chatBytes = downloadProgress.chatBytes
                         lastSegmentUrl = downloadProgress.lastSegmentUrl
                         liveCommentsArrayStarted = downloadProgress.liveCommentsArrayStarted
@@ -526,15 +498,7 @@ class StreamDownloadService : LifecycleService() {
         }
         firstJobs.joinAll()
         while (true) {
-            val playlist = okHttpClient.value.newCall(Request.Builder().url(sourceUrl).build()).executeAsync().use { response ->
-                        if (response.isSuccessful) {
-                            response.body.byteStream().use {
-                                PlaylistUtils.parseMediaPlaylist(it)
-                            }
-                        } else {
-                            return@withContext
-                        }
-                    }
+            val playlist = xtraModule.xtraHttpClient.getStringOrNull(sourceUrl, timeoutMs = TimeUnit.MINUTES.toMillis(5))?.let { PlaylistUtils.parseMediaPlaylist(it) } ?: return@withContext
             if (playlist.segments.isNotEmpty()) {
                 val urls = playlist.segments.map { it.uri }.takeLastWhile { it != lastUrl }
                 urls.lastOrNull()?.let { lastUrl = it }
@@ -543,31 +507,28 @@ class StreamDownloadService : LifecycleService() {
                 val jobs = urls.mapIndexed { index, url ->
                     requestSemaphore.acquire()
                     launch(Dispatchers.IO) {
-                        okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                    val mutex = Mutex()
-                                    if (count.value != index) {
-                                        mutex.lock()
-                                        mutexMap[index] = mutex
-                                    }
-                                    mutex.withLock {
-                                        if (isShared) {
-                                            contentResolver.openOutputStream(videoFileUri.toUri(), "wa")!!
-                                        } else {
-                                            FileOutputStream(videoFileUri)
-                                        }.use { outputStream ->
-                                            response.body.byteStream().use { inputStream ->
-                                                inputStream.copyTo(outputStream)
-                                            }
-                                            downloadProgress.bytes += response.body.contentLength()
-                                            downloadProgress.lastSegmentUrl += lastUrl
-                                        }
-                                    }
-                                }
+                        val bytes = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
+                        val mutex = Mutex()
+                        if (count.value != index) {
+                            mutex.lock()
+                            mutexMap[index] = mutex
+                        }
+                        mutex.withLock {
+                            if (isShared) {
+                                contentResolver.openOutputStream(videoFileUri.toUri(), "wa")!!
+                            } else {
+                                FileOutputStream(videoFileUri)
+                            }.use { outputStream ->
+                                outputStream.write(bytes)
+                                downloadProgress.bytes += bytes.size
+                                downloadProgress.lastSegmentUrl += lastUrl
+                            }
+                        }
                         val currentTime = System.currentTimeMillis()
                         if (currentTime - downloadProgress.lastSaved >= 5000L) {
                             downloadProgress.lastSaved = currentTime
                             xtraModule.offlineVideosRepository.update(offlineVideo.apply {
-                                bytes = downloadProgress.bytes
+                                this.bytes = downloadProgress.bytes
                                 chatBytes = downloadProgress.chatBytes
                                 lastSegmentUrl = downloadProgress.lastSegmentUrl
                                 liveCommentsArrayStarted = downloadProgress.liveCommentsArrayStarted
@@ -658,15 +619,11 @@ class StreamDownloadService : LifecycleService() {
                         val filePath = filesDir + File.separator + "thumbnails" + File.separator + id
                         launch(Dispatchers.IO) {
                             try {
-                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                            if (response.isSuccessful) {
-                                                FileOutputStream(filePath).use { outputStream ->
-                                                    response.body.byteStream().use { inputStream ->
-                                                        inputStream.copyTo(outputStream)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                xtraModule.xtraHttpClient.getBytesOrNull(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))?.let { bytes ->
+                                    FileOutputStream(filePath).use { outputStream ->
+                                        outputStream.write(bytes)
+                                    }
+                                }
                             } catch (e: Exception) {
 
                             }
@@ -1107,9 +1064,7 @@ class StreamDownloadService : LifecycleService() {
                                 "2" -> emote.url2x ?: emote.url1x
                                 else -> emote.url1x
                             }!!
-                            val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        response.body.source().readByteArray()
-                                    }
+                            val response = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
                             val mutex = Mutex()
                             if (count.value != index) {
                                 mutex.lock()
@@ -1158,9 +1113,7 @@ class StreamDownloadService : LifecycleService() {
                                 "2" -> badge.url2x ?: badge.url1x
                                 else -> badge.url1x
                             }!!
-                            val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        response.body.source().readByteArray()
-                                    }
+                            val response = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
                             val mutex = Mutex()
                             val mutexIndex = index + offset
                             if (count.value != mutexIndex) {
@@ -1211,9 +1164,7 @@ class StreamDownloadService : LifecycleService() {
                                 "2" -> cheerEmote.url2x ?: cheerEmote.url1x
                                 else -> cheerEmote.url1x
                             }!!
-                            val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        response.body.source().readByteArray()
-                                    }
+                            val response = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
                             val mutex = Mutex()
                             val mutexIndex = index + offset
                             if (count.value != mutexIndex) {
@@ -1265,9 +1216,7 @@ class StreamDownloadService : LifecycleService() {
                                 "2" -> emote.url2x ?: emote.url1x
                                 else -> emote.url1x
                             }!!
-                            val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        response.body.source().readByteArray()
-                                    }
+                            val response = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
                             val mutex = Mutex()
                             val mutexIndex = index + offset
                             if (count.value != mutexIndex) {
@@ -1318,7 +1267,7 @@ class StreamDownloadService : LifecycleService() {
         if (currentTime - downloadProgress.lastSaved >= 5000L) {
             downloadProgress.lastSaved = currentTime
             xtraModule.offlineVideosRepository.update(offlineVideo.apply {
-                bytes = downloadProgress.bytes
+                this.bytes = downloadProgress.bytes
                 chatBytes = downloadProgress.chatBytes
                 lastSegmentUrl = downloadProgress.lastSegmentUrl
                 this.liveCommentsArrayStarted = downloadProgress.liveCommentsArrayStarted
@@ -1387,7 +1336,7 @@ class StreamDownloadService : LifecycleService() {
                         lifecycleScope.launch(Dispatchers.IO) {
                             xtraModule.offlineVideosRepository.update(offlineVideo.apply {
                                 status = OfflineVideo.STATUS_PENDING
-                                bytes = downloadProgress.bytes
+                                this.bytes = downloadProgress.bytes
                                 chatBytes = downloadProgress.chatBytes
                                 lastSegmentUrl = downloadProgress.lastSegmentUrl
                                 liveCommentsArrayStarted = downloadProgress.liveCommentsArrayStarted

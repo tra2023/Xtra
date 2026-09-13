@@ -21,7 +21,8 @@ import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.repository.RecentSearchesRepository
 import com.github.andreyasadchy.xtra.repository.datasource.SearchVideosDataSource
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.repository.XtraHttpClient
+import com.github.andreyasadchy.xtra.repository.getBytesOrNull
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
@@ -30,8 +31,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 class VideoSearchViewModel(
@@ -41,7 +40,7 @@ class VideoSearchViewModel(
     private val bookmarksRepository: BookmarksRepository,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
-    private val okHttpClient: Lazy<OkHttpClient>,
+    private val xtraHttpClient: XtraHttpClient,
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
@@ -99,15 +98,7 @@ class VideoSearchViewModel(
                         val path = filesDir + File.separator + "thumbnails" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                            if (response.isSuccessful) {
-                                                FileOutputStream(path).use { outputStream ->
-                                                    response.body.byteStream().use { inputStream ->
-                                                        inputStream.copyTo(outputStream)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                             } catch (e: Exception) {
 
                             }
@@ -121,15 +112,7 @@ class VideoSearchViewModel(
                         val path = filesDir + File.separator + "profile_pics" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                            if (response.isSuccessful) {
-                                                FileOutputStream(path).use { outputStream ->
-                                                    response.body.byteStream().use { inputStream ->
-                                                        inputStream.copyTo(outputStream)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                             } catch (e: Exception) {
 
                             }
@@ -206,7 +189,7 @@ class VideoSearchViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                VideoSearchViewModel(application.applicationContext, xtraModule.recentSearchesRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.okHttpClient)
+                VideoSearchViewModel(application.applicationContext, xtraModule.recentSearchesRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.xtraHttpClient)
             }
         }
     }

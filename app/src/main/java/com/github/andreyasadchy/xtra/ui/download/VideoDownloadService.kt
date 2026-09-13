@@ -30,9 +30,10 @@ import com.github.andreyasadchy.xtra.model.chat.TwitchBadge
 import com.github.andreyasadchy.xtra.model.chat.TwitchEmote
 import com.github.andreyasadchy.xtra.model.ui.DownloadProgress
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
+import com.github.andreyasadchy.xtra.repository.getBytes
+import com.github.andreyasadchy.xtra.repository.getString
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.m3u8.MediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
@@ -57,7 +58,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import okhttp3.Request
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -67,13 +67,6 @@ import kotlin.coroutines.cancellation.CancellationException
 class VideoDownloadService : LifecycleService() {
 
     lateinit var xtraModule: XtraModule
-    private val okHttpClient = lazy {
-        xtraModule.okHttpClient.value.newBuilder().apply {
-            connectTimeout(5, TimeUnit.MINUTES)
-            writeTimeout(5, TimeUnit.MINUTES)
-            readTimeout(5, TimeUnit.MINUTES)
-        }.build()
-    }
 
     private var notificationManager: NotificationManager? = null
     private lateinit var downloadSemaphore: Semaphore
@@ -165,7 +158,7 @@ class VideoDownloadService : LifecycleService() {
                             }
                             progress = downloadProgress.progress
                             maxProgress = downloadProgress.maxProgress
-                            bytes = downloadProgress.bytes
+                            this.bytes = downloadProgress.bytes
                             chatProgress = downloadProgress.chatProgress
                             maxChatProgress = downloadProgress.maxChatProgress
                             chatBytes = downloadProgress.chatBytes
@@ -217,11 +210,7 @@ class VideoDownloadService : LifecycleService() {
         val path = offlineVideo.downloadPath!!
         val from = offlineVideo.fromTime!!
         val to = offlineVideo.toTime!!
-        val playlist = okHttpClient.value.newCall(Request.Builder().url(sourceUrl).build()).executeAsync().use { response ->
-                    response.body.byteStream().use {
-                        PlaylistUtils.parseMediaPlaylist(it)
-                    }
-                }
+        val playlist = PlaylistUtils.parseMediaPlaylist(xtraModule.xtraHttpClient.getString(sourceUrl, timeoutMs = TimeUnit.MINUTES.toMillis(5)))
         val selection = DownloadPlaylists.selectRange(playlist.segments, from, to)
         val segments = selection.segments
         val downloadDuration = selection.downloadDurationMs
@@ -276,18 +265,15 @@ class VideoDownloadService : LifecycleService() {
             val playlistInitSegmentUri = playlist.initSegmentUri
             val initSegmentBytes = if (playlistInitSegmentUri != null) {
                 val url = urlPath + playlistInitSegmentUri
-                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                            if (isShared) {
-                                contentResolver.openOutputStream(fileUri.toUri(), "wa")!!
-                            } else {
-                                FileOutputStream(fileUri)
-                            }.use { outputStream ->
-                                response.body.byteStream().use { inputStream ->
-                                    inputStream.copyTo(outputStream)
-                                }
-                            }
-                            response.body.contentLength()
-                        }
+                val bytes = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
+                if (isShared) {
+                    contentResolver.openOutputStream(fileUri.toUri(), "wa")!!
+                } else {
+                    FileOutputStream(fileUri)
+                }.use { outputStream ->
+                    outputStream.write(bytes)
+                }
+                bytes.size.toLong()
             } else null
             xtraModule.offlineVideosRepository.update(offlineVideo.apply {
                 url = fileUri
@@ -309,35 +295,32 @@ class VideoDownloadService : LifecycleService() {
             requestSemaphore.acquire()
             launch(Dispatchers.IO) {
                 val url = urlPath + segment.uri
-                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                            val mutex = Mutex()
-                            if (count.value != index) {
-                                mutex.lock()
-                                mutexMap[index] = mutex
-                            }
-                            mutex.withLock {
-                                if (isShared) {
-                                    contentResolver.openOutputStream(videoFileUri.toUri(), "wa")!!
-                                } else {
-                                    FileOutputStream(videoFileUri)
-                                }.use { outputStream ->
-                                    response.body.byteStream().use { inputStream ->
-                                        inputStream.copyTo(outputStream)
-                                    }
-                                    downloadProgress.bytes += response.body.contentLength()
-                                    downloadProgress.progress += 1
-                                    listener?.update(downloadProgress)
-                                    sendNotification(offlineVideo, downloadProgress)
-                                }
-                            }
-                        }
+                val bytes = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
+                val mutex = Mutex()
+                if (count.value != index) {
+                    mutex.lock()
+                    mutexMap[index] = mutex
+                }
+                mutex.withLock {
+                    if (isShared) {
+                        contentResolver.openOutputStream(videoFileUri.toUri(), "wa")!!
+                    } else {
+                        FileOutputStream(videoFileUri)
+                    }.use { outputStream ->
+                        outputStream.write(bytes)
+                        downloadProgress.bytes += bytes.size
+                        downloadProgress.progress += 1
+                        listener?.update(downloadProgress)
+                        sendNotification(offlineVideo, downloadProgress)
+                    }
+                }
                 val currentTime = System.currentTimeMillis()
                 if (currentTime - downloadProgress.lastSaved >= 5000L) {
                     downloadProgress.lastSaved = currentTime
                     xtraModule.offlineVideosRepository.update(offlineVideo.apply {
                         progress = downloadProgress.progress
                         maxProgress = downloadProgress.maxProgress
-                        bytes = downloadProgress.bytes
+                        this.bytes = downloadProgress.bytes
                         chatProgress = downloadProgress.chatProgress
                         maxChatProgress = downloadProgress.maxChatProgress
                         chatBytes = downloadProgress.chatBytes
@@ -410,22 +393,19 @@ class VideoDownloadService : LifecycleService() {
                     videoDirectoryUri + downloadPlaylistInitSegmentUri
                 }
                 val url = urlPath + downloadPlaylistInitSegmentUri
-                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                            if (isShared) {
-                                try {
-                                    contentResolver.openOutputStream(initSegmentFileUri.toUri())!!
-                                } catch (e: IllegalArgumentException) {
-                                    DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", downloadPlaylistInitSegmentUri)
-                                    contentResolver.openOutputStream(initSegmentFileUri.toUri())!!
-                                }
-                            } else {
-                                FileOutputStream(initSegmentFileUri)
-                            }.use { outputStream ->
-                                response.body.byteStream().use { inputStream ->
-                                    inputStream.copyTo(outputStream)
-                                }
-                            }
-                        }
+                val bytes = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
+                if (isShared) {
+                    try {
+                        contentResolver.openOutputStream(initSegmentFileUri.toUri())!!
+                    } catch (e: IllegalArgumentException) {
+                        DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", downloadPlaylistInitSegmentUri)
+                        contentResolver.openOutputStream(initSegmentFileUri.toUri())!!
+                    }
+                } else {
+                    FileOutputStream(initSegmentFileUri)
+                }.use { outputStream ->
+                    outputStream.write(bytes)
+                }
             }
             xtraModule.offlineVideosRepository.update(offlineVideo.apply {
                 url = playlistFileUri
@@ -484,22 +464,19 @@ class VideoDownloadService : LifecycleService() {
                 }
                 if (!exists || !downloadedSegments.contains(segment.uri)) {
                     val url = urlPath + segment.uri
-                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                if (isShared) {
-                                    try {
-                                        contentResolver.openOutputStream(fileUri.toUri())!!
-                                    } catch (e: IllegalArgumentException) {
-                                        DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", segment.uri)
-                                        contentResolver.openOutputStream(fileUri.toUri())!!
-                                    }
-                                } else {
-                                    FileOutputStream(fileUri)
-                                }.use { outputStream ->
-                                    response.body.byteStream().use { inputStream ->
-                                        inputStream.copyTo(outputStream)
-                                    }
-                                }
-                            }
+                    val bytes = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
+                    if (isShared) {
+                        try {
+                            contentResolver.openOutputStream(fileUri.toUri())!!
+                        } catch (e: IllegalArgumentException) {
+                            DocumentsContract.createDocument(contentResolver, videoDirectoryUri.toUri(), "", segment.uri)
+                            contentResolver.openOutputStream(fileUri.toUri())!!
+                        }
+                    } else {
+                        FileOutputStream(fileUri)
+                    }.use { outputStream ->
+                        outputStream.write(bytes)
+                    }
                 }
                 val mutex = Mutex()
                 if (count.value != index) {
@@ -516,7 +493,7 @@ class VideoDownloadService : LifecycleService() {
                         xtraModule.offlineVideosRepository.update(offlineVideo.apply {
                             progress = downloadProgress.progress
                             maxProgress = downloadProgress.maxProgress
-                            bytes = downloadProgress.bytes
+                            this.bytes = downloadProgress.bytes
                             chatProgress = downloadProgress.chatProgress
                             maxChatProgress = downloadProgress.maxChatProgress
                             chatBytes = downloadProgress.chatBytes
@@ -571,17 +548,14 @@ class VideoDownloadService : LifecycleService() {
         }
         val job = launch(Dispatchers.IO) {
             if (downloadProgress.progress < downloadProgress.maxProgress) {
-                okHttpClient.value.newCall(Request.Builder().url(sourceUrl).build()).executeAsync().use { response ->
-                            if (isShared) {
-                                contentResolver.openOutputStream(videoFileUri.toUri())!!
-                            } else {
-                                FileOutputStream(videoFileUri)
-                            }.use { outputStream ->
-                                response.body.byteStream().use { inputStream ->
-                                    inputStream.copyTo(outputStream)
-                                }
-                            }
-                        }
+                val bytes = xtraModule.xtraHttpClient.getBytes(sourceUrl, timeoutMs = TimeUnit.MINUTES.toMillis(5))
+                if (isShared) {
+                    contentResolver.openOutputStream(videoFileUri.toUri())!!
+                } else {
+                    FileOutputStream(videoFileUri)
+                }.use { outputStream ->
+                    outputStream.write(bytes)
+                }
                 downloadProgress.progress = downloadProgress.maxProgress
                 listener?.update(downloadProgress)
                 sendNotification(offlineVideo, downloadProgress)
@@ -1033,9 +1007,7 @@ class VideoDownloadService : LifecycleService() {
                                             "2" -> emote.url2x ?: emote.url1x
                                             else -> emote.url1x
                                         }!!
-                                        val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                                    response.body.source().readByteArray()
-                                                }
+                                        val response = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
                                         val mutex = Mutex()
                                         if (count.value != index) {
                                             mutex.lock()
@@ -1084,9 +1056,7 @@ class VideoDownloadService : LifecycleService() {
                                             "2" -> badge.url2x ?: badge.url1x
                                             else -> badge.url1x
                                         }!!
-                                        val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                                    response.body.source().readByteArray()
-                                                }
+                                        val response = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
                                         val mutex = Mutex()
                                         val mutexIndex = index + offset
                                         if (count.value != mutexIndex) {
@@ -1137,9 +1107,7 @@ class VideoDownloadService : LifecycleService() {
                                             "2" -> cheerEmote.url2x ?: cheerEmote.url1x
                                             else -> cheerEmote.url1x
                                         }!!
-                                        val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                                    response.body.source().readByteArray()
-                                                }
+                                        val response = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
                                         val mutex = Mutex()
                                         val mutexIndex = index + offset
                                         if (count.value != mutexIndex) {
@@ -1191,9 +1159,7 @@ class VideoDownloadService : LifecycleService() {
                                             "2" -> emote.url2x ?: emote.url1x
                                             else -> emote.url1x
                                         }!!
-                                        val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                                    response.body.source().readByteArray()
-                                                }
+                                        val response = xtraModule.xtraHttpClient.getBytes(url, timeoutMs = TimeUnit.MINUTES.toMillis(5))
                                         val mutex = Mutex()
                                         val mutexIndex = index + offset
                                         if (count.value != mutexIndex) {
@@ -1250,7 +1216,7 @@ class VideoDownloadService : LifecycleService() {
                             xtraModule.offlineVideosRepository.update(offlineVideo.apply {
                                 progress = downloadProgress.progress
                                 maxProgress = downloadProgress.maxProgress
-                                bytes = downloadProgress.bytes
+                                this.bytes = downloadProgress.bytes
                                 chatProgress = downloadProgress.chatProgress
                                 maxChatProgress = downloadProgress.maxChatProgress
                                 chatBytes = downloadProgress.chatBytes
@@ -1377,7 +1343,7 @@ class VideoDownloadService : LifecycleService() {
                                 status = OfflineVideo.STATUS_PENDING
                                 progress = downloadProgress.progress
                                 maxProgress = downloadProgress.maxProgress
-                                bytes = downloadProgress.bytes
+                                this.bytes = downloadProgress.bytes
                                 chatProgress = downloadProgress.chatProgress
                                 maxChatProgress = downloadProgress.maxChatProgress
                                 chatBytes = downloadProgress.chatBytes

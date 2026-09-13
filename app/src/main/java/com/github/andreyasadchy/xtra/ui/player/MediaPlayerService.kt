@@ -40,8 +40,9 @@ import com.github.andreyasadchy.xtra.model.VideoQuality
 import com.github.andreyasadchy.xtra.model.ui.Video
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.repository.XtraHttpRequest
+import com.github.andreyasadchy.xtra.repository.getBytesOrNull
 import com.github.andreyasadchy.xtra.util.MediaButtonReceiver
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +51,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONException
 import java.io.FileInputStream
@@ -435,13 +435,8 @@ class MediaPlayerService : BasePlaybackService() {
             if (url != null) {
                 player?.let { player ->
                     val response = try {
-                        xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                    if (response.isSuccessful) {
-                                        response.body.string() to null
-                                    } else {
-                                        null to response.code
-                                    }
-                                }
+                        val r = xtraModule.xtraHttpClient.execute(XtraHttpRequest(XtraHttpRequest.GET, url))
+                        if (r.code in 200..299) r.bodyAsString() to null else null to r.code
                     } catch (e: Exception) {
                         null
                     }
@@ -573,13 +568,8 @@ class MediaPlayerService : BasePlaybackService() {
             if (url != null) {
                 player?.let { player ->
                     val response = try {
-                        xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                    if (response.isSuccessful) {
-                                        response.body.string() to null
-                                    } else {
-                                        null to response.code
-                                    }
-                                }
+                        val r = xtraModule.xtraHttpClient.execute(XtraHttpRequest(XtraHttpRequest.GET, url))
+                        if (r.code in 200..299) r.bodyAsString() to null else null to r.code
                     } catch (e: Exception) {
                         null
                     }
@@ -1130,11 +1120,7 @@ class MediaPlayerService : BasePlaybackService() {
                     try {
                         val scheme = url.toUri().scheme
                         val response = if (scheme == "https" || scheme == "http") {
-                            xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        if (response.isSuccessful) {
-                                            response.body.bytes()
-                                        } else null
-                                    }
+                            xtraModule.xtraHttpClient.getBytesOrNull(url)
                         } else {
                             FileInputStream(url).use {
                                 it.readBytes()
@@ -1187,11 +1173,7 @@ class MediaPlayerService : BasePlaybackService() {
                     try {
                         val scheme = url.toUri().scheme
                         val response = if (scheme == "https" || scheme == "http") {
-                            xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        if (response.isSuccessful) {
-                                            response.body.bytes()
-                                        } else null
-                                    }
+                            xtraModule.xtraHttpClient.getBytesOrNull(url)
                         } else {
                             FileInputStream(url).use {
                                 it.readBytes()

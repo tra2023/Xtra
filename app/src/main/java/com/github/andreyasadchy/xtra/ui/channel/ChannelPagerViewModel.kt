@@ -20,14 +20,13 @@ import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.repository.NotificationsRepository
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.repository.XtraHttpClient
+import com.github.andreyasadchy.xtra.repository.getBytesOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.time.Instant
@@ -39,7 +38,7 @@ class ChannelPagerViewModel(
     private val notificationsRepository: NotificationsRepository,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
-    private val okHttpClient: Lazy<OkHttpClient>,
+    private val xtraHttpClient: XtraHttpClient,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -354,15 +353,7 @@ class ChannelPagerViewModel(
                         val path = filesDir + File.separator + "profile_pics" + File.separator + userId
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                            if (response.isSuccessful) {
-                                                FileOutputStream(path).use { outputStream ->
-                                                    response.body.byteStream().use { inputStream ->
-                                                        inputStream.copyTo(outputStream)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                             } catch (e: Exception) {
 
                             }
@@ -400,7 +391,7 @@ class ChannelPagerViewModel(
                 val savedStateHandle = createSavedStateHandle()
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                ChannelPagerViewModel(xtraModule.localChannelFollowsRepository, xtraModule.offlineVideosRepository, xtraModule.bookmarksRepository, xtraModule.notificationsRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.okHttpClient, savedStateHandle)
+                ChannelPagerViewModel(xtraModule.localChannelFollowsRepository, xtraModule.offlineVideosRepository, xtraModule.bookmarksRepository, xtraModule.notificationsRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.xtraHttpClient, savedStateHandle)
             }
         }
     }

@@ -17,7 +17,8 @@ import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.repository.XtraHttpClient
+import com.github.andreyasadchy.xtra.repository.getBytesOrNull
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,8 +26,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 class BookmarksViewModel(
@@ -35,7 +34,7 @@ class BookmarksViewModel(
     private val bookmarksRepository: BookmarksRepository,
     private val channelSortRepository: ChannelSortRepository,
     playerRepository: PlayerRepository,
-    private val okHttpClient: Lazy<OkHttpClient>,
+    private val xtraHttpClient: XtraHttpClient,
 ) : ViewModel() {
 
     val integrity = MutableSharedFlow<String?>()
@@ -205,15 +204,7 @@ class BookmarksViewModel(
                             val path = filesDir + File.separator + "thumbnails" + File.separator + id
                             viewModelScope.launch(Dispatchers.IO) {
                                 try {
-                                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                                if (response.isSuccessful) {
-                                                    FileOutputStream(path).use { outputStream ->
-                                                        response.body.byteStream().use { inputStream ->
-                                                            inputStream.copyTo(outputStream)
-                                                        }
-                                                    }
-                                                }
-                                            }
+                                    xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                                 } catch (e: Exception) {
 
                                 }
@@ -287,15 +278,7 @@ class BookmarksViewModel(
                                     val path = filesDir + File.separator + "thumbnails" + File.separator + video.id
                                     viewModelScope.launch(Dispatchers.IO) {
                                         try {
-                                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                                        if (response.isSuccessful) {
-                                                            FileOutputStream(path).use { outputStream ->
-                                                                response.body.byteStream().use { inputStream ->
-                                                                    inputStream.copyTo(outputStream)
-                                                                }
-                                                            }
-                                                        }
-                                                    }
+                                            xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                                         } catch (e: Exception) {
 
                                         }
@@ -353,7 +336,7 @@ class BookmarksViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                BookmarksViewModel(xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.bookmarksRepository, xtraModule.channelSortRepository, xtraModule.playerRepository, xtraModule.okHttpClient)
+                BookmarksViewModel(xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.bookmarksRepository, xtraModule.channelSortRepository, xtraModule.playerRepository, xtraModule.xtraHttpClient)
             }
         }
     }

@@ -15,22 +15,21 @@ import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.LocalGameFollowsRepository
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.repository.XtraHttpClient
+import com.github.andreyasadchy.xtra.repository.getBytesOrNull
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 class GamePagerViewModel(
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
     private val localGameFollowsRepository: LocalGameFollowsRepository,
-    private val okHttpClient: Lazy<OkHttpClient>,
+    private val xtraHttpClient: XtraHttpClient,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -156,15 +155,7 @@ class GamePagerViewModel(
                                         ).data.firstOrNull()?.boxArtURL
                                     } else null
                                 }.takeIf { !it.isNullOrBlank() }?.let { TwitchApiHelper.getGameBoxArt(it) }?.let { url ->
-                                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                                if (response.isSuccessful) {
-                                                    FileOutputStream(path).use { outputStream ->
-                                                        response.body.byteStream().use { inputStream ->
-                                                            inputStream.copyTo(outputStream)
-                                                        }
-                                                    }
-                                                }
-                                            }
+                                    xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                                 }
                             } catch (e: Exception) {
 
@@ -231,15 +222,7 @@ class GamePagerViewModel(
                                     ).data.firstOrNull()?.boxArtURL
                                 } else null
                             }.takeIf { !it.isNullOrBlank() }?.let { TwitchApiHelper.getGameBoxArt(it) }?.let { url ->
-                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                            if (response.isSuccessful) {
-                                                FileOutputStream(path).use { outputStream ->
-                                                    response.body.byteStream().use { inputStream ->
-                                                        inputStream.copyTo(outputStream)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                             }
                         } catch (e: Exception) {
 
@@ -262,7 +245,7 @@ class GamePagerViewModel(
                 val savedStateHandle = createSavedStateHandle()
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                GamePagerViewModel(xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.localGameFollowsRepository, xtraModule.okHttpClient, savedStateHandle)
+                GamePagerViewModel(xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.localGameFollowsRepository, xtraModule.xtraHttpClient, savedStateHandle)
             }
         }
     }

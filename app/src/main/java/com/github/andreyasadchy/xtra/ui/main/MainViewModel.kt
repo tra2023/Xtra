@@ -34,8 +34,9 @@ import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.ui.login.LoginActivity
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.repository.XtraHttpClient
+import com.github.andreyasadchy.xtra.repository.getBytesOrNull
+import com.github.andreyasadchy.xtra.repository.getString
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.Dispatchers
@@ -51,8 +52,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Timer
@@ -67,7 +66,7 @@ class MainViewModel(
     private val offlineVideosRepository: OfflineVideosRepository,
     private val localChannelFollowsRepository: LocalChannelFollowsRepository,
     private val authRepository: AuthRepository,
-    private val okHttpClient: Lazy<OkHttpClient>,
+    private val xtraHttpClient: XtraHttpClient,
     private val json: Json,
 ) : ViewModel() {
 
@@ -444,15 +443,7 @@ class MainViewModel(
                         val path = filesDir + File.separator + "thumbnails" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                            if (response.isSuccessful) {
-                                                FileOutputStream(path).use { outputStream ->
-                                                    response.body.byteStream().use { inputStream ->
-                                                        inputStream.copyTo(outputStream)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                             } catch (e: Exception) {
 
                             }
@@ -466,15 +457,7 @@ class MainViewModel(
                         val path = filesDir + File.separator + "profile_pics" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                            if (response.isSuccessful) {
-                                                FileOutputStream(path).use { outputStream ->
-                                                    response.body.byteStream().use { inputStream ->
-                                                        inputStream.copyTo(outputStream)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                             } catch (e: Exception) {
 
                             }
@@ -527,15 +510,7 @@ class MainViewModel(
                     val path = filesDir + File.separator + "thumbnails" + File.separator + id
                     viewModelScope.launch(Dispatchers.IO) {
                         try {
-                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        if (response.isSuccessful) {
-                                            FileOutputStream(path).use { outputStream ->
-                                                response.body.byteStream().use { inputStream ->
-                                                    inputStream.copyTo(outputStream)
-                                                }
-                                            }
-                                        }
-                                    }
+                            xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                         } catch (e: Exception) {
 
                         }
@@ -549,15 +524,7 @@ class MainViewModel(
                     val path = filesDir + File.separator + "profile_pics" + File.separator + id
                     viewModelScope.launch(Dispatchers.IO) {
                         try {
-                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        if (response.isSuccessful) {
-                                            FileOutputStream(path).use { outputStream ->
-                                                response.body.byteStream().use { inputStream ->
-                                                    inputStream.copyTo(outputStream)
-                                                }
-                                            }
-                                        }
-                                    }
+                            xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                         } catch (e: Exception) {
 
                         }
@@ -614,15 +581,7 @@ class MainViewModel(
                     val path = filesDir + File.separator + "thumbnails" + File.separator + id
                     viewModelScope.launch(Dispatchers.IO) {
                         try {
-                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        if (response.isSuccessful) {
-                                            FileOutputStream(path).use { outputStream ->
-                                                response.body.byteStream().use { inputStream ->
-                                                    inputStream.copyTo(outputStream)
-                                                }
-                                            }
-                                        }
-                                    }
+                            xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                         } catch (e: Exception) {
 
                         }
@@ -636,15 +595,7 @@ class MainViewModel(
                     val path = filesDir + File.separator + "profile_pics" + File.separator + id
                     viewModelScope.launch(Dispatchers.IO) {
                         try {
-                            okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        if (response.isSuccessful) {
-                                            FileOutputStream(path).use { outputStream ->
-                                                response.body.byteStream().use { inputStream ->
-                                                    inputStream.copyTo(outputStream)
-                                                }
-                                            }
-                                        }
-                                    }
+                            xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                         } catch (e: Exception) {
 
                         }
@@ -751,9 +702,7 @@ class MainViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             updateUrl.emit(
                 try {
-                    val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                json.decodeFromString<JsonObject>(response.body.string())
-                            }
+                    val response = json.decodeFromString<JsonObject>(xtraHttpClient.getString(url))
                     response["assets"]?.jsonArray?.find {
                         it.jsonObject.getValue("content_type").jsonPrimitive.contentOrNull == "application/vnd.android.package-archive"
                     }?.jsonObject?.let { obj ->
@@ -777,19 +726,8 @@ class MainViewModel(
     fun downloadUpdate(url: String) {
         updateJob = viewModelScope.launch(Dispatchers.IO) {
             try {
-                val progressListener = NetworkUtils.ProgressListener { bytesRead ->
-                    runBlocking {
-                        updateProgress.emit(bytesRead)
-                    }
-                }
-                val response = okHttpClient.value.newBuilder().apply {
-                            addNetworkInterceptor(NetworkUtils.ProgressInterceptor(progressListener))
-                        }.build().newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                            if (response.isSuccessful) {
-                                response.body.bytes()
-                            } else null
-                        }
-                if (response != null && response.isNotEmpty()) {
+                val response = xtraHttpClient.download(url) { bytesRead, _ -> runBlocking { updateProgress.emit(bytesRead.toInt()) } }
+                if (response.isNotEmpty()) {
                     val packageInstaller = applicationContext.packageManager.packageInstaller
                     val sessionId = packageInstaller.createSession(
                         PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
@@ -842,7 +780,7 @@ class MainViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                MainViewModel(application.applicationContext, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.offlineVideosRepository, xtraModule.localChannelFollowsRepository, xtraModule.authRepository, xtraModule.okHttpClient, xtraModule.json)
+                MainViewModel(application.applicationContext, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.offlineVideosRepository, xtraModule.localChannelFollowsRepository, xtraModule.authRepository, xtraModule.xtraHttpClient, xtraModule.json)
             }
         }
     }

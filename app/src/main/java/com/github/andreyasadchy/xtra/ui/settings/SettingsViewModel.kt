@@ -31,8 +31,8 @@ import com.github.andreyasadchy.xtra.repository.RecentSearchesRepository
 import com.github.andreyasadchy.xtra.ui.main.LiveNotificationWorker
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.repository.XtraHttpClient
+import com.github.andreyasadchy.xtra.repository.getString
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
 import com.github.andreyasadchy.xtra.util.m3u8.DownloadPlaylists
 import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
@@ -50,8 +50,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -67,7 +65,7 @@ class SettingsViewModel(
     private val recentSearchesRepository: RecentSearchesRepository,
     private val notificationsRepository: NotificationsRepository,
     private val appDatabase: AppDatabase,
-    private val okHttpClient: Lazy<OkHttpClient>,
+    private val xtraHttpClient: XtraHttpClient,
     private val json: Json,
 ) : ViewModel() {
 
@@ -261,9 +259,7 @@ class SettingsViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             updateUrl.emit(
                 try {
-                    val response = okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                json.decodeFromString<JsonObject>(response.body.string())
-                            }
+                    val response = json.decodeFromString<JsonObject>(xtraHttpClient.getString(url))
                     response["assets"]?.jsonArray?.find {
                         it.jsonObject.getValue("content_type").jsonPrimitive.contentOrNull == "application/vnd.android.package-archive"
                     }?.jsonObject?.let { obj ->
@@ -286,19 +282,8 @@ class SettingsViewModel(
     fun downloadUpdate(url: String) {
         updateJob = viewModelScope.launch(Dispatchers.IO) {
             try {
-                val progressListener = NetworkUtils.ProgressListener { bytesRead ->
-                    runBlocking {
-                        updateProgress.emit(bytesRead)
-                    }
-                }
-                val response = okHttpClient.value.newBuilder().apply {
-                            addNetworkInterceptor(NetworkUtils.ProgressInterceptor(progressListener))
-                        }.build().newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                            if (response.isSuccessful) {
-                                response.body.bytes()
-                            } else null
-                        }
-                if (response != null && response.isNotEmpty()) {
+                val response = xtraHttpClient.download(url) { bytesRead, _ -> runBlocking { updateProgress.emit(bytesRead.toInt()) } }
+                if (response.isNotEmpty()) {
                     val packageInstaller = applicationContext.packageManager.packageInstaller
                     val sessionId = packageInstaller.createSession(
                         PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
@@ -422,7 +407,7 @@ class SettingsViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                SettingsViewModel(application.applicationContext, xtraModule.playerRepository, xtraModule.offlineVideosRepository, xtraModule.recentSearchesRepository, xtraModule.notificationsRepository, xtraModule.database, xtraModule.okHttpClient, xtraModule.json)
+                SettingsViewModel(application.applicationContext, xtraModule.playerRepository, xtraModule.offlineVideosRepository, xtraModule.recentSearchesRepository, xtraModule.notificationsRepository, xtraModule.database, xtraModule.xtraHttpClient, xtraModule.json)
             }
         }
     }

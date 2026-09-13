@@ -35,6 +35,15 @@ class KtorXtraHttpClient(
         }
         return XtraHttpResponse(response.status.value, response.bodyAsBytes())
     }
+
+    override suspend fun download(
+        url: String,
+        headers: Map<String, String>,
+        timeoutMs: Long?,
+        onProgress: (bytesRead: Long, contentLength: Long?) -> Unit,
+    ): ByteArray {
+        return client.downloadWithProgress(url, headers, timeoutMs, onProgress)
+    }
 }
 
 /**

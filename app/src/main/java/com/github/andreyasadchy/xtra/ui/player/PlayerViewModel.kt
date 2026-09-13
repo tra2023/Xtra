@@ -21,7 +21,9 @@ import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.repository.NotificationsRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.repository.XtraHttpClient
+import com.github.andreyasadchy.xtra.repository.getBytesOrNull
+import com.github.andreyasadchy.xtra.repository.getStringOrNull
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,8 +39,6 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.encodeToJsonElement
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
@@ -47,7 +47,7 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 class PlayerViewModel(
-    private val okHttpClient: Lazy<OkHttpClient>,
+    private val xtraHttpClient: XtraHttpClient,
     private val json: Json,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
@@ -197,14 +197,12 @@ class PlayerViewModel(
                         jobs.add(
                             viewModelScope.launch(Dispatchers.IO) {
                                 try {
-                                    okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                                if (response.isSuccessful) {
-                                                    result.value = url
-                                                    jobs.forEach {
-                                                        it.cancel()
-                                                    }
-                                                }
-                                            }
+                                    if (xtraHttpClient.getStringOrNull(url) != null) {
+                                        result.value = url
+                                        jobs.forEach {
+                                            it.cancel()
+                                        }
+                                    }
                                 } catch (e: CancellationException) {
                                     ensureActive()
                                 } catch (e: Exception) {
@@ -309,15 +307,7 @@ class PlayerViewModel(
                         val path = filesDir + File.separator + "thumbnails" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                            if (response.isSuccessful) {
-                                                FileOutputStream(path).use { outputStream ->
-                                                    response.body.byteStream().use { inputStream ->
-                                                        inputStream.copyTo(outputStream)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                             } catch (e: Exception) {
 
                             }
@@ -331,15 +321,7 @@ class PlayerViewModel(
                         val path = filesDir + File.separator + "profile_pics" + File.separator + id
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                            if (response.isSuccessful) {
-                                                FileOutputStream(path).use { outputStream ->
-                                                    response.body.byteStream().use { inputStream ->
-                                                        inputStream.copyTo(outputStream)
-                                                    }
-                                                }
-                                            }
-                                        }
+                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                             } catch (e: Exception) {
 
                             }
@@ -518,7 +500,7 @@ class PlayerViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                PlayerViewModel(xtraModule.okHttpClient, xtraModule.json, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.localChannelFollowsRepository, xtraModule.notificationsRepository)
+                PlayerViewModel(xtraModule.xtraHttpClient, xtraModule.json, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.localChannelFollowsRepository, xtraModule.notificationsRepository)
             }
         }
     }
