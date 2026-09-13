@@ -27,6 +27,7 @@ import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlin.time.Instant
 
@@ -82,7 +83,7 @@ class ClipsAdapter(
                     val createdAt = item.createdAt
                     if (createdAt != null) {
                         val text = Instant.parseOrNull(createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
-                            TwitchApiHelper.formatDate(context, it)
+                            formatChatDate(it)
                         }
                         if (text != null) {
                             date.visibility = View.VISIBLE

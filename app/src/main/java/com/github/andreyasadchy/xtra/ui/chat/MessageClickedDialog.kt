@@ -34,6 +34,7 @@ import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -318,7 +319,7 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
             val createdAt = user.createdAt
             if (createdAt != null) {
                 val text = Instant.parseOrNull(createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
-                    TwitchApiHelper.formatDate(requireContext(), it)
+                    formatChatDate(it)
                 }
                 userLayout.visibility = View.VISIBLE
                 userCreated.visibility = View.VISIBLE
@@ -333,7 +334,7 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
             if (user.followedAt != null) {
                 val text = user.followedAt?.let {
                     Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { time ->
-                        TwitchApiHelper.formatDate(requireContext(), time)
+                        formatChatDate(time)
                     }
                 }
                 userLayout.visibility = View.VISIBLE

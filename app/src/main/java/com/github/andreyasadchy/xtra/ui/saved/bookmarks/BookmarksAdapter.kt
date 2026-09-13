@@ -30,6 +30,7 @@ import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper.getDurationFromSeconds
+import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
@@ -159,7 +160,7 @@ class BookmarksAdapter(
                     val createdAt = item.createdAt
                     if (createdAt != null) {
                         val text = Instant.parseOrNull(createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
-                            TwitchApiHelper.formatDate(context, it)
+                            formatChatDate(it)
                         }
                         if (text != null) {
                             date.visibility = View.VISIBLE

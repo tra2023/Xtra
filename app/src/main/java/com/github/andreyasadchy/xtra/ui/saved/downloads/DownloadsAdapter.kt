@@ -30,6 +30,7 @@ import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlin.math.min
 
@@ -216,14 +217,14 @@ class DownloadsAdapter(
                     val uploadDate = item.uploadDate
                     if (uploadDate != null) {
                         date.visibility = View.VISIBLE
-                        date.text = context.getString(R.string.uploaded_date, TwitchApiHelper.formatDate(context, uploadDate))
+                        date.text = context.getString(R.string.uploaded_date, formatChatDate(uploadDate))
                     } else {
                         date.visibility = View.GONE
                     }
                     val downloadDateValue = item.downloadDate
                     if (downloadDateValue != null) {
                         downloadDate.visibility = View.VISIBLE
-                        downloadDate.text = context.getString(R.string.downloaded_date, TwitchApiHelper.formatDate(context, downloadDateValue))
+                        downloadDate.text = context.getString(R.string.downloaded_date, formatChatDate(downloadDateValue))
                     } else {
                         downloadDate.visibility = View.GONE
                     }

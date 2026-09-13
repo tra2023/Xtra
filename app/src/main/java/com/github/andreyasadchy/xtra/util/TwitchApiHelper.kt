@@ -4,9 +4,7 @@ import android.content.Context
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.repository.TwitchAuthHeaders
 import com.github.andreyasadchy.xtra.repository.TwitchHeaders
-import com.github.andreyasadchy.xtra.util.TwitchFormats
 import com.github.andreyasadchy.xtra.util.chat.ChatUtils
-import com.github.andreyasadchy.xtra.util.formatChatDate
 
 object TwitchApiHelper {
 
@@ -37,15 +35,7 @@ object TwitchApiHelper {
         "https://d1ndex63qxojbr.cloudfront.net",
     )
 
-    fun getStreamThumbnail(url: String?): String? = TwitchImageUrls.getStreamThumbnail(url)
-
-    fun getVideoThumbnail(url: String?): String? = TwitchImageUrls.getVideoThumbnail(url)
-
-    fun getClipThumbnail(url: String?): String? = TwitchImageUrls.getClipThumbnail(url)
-
     fun getGameBoxArt(url: String?): String? = TwitchImageUrls.getGameBoxArt(url)
-
-    fun getProfileImage(url: String?): String? = TwitchImageUrls.getProfileImage(url)
 
     fun getType(context: Context, type: String?): String? {
         return when (type?.lowercase()) {
@@ -83,9 +73,6 @@ object TwitchApiHelper {
 
     fun getTimestamp(input: Long, timestampFormat: String?): String? =
         TwitchFormats.formatTimestampMillis(input, timestampFormat)
-
-    fun formatDate(context: Context, time: Long): String =
-        formatChatDate(time)
 
     fun formatCount(count: Int, compact: Boolean): String =
         TwitchFormats.formatCount(count, compact)

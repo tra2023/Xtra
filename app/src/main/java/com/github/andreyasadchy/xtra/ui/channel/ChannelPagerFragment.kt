@@ -62,6 +62,7 @@ import com.github.andreyasadchy.xtra.ui.search.SearchPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.settings.SettingsActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.reduceDragSensitivity
@@ -677,7 +678,7 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
             if (viewModel.stream.value?.viewerCount == null && user.lastBroadcast != null) {
                 val text = user.lastBroadcast?.let {
                     Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { time ->
-                        TwitchApiHelper.formatDate(requireContext(), time)
+                        formatChatDate( time)
                     }
                 }
                 if (text != null)  {
@@ -721,7 +722,7 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
             val createdAt = user.createdAt
             if (createdAt != null) {
                 val text = Instant.parseOrNull(createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
-                    TwitchApiHelper.formatDate(requireContext(), it)
+                    formatChatDate(it)
                 }
                 userCreated.visibility = View.VISIBLE
                 userCreated.text = getString(R.string.created_at, text)

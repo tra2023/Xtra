@@ -19,7 +19,7 @@ import com.github.andreyasadchy.xtra.databinding.FragmentFollowedChannelsListIte
 import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlin.time.Instant
 
@@ -42,7 +42,7 @@ class FollowedChannelsAdapter(
         holder.bind(getItem(position))
     }
 
-    inner class PagingViewHolder(
+    class PagingViewHolder(
         private val binding: FragmentFollowedChannelsListItemBinding,
         private val fragment: Fragment,
     ) : RecyclerView.ViewHolder(binding.root) {
@@ -92,7 +92,7 @@ class FollowedChannelsAdapter(
                     if (item.lastBroadcast != null) {
                         val text = item.lastBroadcast?.let {
                             Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { time ->
-                                TwitchApiHelper.formatDate(context, time)
+                                formatChatDate(time)
                             }
                         }
                         if (text != null) {
@@ -107,7 +107,7 @@ class FollowedChannelsAdapter(
                     if (item.followedAt != null) {
                         val text = item.followedAt?.let {
                             Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { time ->
-                                TwitchApiHelper.formatDate(context, time)
+                                formatChatDate(time)
                             }
                         }
                         if (text != null) {
