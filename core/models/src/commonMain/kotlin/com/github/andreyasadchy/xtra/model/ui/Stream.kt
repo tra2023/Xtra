@@ -1,10 +1,9 @@
 package com.github.andreyasadchy.xtra.model.ui
 
-import android.os.Parcelable
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import kotlinx.parcelize.Parcelize
+import com.github.andreyasadchy.xtra.util.TwitchImageUrls
+import kotlinx.serialization.Serializable
 
-@Parcelize
+@Serializable
 class Stream(
     var id: String? = null,
     val channelId: String? = null,
@@ -19,10 +18,10 @@ class Stream(
     var createdAt: String? = null,
     var viewerCount: Int? = null,
     val tags: List<String>? = null,
-) : Parcelable {
+) {
 
     val channelImage: String?
-        get() = TwitchApiHelper.getProfileImage(channelImageURL)
+        get() = TwitchImageUrls.getProfileImage(channelImageURL)
     val thumbnail: String?
-        get() = TwitchApiHelper.getStreamThumbnail(thumbnailURL)
+        get() = TwitchImageUrls.getStreamThumbnail(thumbnailURL)
 }

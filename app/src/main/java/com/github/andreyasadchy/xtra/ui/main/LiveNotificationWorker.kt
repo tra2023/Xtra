@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
@@ -16,6 +15,7 @@ import com.github.andreyasadchy.xtra.XtraModule
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
+import kotlinx.serialization.json.Json
 
 class LiveNotificationWorker(
     private val context: Context,
@@ -34,16 +34,14 @@ class LiveNotificationWorker(
         )
         if (streams.isNotEmpty()) {
             val channelId = context.getString(R.string.notification_live_channel_id)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (notificationManager.getNotificationChannel(channelId) == null) {
-                    notificationManager.createNotificationChannel(
-                        NotificationChannel(
-                            channelId,
-                            ContextCompat.getString(context, R.string.notification_live_channel_title),
-                            NotificationManager.IMPORTANCE_DEFAULT
-                        )
+            if (notificationManager.getNotificationChannel(channelId) == null) {
+                notificationManager.createNotificationChannel(
+                    NotificationChannel(
+                        channelId,
+                        ContextCompat.getString(context, R.string.notification_live_channel_title),
+                        NotificationManager.IMPORTANCE_DEFAULT
                     )
-                }
+                )
             }
             streams.forEach {
                 val notification = NotificationCompat.Builder(context, channelId).apply {
@@ -69,7 +67,7 @@ class LiveNotificationWorker(
                             Intent(context, MainActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
                                 action = MainActivity.INTENT_LIVE_NOTIFICATION
-                                putExtra(MainActivity.KEY_VIDEO, it)
+                                putExtra(MainActivity.KEY_VIDEO, Json.encodeToString(it))
                             },
                             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                         )
@@ -77,14 +75,12 @@ class LiveNotificationWorker(
                 }.build()
                 notificationManager.notify(it.channelId.hashCode(), notification)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                val notification = NotificationCompat.Builder(context, channelId).apply {
-                    setGroup(GROUP_KEY)
-                    setSmallIcon(R.drawable.notification_icon)
-                    setGroupSummary(true)
-                }.build()
-                notificationManager.notify(0, notification)
-            }
+            val notification = NotificationCompat.Builder(context, channelId).apply {
+                setGroup(GROUP_KEY)
+                setSmallIcon(R.drawable.notification_icon)
+                setGroupSummary(true)
+            }.build()
+            notificationManager.notify(0, notification)
         }
         return Result.success()
     }

@@ -16,12 +16,15 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            implementation(project(":core:models"))
+            implementation(project(":core:network"))
             implementation(libs.room.runtime)
             implementation(libs.room.paging)
             implementation(libs.sqlite.bundled)
             implementation(libs.coroutines.core)
             implementation(libs.paging.common)
             implementation(libs.serialization.json)
+            implementation(libs.apollo.api)
         }
     }
 }

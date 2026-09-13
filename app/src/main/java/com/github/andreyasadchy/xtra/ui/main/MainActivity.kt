@@ -814,11 +814,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             INTENT_LIVE_NOTIFICATION -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra(KEY_VIDEO, Stream::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra(KEY_VIDEO)
+                intent.getStringExtra(KEY_VIDEO)?.let {
+                    runCatching { Json.decodeFromString<Stream>(it) }.getOrNull()
                 }?.let {
                     startStream(it)
                 }
