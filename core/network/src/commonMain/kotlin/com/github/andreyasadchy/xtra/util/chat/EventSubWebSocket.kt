@@ -6,17 +6,16 @@ import com.github.andreyasadchy.xtra.socket.WebSocket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Timer
-import kotlin.concurrent.schedule
 
 class EventSubWebSocket(
     private val listener: Listener,
 ) {
     private var webSocket: WebSocket? = null
     private var scope: CoroutineScope? = null
-    private var pongTimer: Timer? = null
+    private var pongJob: Job? = null
     private var timeout = 10000L
     private val router = EventSubRouter()
 
@@ -29,7 +28,8 @@ class EventSubWebSocket(
     }
 
     suspend fun disconnect(job: Job?) = withContext(Dispatchers.IO) {
-        pongTimer?.cancel()
+        pongJob?.cancel()
+        pongJob = null
         job?.cancel()
         webSocket?.disconnect()
         webSocket?.close()
@@ -37,13 +37,11 @@ class EventSubWebSocket(
         scope = null
     }
 
-    private suspend fun startPongTimer() = withContext(Dispatchers.IO) {
-        pongTimer = Timer().apply {
-            schedule(timeout) {
-                scope?.launch {
-                    webSocket?.disconnect()
-                }
-            }
+    private fun startPongTimer() {
+        pongJob?.cancel()
+        pongJob = scope?.launch {
+            delay(timeout)
+            webSocket?.disconnect()
         }
     }
 
@@ -70,16 +68,16 @@ class EventSubWebSocket(
                     is EventSubEvent.ClearChat -> listener.onClearChat(event.eventJson, event.timestamp)
                     is EventSubEvent.RoomState -> listener.onRoomState(event.eventJson, event.timestamp)
                     EventSubEvent.Keepalive -> {
-                        pongTimer?.cancel()
+                        pongJob?.cancel()
                         startPongTimer()
                     }
                     EventSubEvent.Reconnect -> {
-                        pongTimer?.cancel()
+                        pongJob?.cancel()
                         webSocket.disconnect()
                     }
                     is EventSubEvent.Welcome -> {
                         event.keepaliveTimeoutMs?.let { timeout = it }
-                        pongTimer?.cancel()
+                        pongJob?.cancel()
                         startPongTimer()
                         event.sessionId?.takeIf { it.isNotBlank() }?.let {
                             listener.onWelcomeMessage(it)

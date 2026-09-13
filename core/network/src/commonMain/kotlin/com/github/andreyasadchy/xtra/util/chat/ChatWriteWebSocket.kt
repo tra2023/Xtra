@@ -6,38 +6,34 @@ import com.github.andreyasadchy.xtra.socket.WebSocket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Timer
-import kotlin.concurrent.schedule
 
-class ChatReadWebSocket(
+class ChatWriteWebSocket(
+    private val userLogin: String?,
+    private val userToken: String?,
     private val channelLogin: String,
-    private val showGifMessages: Boolean,
-    private val listener: Listener,
+    private val listener: ChatReadWebSocket.Listener,
 ) {
     private var webSocket: WebSocket? = null
     private var scope: CoroutineScope? = null
-    private var pingTimer: Timer? = null
-    private var pongTimer: Timer? = null
+    private var pingJob: Job? = null
+    private var pongJob: Job? = null
 
     fun connect(coroutineScope: CoroutineScope): Job {
         scope = coroutineScope
-        webSocket = WebSocket(
-            url = "wss://irc-ws.chat.twitch.tv",
-            listener = WebSocketListener(),
-            headers = if (showGifMessages) {
-                mapOf("Cookie" to "experiment_overrides={%22experiments%22:{}%2C%22disabled%22:[]}")
-            } else null,
-        )
+        webSocket = WebSocket("wss://irc-ws.chat.twitch.tv", WebSocketListener())
         return coroutineScope.launch(Dispatchers.IO) {
             webSocket?.start()
         }
     }
 
     suspend fun disconnect(job: Job?) = withContext(Dispatchers.IO) {
-        pingTimer?.cancel()
-        pongTimer?.cancel()
+        pingJob?.cancel()
+        pongJob?.cancel()
+        pingJob = null
+        pongJob = null
         job?.cancel()
         webSocket?.disconnect()
         webSocket?.close()
@@ -45,46 +41,35 @@ class ChatReadWebSocket(
         scope = null
     }
 
-    private suspend fun startPingTimer() = withContext(Dispatchers.IO) {
-        pingTimer = Timer().apply {
-            schedule(270000) {
-                scope?.launch {
-                    webSocket?.write("PING")
-                    startPongTimer()
-                }
-            }
+    private fun startPingTimer() {
+        pingJob?.cancel()
+        pingJob = scope?.launch {
+            delay(PING_INTERVAL_MS)
+            webSocket?.write("PING")
+            startPongTimer()
         }
     }
 
-    private suspend fun startPongTimer() = withContext(Dispatchers.IO) {
-        pongTimer = Timer().apply {
-            schedule(10000) {
-                scope?.launch {
-                    webSocket?.disconnect()
-                }
-            }
+    private fun startPongTimer() {
+        pongJob?.cancel()
+        pongJob = scope?.launch {
+            delay(PONG_TIMEOUT_MS)
+            webSocket?.disconnect()
         }
     }
 
-    interface Listener {
-        suspend fun onConnect() {}
-        suspend fun onChatMessage(message: ChatUtils.IRCMessage, userNotice: Boolean) {}
-        suspend fun onClearMessage(message: ChatUtils.IRCMessage) {}
-        suspend fun onClearChat(message: ChatUtils.IRCMessage) {}
-        suspend fun onNotice(message: ChatUtils.IRCMessage) {}
-        suspend fun onRoomState(message: ChatUtils.IRCMessage) {}
-        suspend fun onUserState(message: ChatUtils.IRCMessage) {}
-        suspend fun onDisconnect(message: String, fullMsg: String?) {}
+    suspend fun send(message: CharSequence, replyId: String?) = withContext(Dispatchers.IO) {
+        webSocket?.write(IrcRouter.chatSendText(channelLogin, message, replyId))
     }
 
     private inner class WebSocketListener : WebSocket.Listener {
         override suspend fun onConnect(webSocket: WebSocket) {
-            IrcRouter.readConnectWrites(channelLogin, IrcRouter.readNick()).forEach {
+            IrcRouter.writeConnectWrites(channelLogin, userLogin, userToken).forEach {
                 webSocket.write(it)
             }
             listener.onConnect()
-            pingTimer?.cancel()
-            pongTimer?.cancel()
+            pingJob?.cancel()
+            pongJob?.cancel()
             startPingTimer()
         }
 
@@ -95,13 +80,13 @@ class ChatReadWebSocket(
                         webSocket.write("PONG")
                     }
                     IrcLineEvent.Pong -> {
-                        pingTimer?.cancel()
-                        pongTimer?.cancel()
+                        pingJob?.cancel()
+                        pongJob?.cancel()
                         startPingTimer()
                     }
                     IrcLineEvent.Reconnect -> {
-                        pingTimer?.cancel()
-                        pongTimer?.cancel()
+                        pingJob?.cancel()
+                        pongJob?.cancel()
                         webSocket.disconnect()
                     }
                     is IrcLineEvent.Command -> {
@@ -122,5 +107,10 @@ class ChatReadWebSocket(
         override suspend fun onDisconnect(webSocket: WebSocket, message: String, fullMsg: String?) {
             listener.onDisconnect(message, fullMsg)
         }
+    }
+
+    private companion object {
+        const val PING_INTERVAL_MS = 270000L
+        const val PONG_TIMEOUT_MS = 10000L
     }
 }

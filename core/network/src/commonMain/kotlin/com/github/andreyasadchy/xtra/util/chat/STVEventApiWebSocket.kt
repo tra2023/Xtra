@@ -1,6 +1,5 @@
 package com.github.andreyasadchy.xtra.util.chat
 
-import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.socket.StvEvent
 import com.github.andreyasadchy.xtra.socket.StvRouter
 import com.github.andreyasadchy.xtra.socket.WebSocket
@@ -12,6 +11,7 @@ import kotlinx.coroutines.withContext
 
 class STVEventApiWebSocket(
     private val channelId: String,
+    private val userAgent: String,
     private val listener: Listener,
 ) {
     private var webSocket: WebSocket? = null
@@ -20,7 +20,7 @@ class STVEventApiWebSocket(
         webSocket = WebSocket(
             url = "wss://events.7tv.io/v3",
             listener = WebSocketListener(),
-            headers = mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME)
+            headers = mapOf("User-Agent" to userAgent)
         )
         return coroutineScope.launch(Dispatchers.IO) {
             webSocket?.start()

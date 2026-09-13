@@ -1,10 +1,7 @@
 package com.github.andreyasadchy.xtra.util.chat
 
-import android.content.Context
-import androidx.core.content.ContextCompat
-import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.TwitchFormats
 
 object ChatUtils {
 
@@ -18,19 +15,36 @@ object ChatUtils {
 
     fun parseClearMessage(message: IRCMessage): ChatMessage = ChatParser.parseClearMessage(message)
 
-    fun parseClearChat(context: Context, message: IRCMessage): ChatMessage {
+    /**
+     * Localized strings for [parseClearChat]. Android resolves these from resources
+     * (`R.string.chat_timeout` etc.); other platforms provide their own.
+     */
+    class ClearChatStrings(
+        /** `"...".format(login, duration)` for timeouts. */
+        val timeoutFormat: String,
+        /** `"...".format(login)` for bans. */
+        val banFormat: String,
+        /** Plain text for a full chat clear. */
+        val clearText: String,
+    )
+
+    fun parseClearChat(
+        message: IRCMessage,
+        strings: ClearChatStrings,
+        durationText: (seconds: Int) -> String,
+    ): ChatMessage {
         val duration = message.tags["ban-duration"]
         val login = if (message.params.size >= 2) {
             message.params.lastOrNull()
         } else null
         val text = if (login != null) {
             if (duration != null) {
-                ContextCompat.getString(context, R.string.chat_timeout).format(login, TwitchApiHelper.getDurationFromSeconds(context, duration))
+                strings.timeoutFormat.format(login, durationText(duration.toIntOrNull() ?: 0))
             } else {
-                ContextCompat.getString(context, R.string.chat_ban).format(login)
+                strings.banFormat.format(login)
             }
         } else {
-            ContextCompat.getString(context, R.string.chat_clear)
+            strings.clearText
         }
         return ChatMessage(
             type = if (login != null) {
@@ -45,6 +59,16 @@ object ChatUtils {
             fullMsg = message.fullMessage
         )
     }
+
+    fun formatDurationFromSeconds(
+        totalSeconds: Int,
+        daysLabel: String,
+        hoursLabel: String,
+        minutesLabel: String,
+        secondsLabel: String,
+    ): String = TwitchFormats.formatDurationFromSeconds(
+        totalSeconds, daysLabel, hoursLabel, minutesLabel, secondsLabel
+    )
 
     fun parseNotice(message: IRCMessage): ChatMessage = ChatParser.parseNotice(message)
 }

@@ -1035,7 +1035,7 @@ class StreamDownloadService : LifecycleService() {
             val chatMessage = when (message.command) {
                 "PRIVMSG", "USERNOTICE" -> ChatUtils.parseChatMessage(message)
                 "CLEARMSG" -> ChatUtils.parseClearMessage(message)
-                "CLEARCHAT" -> ChatUtils.parseClearChat(this@StreamDownloadService, message)
+                "CLEARCHAT" -> ChatUtils.parseClearChat(message, TwitchApiHelper.getClearChatStrings(this@StreamDownloadService)) { TwitchApiHelper.getDurationFromSeconds(this@StreamDownloadService, it.toString()) ?: "" }
                 "NOTICE" -> ChatUtils.parseNotice(message)
                 else -> null
             }

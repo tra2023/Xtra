@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.chat.Badge
@@ -898,7 +899,7 @@ class ChatViewModel(
                             }
                             "CLEARCHAT" -> {
                                 if (applicationContext.prefs().getBoolean(C.CHAT_SHOW_CLEAR_CHAT, true)) {
-                                    ChatUtils.parseClearChat(applicationContext, ircMessage)
+                                    ChatUtils.parseClearChat(ircMessage, TwitchApiHelper.getClearChatStrings(applicationContext)) { TwitchApiHelper.getDurationFromSeconds(applicationContext, it.toString()) ?: "" }
                                 } else null
                             }
                             "NOTICE" -> ChatUtils.parseNotice(ircMessage)
@@ -1078,6 +1079,7 @@ class ChatViewModel(
             val useWebp = applicationContext.prefs().getBoolean(C.CHAT_USE_WEBP, true)
             stvEventApi = STVEventApiWebSocket(
                 channelId = channelId,
+                userAgent = "Xtra/" + BuildConfig.VERSION_NAME,
                 listener = STVEventApiListener(useWebp, showNamePaints, showSTVBadges, showPersonalEmotes, stvLiveUpdates, isLoggedIn, accountId, channelId, showWebSocketDebugInfo)
             )
             stvEventApiJob = stvEventApi?.connect(viewModelScope)
@@ -1230,7 +1232,7 @@ class ChatViewModel(
 
         override suspend fun onClearChat(message: ChatUtils.IRCMessage) {
             if (showClearChat) {
-                onMessage(ChatUtils.parseClearChat(applicationContext, message))
+                onMessage(ChatUtils.parseClearChat(message, TwitchApiHelper.getClearChatStrings(applicationContext)) { TwitchApiHelper.getDurationFromSeconds(applicationContext, it.toString()) ?: "" })
             }
         }
 
@@ -2741,7 +2743,7 @@ class ChatViewModel(
                                                                     }
                                                                     liveMessages.add(getClearMessage(chatMessage, deletedMessage, nameDisplay))
                                                                 }
-                                                                "CLEARCHAT" -> liveMessages.add(ChatUtils.parseClearChat(applicationContext, ircMessage))
+                                                                "CLEARCHAT" -> liveMessages.add(ChatUtils.parseClearChat(ircMessage, TwitchApiHelper.getClearChatStrings(applicationContext)) { TwitchApiHelper.getDurationFromSeconds(applicationContext, it.toString()) ?: "" })
                                                                 "NOTICE" -> liveMessages.add(ChatUtils.parseNotice(ircMessage))
                                                             }
                                                             if (reader.peek() != JsonToken.END_ARRAY) {

@@ -14,6 +14,17 @@ kotlin {
     jvm()
 
     sourceSets {
+        // JVM-only APIs (java.net sockets) shared by Android and JVM desktop.
+        // Truly multiplatform code goes in commonMain; Compose UI in :core:ui.
+        val jvmAndroidMain by creating {
+            dependsOn(commonMain.get())
+        }
+        val androidMain by getting {
+            dependsOn(jvmAndroidMain)
+        }
+        val jvmMain by getting {
+            dependsOn(jvmAndroidMain)
+        }
         commonMain.dependencies {
             implementation(project(":core:models"))
             implementation(libs.coroutines.core)

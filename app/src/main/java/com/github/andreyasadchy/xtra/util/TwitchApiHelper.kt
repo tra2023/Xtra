@@ -1,21 +1,12 @@
 package com.github.andreyasadchy.xtra.util
 
 import android.content.Context
-import android.icu.number.Notation
-import android.icu.number.NumberFormatter
-import android.icu.number.Precision
-import android.text.format.DateUtils
 import com.github.andreyasadchy.xtra.R
+import com.github.andreyasadchy.xtra.repository.TwitchAuthHeaders
 import com.github.andreyasadchy.xtra.repository.TwitchHeaders
-import java.math.RoundingMode
-import java.text.NumberFormat
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.Year
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-import java.util.Locale
+import com.github.andreyasadchy.xtra.util.TwitchFormats
+import com.github.andreyasadchy.xtra.util.chat.ChatUtils
+import com.github.andreyasadchy.xtra.util.formatChatDate
 
 object TwitchApiHelper {
 
@@ -69,111 +60,61 @@ object TwitchApiHelper {
 
     fun getDurationFromSeconds(context: Context, input: String?): String? {
         return input?.toIntOrNull()?.let { duration ->
-            val days = (duration / 86400)
-            val hours = ((duration % 86400) / 3600)
-            val minutes = (((duration % 86400) % 3600) / 60)
-            val seconds = (duration % 60)
-            buildString {
-                if (days > 0) {
-                    append("$days${context.getString(R.string.days)}")
-                }
-                if (hours > 0) {
-                    if (isNotBlank()) {
-                        append(" ")
-                    }
-                    append("$hours${context.getString(R.string.hours)}")
-                }
-                if (minutes > 0) {
-                    if (isNotBlank()) {
-                        append(" ")
-                    }
-                    append("$minutes${context.getString(R.string.minutes)}")
-                }
-                if (seconds > 0) {
-                    if (isNotBlank()) {
-                        append(" ")
-                    }
-                    append("$seconds${context.getString(R.string.seconds)}")
-                }
-            }
+            TwitchFormats.formatDurationFromSeconds(
+                duration,
+                context.getString(R.string.days),
+                context.getString(R.string.hours),
+                context.getString(R.string.minutes),
+                context.getString(R.string.seconds),
+            )
         }
     }
 
-    fun getMinutesLeft(hour: Int, minute: Int): Int {
-        val currentDate = LocalDateTime.ofInstant(Instant.now(), ZoneOffset.systemDefault())
-        val date = currentDate.withHour(hour).withMinute(minute).let {
-            if (it < currentDate) it.plusDays(1) else it
-        }
-        return ChronoUnit.MINUTES.between(currentDate, date).toInt()
+    fun getClearChatStrings(context: Context): ChatUtils.ClearChatStrings {
+        return ChatUtils.ClearChatStrings(
+            timeoutFormat = context.getString(R.string.chat_timeout),
+            banFormat = context.getString(R.string.chat_ban),
+            clearText = context.getString(R.string.chat_clear),
+        )
     }
 
-    fun getTimestamp(input: Long, timestampFormat: String?): String? {
-        val pattern = when (timestampFormat) {
-            "0" -> "H:mm"
-            "1" -> "HH:mm"
-            "2" -> "H:mm:ss"
-            "3" -> "HH:mm:ss"
-            "4" -> "h:mm a"
-            "5" -> "hh:mm a"
-            "6" -> "h:mm:ss a"
-            else -> "hh:mm:ss a"
-        }
-        return try {
-            val date = LocalDateTime.ofInstant(Instant.ofEpochMilli(input), ZoneOffset.systemDefault())
-            DateTimeFormatter.ofPattern(pattern).format(date)
-        } catch (e: Exception) {
-            null
-        }
-    }
+    fun getMinutesLeft(hour: Int, minute: Int): Int =
+        TwitchFormats.minutesLeft(hour, minute)
 
-    fun formatDate(context: Context, time: Long): String {
-        val currentYear = Year.now().value
-        val year = LocalDateTime.ofInstant(Instant.ofEpochMilli(time), ZoneOffset.UTC).year
-        val format = if (year == currentYear) {
-            DateUtils.FORMAT_NO_YEAR
-        } else {
-            DateUtils.FORMAT_SHOW_DATE
-        }
-        return DateUtils.formatDateTime(context, time, format)
-    }
+    fun getTimestamp(input: Long, timestampFormat: String?): String? =
+        TwitchFormats.formatTimestampMillis(input, timestampFormat)
 
-    fun formatCount(count: Int, compact: Boolean): String {
-        return if (compact) {
-            NumberFormatter.withLocale(Locale.getDefault())
-                .notation(Notation.compactShort())
-                .precision(Precision.maxFraction(1))
-                .roundingMode(RoundingMode.DOWN)
-                .format(count)
-                .toString()
-        } else {
-            NumberFormat.getInstance().format(count)
-        }
-    }
+    fun formatDate(context: Context, time: Long): String =
+        formatChatDate(time)
+
+    fun formatCount(count: Int, compact: Boolean): String =
+        TwitchFormats.formatCount(count, compact)
 
     fun addTokenPrefixGQL(token: String) = TwitchImageUrls.addTokenPrefixGQL(token)
     fun addTokenPrefixHelix(token: String) = TwitchImageUrls.addTokenPrefixHelix(token)
 
     fun getGQLHeaders(context: Context, includeToken: Boolean = false): Map<String, String> {
-        return if (context.prefs().getBoolean(C.ENABLE_INTEGRITY, false)) {
-            TwitchHeaders.parseIntegrityHeaders(context.tokenPrefs().getString(C.GQL_HEADERS, null))
-        } else {
-            TwitchHeaders.getGqlHeaders(
-                clientId = context.prefs().getString(C.GQL_CLIENT_ID2, TwitchHeaders.DEFAULT_GQL_CLIENT_ID),
-                token = context.tokenPrefs().getString(C.GQL_TOKEN2, null),
-                includeToken = includeToken,
-            )
-        }
+        return TwitchAuthHeaders.getGqlHeaders(
+            enableIntegrity = context.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+            integrityHeadersJson = context.tokenPrefs().getString(C.GQL_HEADERS, null),
+            gqlClientId = context.prefs().getString(C.GQL_CLIENT_ID2, TwitchHeaders.DEFAULT_GQL_CLIENT_ID),
+            gqlToken = context.tokenPrefs().getString(C.GQL_TOKEN2, null),
+            includeToken = includeToken,
+        )
     }
 
     fun getHelixHeaders(context: Context): Map<String, String> {
-        return TwitchHeaders.getHelixHeaders(
-            clientId = context.prefs().getString(C.HELIX_CLIENT_ID, TwitchHeaders.DEFAULT_HELIX_CLIENT_ID),
+        return TwitchAuthHeaders.getHelixHeaders(
+            helixClientId = context.prefs().getString(C.HELIX_CLIENT_ID, TwitchHeaders.DEFAULT_HELIX_CLIENT_ID),
             token = context.tokenPrefs().getString(C.TOKEN, null),
         )
     }
 
     fun isIntegrityTokenExpired(context: Context): Boolean {
-        return System.currentTimeMillis() >= context.tokenPrefs().getLong(C.INTEGRITY_EXPIRATION, 0)
+        return TwitchAuthHeaders.isIntegrityTokenExpired(
+            System.currentTimeMillis(),
+            context.tokenPrefs().getLong(C.INTEGRITY_EXPIRATION, 0),
+        )
     }
 
     fun getMessageIdString(context: Context, msgId: String?): String? {

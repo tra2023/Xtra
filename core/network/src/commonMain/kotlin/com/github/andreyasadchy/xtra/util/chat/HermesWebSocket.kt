@@ -6,11 +6,10 @@ import com.github.andreyasadchy.xtra.socket.WebSocket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Timer
-import kotlin.concurrent.schedule
-import kotlin.concurrent.scheduleAtFixedRate
 
 class HermesWebSocket(
     private val channelId: String,
@@ -25,9 +24,9 @@ class HermesWebSocket(
 ) {
     private var webSocket: WebSocket? = null
     private var scope: CoroutineScope? = null
-    private var pongTimer: Timer? = null
+    private var pongJob: Job? = null
     private var timeout = 15000L
-    private var minuteWatchedTimer: Timer? = null
+    private var minuteWatchedJob: Job? = null
     private val router = HermesRouter()
 
     fun connect(coroutineScope: CoroutineScope): Job {
@@ -39,9 +38,10 @@ class HermesWebSocket(
     }
 
     suspend fun disconnect(job: Job?) = withContext(Dispatchers.IO) {
-        pongTimer?.cancel()
-        minuteWatchedTimer?.cancel()
-        minuteWatchedTimer = null
+        pongJob?.cancel()
+        pongJob = null
+        minuteWatchedJob?.cancel()
+        minuteWatchedJob = null
         job?.cancel()
         webSocket?.disconnect()
         webSocket?.close()
@@ -49,22 +49,20 @@ class HermesWebSocket(
         scope = null
     }
 
-    private suspend fun startPongTimer() = withContext(Dispatchers.IO) {
-        pongTimer = Timer().apply {
-            schedule(timeout) {
-                scope?.launch {
-                    webSocket?.disconnect()
-                }
-            }
+    private fun startPongTimer() {
+        pongJob?.cancel()
+        pongJob = scope?.launch {
+            delay(timeout)
+            webSocket?.disconnect()
         }
     }
 
-    private suspend fun startMinuteWatchedTimer() = withContext(Dispatchers.IO) {
-        minuteWatchedTimer = Timer().apply {
-            scheduleAtFixedRate(60000, 60000) {
-                scope?.launch {
-                    listener.onMinuteWatched()
-                }
+    private fun startMinuteWatchedTimer() {
+        minuteWatchedJob?.cancel()
+        minuteWatchedJob = scope?.launch {
+            while (isActive) {
+                delay(MINUTE_WATCHED_INTERVAL_MS)
+                listener.onMinuteWatched()
             }
         }
     }
@@ -100,18 +98,18 @@ class HermesWebSocket(
                     is HermesEvent.Poll -> listener.onPollUpdate(event.messageJson)
                     is HermesEvent.Prediction -> listener.onPredictionUpdate(event.messageJson)
                     HermesEvent.Keepalive -> {
-                        pongTimer?.cancel()
+                        pongJob?.cancel()
                         startPongTimer()
                     }
                     HermesEvent.Reconnect -> {
-                        pongTimer?.cancel()
+                        pongJob?.cancel()
                         webSocket.disconnect()
                     }
                     is HermesEvent.Welcome -> {
                         event.keepaliveSec?.takeIf { it > 0 }?.let {
                             timeout = it * 1000L
                         }
-                        pongTimer?.cancel()
+                        pongJob?.cancel()
                         startPongTimer()
                         router.buildAuthenticate(userId, gqlToken, collectPoints)?.let {
                             webSocket.write(it)
@@ -119,7 +117,7 @@ class HermesWebSocket(
                         router.buildSubscriptions(channelId, userId, gqlToken, collectPoints, showRaids, showPolls, showPredictions).messages.forEach {
                             webSocket.write(it)
                         }
-                        if (collectPoints && !userId.isNullOrBlank() && !gqlToken.isNullOrBlank() && minuteWatchedTimer == null) {
+                        if (collectPoints && !userId.isNullOrBlank() && !gqlToken.isNullOrBlank() && minuteWatchedJob == null) {
                             startMinuteWatchedTimer()
                         }
                     }
@@ -134,5 +132,9 @@ class HermesWebSocket(
         override suspend fun onDisconnect(webSocket: WebSocket, message: String, fullMsg: String?) {
             listener.onDisconnect(message, fullMsg)
         }
+    }
+
+    private companion object {
+        const val MINUTE_WATCHED_INTERVAL_MS = 60000L
     }
 }
