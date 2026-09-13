@@ -41,11 +41,11 @@ import com.github.andreyasadchy.xtra.util.chat.ChatReadWebSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatUtils
 import com.github.andreyasadchy.xtra.util.chat.ChatWriteIRCSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatWriteWebSocket
-import com.github.andreyasadchy.xtra.util.chat.EventSubUtils
+import com.github.andreyasadchy.xtra.util.chat.EventSubParser
 import com.github.andreyasadchy.xtra.util.chat.EventSubWebSocket
 import com.github.andreyasadchy.xtra.util.chat.HermesWebSocket
-import com.github.andreyasadchy.xtra.util.chat.PubSubUtils
-import com.github.andreyasadchy.xtra.util.chat.STVEventApiUtils
+import com.github.andreyasadchy.xtra.util.chat.PubSubParser
+import com.github.andreyasadchy.xtra.util.chat.StvParser
 import com.github.andreyasadchy.xtra.util.chat.STVEventApiWebSocket
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
@@ -57,7 +57,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -129,10 +128,10 @@ class ChatViewModel(
     var predictionClosed = false
     val predictionSecondsLeft = MutableStateFlow<Int?>(null)
     var predictionTimer: Timer? = null
-    private val _streamInfo = MutableStateFlow<PubSubUtils.StreamInfo?>(null)
-    val streamInfo: StateFlow<PubSubUtils.StreamInfo?> = _streamInfo
-    private val _playbackMessage = MutableStateFlow<PubSubUtils.PlaybackMessage?>(null)
-    val playbackMessage: StateFlow<PubSubUtils.PlaybackMessage?> = _playbackMessage
+    private val _streamInfo = MutableStateFlow<PubSubParser.StreamInfo?>(null)
+    val streamInfo: StateFlow<PubSubParser.StreamInfo?> = _streamInfo
+    private val _playbackMessage = MutableStateFlow<PubSubParser.PlaybackMessage?>(null)
+    val playbackMessage: StateFlow<PubSubParser.PlaybackMessage?> = _playbackMessage
     var streamId: String? = null
     private val rewardList = mutableListOf<ChatMessage>()
     val namePaints = mutableListOf<NamePaint>()
@@ -1332,8 +1331,8 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onChatMessage(event: JSONObject, timestamp: String?) {
-            val chatMessage = EventSubUtils.parseChatMessage(event, timestamp)
+        override suspend fun onChatMessage(event: String, timestamp: String?) {
+            val chatMessage = EventSubParser.parseChatMessage(event, timestamp)
             val reward = chatMessage.reward
             if (usePubSub && reward != null && !reward.id.isNullOrBlank()) {
                 onRewardMessage(chatMessage, isLoggedIn, accountId, channelId)
@@ -1342,20 +1341,25 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onUserNotice(event: JSONObject, timestamp: String?) {
+        override suspend fun onUserNotice(event: String, timestamp: String?) {
             if (showUserNotice) {
-                onChatMessage(EventSubUtils.parseUserNotice(event, timestamp), isLoggedIn, accountId, channelId)
+                onChatMessage(EventSubParser.parseUserNotice(event, timestamp), isLoggedIn, accountId, channelId)
             }
         }
 
-        override suspend fun onClearChat(event: JSONObject, timestamp: String?) {
+        override suspend fun onClearChat(event: String, timestamp: String?) {
             if (showClearChat) {
-                onMessage(EventSubUtils.parseClearChat(applicationContext, event, timestamp))
+                onMessage(ChatMessage(
+                    type = ChatMessage.NOTICE_MESSAGE,
+                    systemMsg = applicationContext.getString(R.string.chat_clear),
+                    timestamp = timestamp?.let { EventSubParser.parseTimestamp(it) },
+                    fullMsg = event
+                ))
             }
         }
 
-        override suspend fun onRoomState(event: JSONObject, timestamp: String?) {
-            roomState.value = EventSubUtils.parseRoomState(event)
+        override suspend fun onRoomState(event: String, timestamp: String?) {
+            roomState.value = EventSubParser.parseRoomState(event)
         }
 
         override suspend fun onDisconnect(message: String, fullMsg: String?) {
@@ -1386,8 +1390,8 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onPlaybackMessage(message: JSONObject) {
-            val playbackMessage = PubSubUtils.parsePlaybackMessage(message)
+        override suspend fun onPlaybackMessage(message: String) {
+            val playbackMessage = PubSubParser.parsePlaybackMessage(message)
             if (playbackMessage != null) {
                 playbackMessage.live?.let {
                     if (it) {
@@ -1406,12 +1410,12 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onStreamInfo(message: JSONObject) {
-            _streamInfo.value = PubSubUtils.parseStreamInfo(message)
+        override suspend fun onStreamInfo(message: String) {
+            _streamInfo.value = PubSubParser.parseStreamInfo(message)
         }
 
-        override suspend fun onRewardMessage(message: JSONObject) {
-            val chatMessage = PubSubUtils.parseRewardMessage(message)
+        override suspend fun onRewardMessage(message: String) {
+            val chatMessage = PubSubParser.parseRewardMessage(message)
             if (!chatMessage.message.isNullOrBlank()) {
                 onRewardMessage(chatMessage, isLoggedIn, accountId, channelId)
             } else {
@@ -1419,9 +1423,9 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onPointsEarned(message: JSONObject) {
+        override suspend fun onPointsEarned(message: String) {
             if (notifyPoints) {
-                val result = PubSubUtils.parsePointsEarned(message)
+                val result = PubSubParser.parsePointsEarned(message)
                 val points = result.first
                 val messageChannelId = result.second
                 if (channelId == messageChannelId) {
@@ -1474,9 +1478,9 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onRaidUpdate(message: JSONObject, openStream: Boolean) {
+        override suspend fun onRaidUpdate(message: String, openStream: Boolean) {
             if (showRaids) {
-                PubSubUtils.onRaidUpdate(message, openStream)?.let {
+                PubSubParser.onRaidUpdate(message, openStream)?.let {
                     if (it.raidId != usedRaidId) {
                         usedRaidId = it.raidId
                         raidClosed = false
@@ -1501,9 +1505,9 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onPollUpdate(message: JSONObject) {
+        override suspend fun onPollUpdate(message: String) {
             if (showPolls) {
-                PubSubUtils.onPollUpdate(message)?.let {
+                PubSubParser.onPollUpdate(message)?.let {
                     if (it.id != usedPollId) {
                         usedPollId = it.id
                         pollClosed = false
@@ -1537,9 +1541,9 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onPredictionUpdate(message: JSONObject) {
+        override suspend fun onPredictionUpdate(message: String) {
             if (showPredictions) {
-                PubSubUtils.onPredictionUpdate(message)?.let {
+                PubSubParser.onPredictionUpdate(message)?.let {
                     if (it.id != usedPredictionId) {
                         usedPredictionId = it.id
                         predictionClosed = false
@@ -1601,8 +1605,8 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onEmoteSetUpdate(body: JSONObject) {
-            val result = STVEventApiUtils.parseEmoteSetUpdate(body, useWebp, channelSTVEmoteSetId)
+        override suspend fun onEmoteSetUpdate(body: String) {
+            val result = StvParser.parseEmoteSetUpdate(body, useWebp, channelSTVEmoteSetId)
             if (result != null) {
                 if (result.channelSet) {
                     if (stvLiveUpdates) {
@@ -1642,11 +1646,11 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onCosmetic(body: JSONObject) {
-            val result = STVEventApiUtils.parseCosmetic(body, useWebp)
+        override suspend fun onCosmetic(body: String) {
+            val result = StvParser.parseCosmetic(body, useWebp)
             if (result != null) {
                 when (result) {
-                    is STVEventApiUtils.Cosmetic.Paint -> {
+                    is StvParser.Cosmetic.Paint -> {
                         if (showNamePaints) {
                             synchronized(namePaints) {
                                 namePaints.find { it.id == result.paint.id }?.let { namePaints.remove(it) }
@@ -1654,7 +1658,7 @@ class ChatViewModel(
                             }
                         }
                     }
-                    is STVEventApiUtils.Cosmetic.Badge -> {
+                    is StvParser.Cosmetic.Badge -> {
                         if (showSTVBadges) {
                             synchronized(stvBadges) {
                                 stvBadges.find { it.id == result.badge.id }?.let { stvBadges.remove(it) }
@@ -1666,11 +1670,11 @@ class ChatViewModel(
             }
         }
 
-        override suspend fun onEntitlement(body: JSONObject) {
-            val result = STVEventApiUtils.parseEntitlement(body)
+        override suspend fun onEntitlement(body: String) {
+            val result = StvParser.parseEntitlement(body)
             if (result != null) {
                 when (result) {
-                    is STVEventApiUtils.Entitlement.Paint -> {
+                    is StvParser.Entitlement.Paint -> {
                         if (showNamePaints) {
                             synchronized(stvUsers) {
                                 val user = stvUsers.find { it.userId == result.userId }
@@ -1693,7 +1697,7 @@ class ChatViewModel(
                             }
                         }
                     }
-                    is STVEventApiUtils.Entitlement.Badge -> {
+                    is StvParser.Entitlement.Badge -> {
                         if (showSTVBadges) {
                             synchronized(stvUsers) {
                                 val user = stvUsers.find { it.userId == result.userId }
@@ -1716,7 +1720,7 @@ class ChatViewModel(
                             }
                         }
                     }
-                    is STVEventApiUtils.Entitlement.EmoteSet -> {
+                    is StvParser.Entitlement.EmoteSet -> {
                         if (showPersonalEmotes) {
                             synchronized(stvUsers) {
                                 val user = stvUsers.find { it.userId == result.userId }

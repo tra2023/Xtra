@@ -8,7 +8,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.util.Timer
 import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.schedule
@@ -49,10 +48,10 @@ class EventSubWebSocket(
     interface Listener {
         suspend fun onConnect() {}
         suspend fun onWelcomeMessage(sessionId: String) {}
-        suspend fun onChatMessage(event: JSONObject, timestamp: String?) {}
-        suspend fun onUserNotice(event: JSONObject, timestamp: String?) {}
-        suspend fun onClearChat(event: JSONObject, timestamp: String?) {}
-        suspend fun onRoomState(event: JSONObject, timestamp: String?) {}
+        suspend fun onChatMessage(event: String, timestamp: String?) {}
+        suspend fun onUserNotice(event: String, timestamp: String?) {}
+        suspend fun onClearChat(event: String, timestamp: String?) {}
+        suspend fun onRoomState(event: String, timestamp: String?) {}
         suspend fun onDisconnect(message: String, fullMsg: String?) {}
     }
 
@@ -64,10 +63,10 @@ class EventSubWebSocket(
         override suspend fun onMessage(webSocket: WebSocket, message: String) {
             try {
                 when (val event = router.route(message)) {
-                    is EventSubEvent.ChatMessage -> listener.onChatMessage(JSONObject(event.eventJson), event.timestamp)
-                    is EventSubEvent.UserNotice -> listener.onUserNotice(JSONObject(event.eventJson), event.timestamp)
-                    is EventSubEvent.ClearChat -> listener.onClearChat(JSONObject(event.eventJson), event.timestamp)
-                    is EventSubEvent.RoomState -> listener.onRoomState(JSONObject(event.eventJson), event.timestamp)
+                    is EventSubEvent.ChatMessage -> listener.onChatMessage(event.eventJson, event.timestamp)
+                    is EventSubEvent.UserNotice -> listener.onUserNotice(event.eventJson, event.timestamp)
+                    is EventSubEvent.ClearChat -> listener.onClearChat(event.eventJson, event.timestamp)
+                    is EventSubEvent.RoomState -> listener.onRoomState(event.eventJson, event.timestamp)
                     EventSubEvent.Keepalive -> {
                         pongTimer?.cancel()
                         startPongTimer()

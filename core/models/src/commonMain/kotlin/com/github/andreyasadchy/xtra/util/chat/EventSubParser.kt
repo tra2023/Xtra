@@ -176,7 +176,7 @@ object EventSubParser {
         )
     }
 
-    internal fun parseTimestamp(value: String): Long? = try {
+    fun parseTimestamp(value: String): Long? = try {
         Instant.parse(value).toEpochMilliseconds().takeIf { it > 0 }
     } catch (e: Exception) {
         null

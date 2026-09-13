@@ -672,8 +672,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
                             viewModel.playbackMessage.collectLatest {
                                 if (it != null) {
-                                    if (it.live != null) {
-                                        (parentFragment as? PlayerFragment)?.updateLiveStatus(it.live, it.serverTime, channelLogin)
+                                    val live = it.live
+                                    if (live != null) {
+                                        (parentFragment as? PlayerFragment)?.updateLiveStatus(live, it.serverTime, channelLogin)
                                     }
                                     (parentFragment as? PlayerFragment)?.updateViewerCount(it.viewers)
                                 }

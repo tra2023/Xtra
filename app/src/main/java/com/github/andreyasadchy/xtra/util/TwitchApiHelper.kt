@@ -8,7 +8,7 @@ import android.icu.text.CompactDecimalFormat
 import android.os.Build
 import android.text.format.DateUtils
 import com.github.andreyasadchy.xtra.R
-import org.json.JSONObject
+import com.github.andreyasadchy.xtra.repository.TwitchHeaders
 import java.math.RoundingMode
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -215,48 +215,22 @@ object TwitchApiHelper {
     fun addTokenPrefixHelix(token: String) = TwitchImageUrls.addTokenPrefixHelix(token)
 
     fun getGQLHeaders(context: Context, includeToken: Boolean = false): Map<String, String> {
-        return mutableMapOf<String, String>().apply {
-            if (context.prefs().getBoolean(C.ENABLE_INTEGRITY, false)) {
-                context.tokenPrefs().getString(C.GQL_HEADERS, null)?.let {
-                    try {
-                        val json = JSONObject(it)
-                        json.keys().forEach { key ->
-                            put(key, json.optString(key))
-                        }
-                    } catch (e: Exception) {
-
-                    }
-                }
-            } else {
-                context.prefs().getString(C.GQL_CLIENT_ID2, "kd1unb4b3q4t58fwlpcbzcbnm76a8fp")?.let {
-                    if (it.isNotBlank()) {
-                        put(C.HEADER_CLIENT_ID, it)
-                    }
-                }
-                if (includeToken) {
-                    context.tokenPrefs().getString(C.GQL_TOKEN2, null)?.let {
-                        if (it.isNotBlank()) {
-                            put(C.HEADER_TOKEN, addTokenPrefixGQL(it))
-                        }
-                    }
-                }
-            }
+        return if (context.prefs().getBoolean(C.ENABLE_INTEGRITY, false)) {
+            TwitchHeaders.parseIntegrityHeaders(context.tokenPrefs().getString(C.GQL_HEADERS, null))
+        } else {
+            TwitchHeaders.getGqlHeaders(
+                clientId = context.prefs().getString(C.GQL_CLIENT_ID2, TwitchHeaders.DEFAULT_GQL_CLIENT_ID),
+                token = context.tokenPrefs().getString(C.GQL_TOKEN2, null),
+                includeToken = includeToken,
+            )
         }
     }
 
     fun getHelixHeaders(context: Context): Map<String, String> {
-        return mutableMapOf<String, String>().apply {
-            context.prefs().getString(C.HELIX_CLIENT_ID, "ilfexgv3nnljz3isbm257gzwrzr7bi")?.let {
-                if (it.isNotBlank()) {
-                    put(C.HEADER_CLIENT_ID, it)
-                }
-            }
-            context.tokenPrefs().getString(C.TOKEN, null)?.let {
-                if (it.isNotBlank()) {
-                    put(C.HEADER_TOKEN, addTokenPrefixHelix(it))
-                }
-            }
-        }
+        return TwitchHeaders.getHelixHeaders(
+            clientId = context.prefs().getString(C.HELIX_CLIENT_ID, TwitchHeaders.DEFAULT_HELIX_CLIENT_ID),
+            token = context.tokenPrefs().getString(C.TOKEN, null),
+        )
     }
 
     fun isIntegrityTokenExpired(context: Context): Boolean {

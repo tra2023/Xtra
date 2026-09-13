@@ -9,7 +9,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import javax.net.ssl.X509TrustManager
 
 class STVEventApiWebSocket(
@@ -39,9 +38,9 @@ class STVEventApiWebSocket(
 
     interface Listener {
         suspend fun onConnect() {}
-        suspend fun onEmoteSetUpdate(body: JSONObject) {}
-        suspend fun onCosmetic(body: JSONObject) {}
-        suspend fun onEntitlement(body: JSONObject) {}
+        suspend fun onEmoteSetUpdate(body: String) {}
+        suspend fun onCosmetic(body: String) {}
+        suspend fun onEntitlement(body: String) {}
         suspend fun onUpdatePresence(sessionId: String) {}
         suspend fun onDisconnect(message: String, fullMsg: String?) {}
     }
@@ -57,9 +56,9 @@ class STVEventApiWebSocket(
         override suspend fun onMessage(webSocket: WebSocket, message: String) {
             try {
                 when (val event = StvRouter.route(message)) {
-                    is StvEvent.EmoteSetUpdate -> listener.onEmoteSetUpdate(JSONObject(event.bodyJson))
-                    is StvEvent.Cosmetic -> listener.onCosmetic(JSONObject(event.bodyJson))
-                    is StvEvent.Entitlement -> listener.onEntitlement(JSONObject(event.bodyJson))
+                    is StvEvent.EmoteSetUpdate -> listener.onEmoteSetUpdate(event.bodyJson)
+                    is StvEvent.Cosmetic -> listener.onCosmetic(event.bodyJson)
+                    is StvEvent.Entitlement -> listener.onEntitlement(event.bodyJson)
                     is StvEvent.Hello -> {
                         event.sessionId?.takeIf { it.isNotBlank() }?.let {
                             listener.onUpdatePresence(it)

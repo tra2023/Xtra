@@ -8,7 +8,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.util.Timer
 import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.schedule
@@ -70,15 +69,15 @@ class HermesWebSocket(
 
     interface Listener {
         suspend fun onConnect() {}
-        suspend fun onPlaybackMessage(message: JSONObject) {}
-        suspend fun onStreamInfo(message: JSONObject) {}
-        suspend fun onRewardMessage(message: JSONObject) {}
-        suspend fun onPointsEarned(message: JSONObject) {}
+        suspend fun onPlaybackMessage(message: String) {}
+        suspend fun onStreamInfo(message: String) {}
+        suspend fun onRewardMessage(message: String) {}
+        suspend fun onPointsEarned(message: String) {}
         suspend fun onClaimAvailable() {}
         suspend fun onMinuteWatched() {}
-        suspend fun onRaidUpdate(message: JSONObject, openStream: Boolean) {}
-        suspend fun onPollUpdate(message: JSONObject) {}
-        suspend fun onPredictionUpdate(message: JSONObject) {}
+        suspend fun onRaidUpdate(message: String, openStream: Boolean) {}
+        suspend fun onPollUpdate(message: String) {}
+        suspend fun onPredictionUpdate(message: String) {}
         suspend fun onDisconnect(message: String, fullMsg: String?) {}
     }
 
@@ -90,14 +89,14 @@ class HermesWebSocket(
         override suspend fun onMessage(webSocket: WebSocket, message: String) {
             try {
                 when (val event = router.route(message)) {
-                    is HermesEvent.Playback -> listener.onPlaybackMessage(JSONObject(event.messageJson))
-                    is HermesEvent.StreamInfo -> listener.onStreamInfo(JSONObject(event.messageJson))
-                    is HermesEvent.Reward -> listener.onRewardMessage(JSONObject(event.messageJson))
-                    is HermesEvent.PointsEarned -> listener.onPointsEarned(JSONObject(event.messageJson))
+                    is HermesEvent.Playback -> listener.onPlaybackMessage(event.messageJson)
+                    is HermesEvent.StreamInfo -> listener.onStreamInfo(event.messageJson)
+                    is HermesEvent.Reward -> listener.onRewardMessage(event.messageJson)
+                    is HermesEvent.PointsEarned -> listener.onPointsEarned(event.messageJson)
                     HermesEvent.ClaimAvailable -> listener.onClaimAvailable()
-                    is HermesEvent.Raid -> listener.onRaidUpdate(JSONObject(event.messageJson), event.openStream)
-                    is HermesEvent.Poll -> listener.onPollUpdate(JSONObject(event.messageJson))
-                    is HermesEvent.Prediction -> listener.onPredictionUpdate(JSONObject(event.messageJson))
+                    is HermesEvent.Raid -> listener.onRaidUpdate(event.messageJson, event.openStream)
+                    is HermesEvent.Poll -> listener.onPollUpdate(event.messageJson)
+                    is HermesEvent.Prediction -> listener.onPredictionUpdate(event.messageJson)
                     HermesEvent.Keepalive -> {
                         pongTimer?.cancel()
                         startPongTimer()
