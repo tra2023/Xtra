@@ -1,6 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.games
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -11,6 +12,11 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -19,16 +25,15 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupWithNavController
-import androidx.paging.PagingData
-import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentGamesBinding
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
-import com.github.andreyasadchy.xtra.ui.common.GamesAdapter
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
+import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
+import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.games.GamesViewModel.Companion.GamesViewModelFactory
 import com.github.andreyasadchy.xtra.ui.login.LoginActivity
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
@@ -39,6 +44,7 @@ import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -48,7 +54,9 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
     private val binding get() = _binding!!
     private val args: GamesFragmentArgs by navArgs()
     private val viewModel: GamesViewModel by viewModels { GamesViewModelFactory }
-    private lateinit var pagingAdapter: PagingDataAdapter<Game, out RecyclerView.ViewHolder>
+    // Compose owns list + load states now (GamesPagingRoute): signals drive refresh / scroll-top.
+    private val composeRefreshSignal = MutableStateFlow(0)
+    private val composeScrollTopSignal = MutableStateFlow(0)
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentGamesBinding.inflate(inflater, container, false)
@@ -120,8 +128,93 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
                 WindowInsetsCompat.CONSUMED
             }
         }
-        pagingAdapter = GamesAdapter(this) { addTag(it) }
-        setAdapter(binding.recyclerViewLayout.recyclerView, pagingAdapter)
+        // Compose owns list + load states (GamesPagingRoute via paging-compose).
+        // Views survivors: toolbar, sort bar. The hidden RecyclerView container keeps
+        // its overlays off; refresh gesture + scroll-top live in Compose now.
+        binding.recyclerViewLayout.recyclerView.isVisible = false
+        binding.recyclerViewLayout.progressBar.isVisible = false
+        binding.recyclerViewLayout.nothingHere.isVisible = false
+        binding.recyclerViewLayout.scrollTop.isVisible = false
+        binding.recyclerViewLayout.swipeRefresh.isEnabled = false
+        val composeView = ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        }
+        (binding.recyclerViewLayout.root as ViewGroup).addView(
+            composeView, 0,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+        composeView.setContent {
+            val (darkTheme, amoled, blue) = themeFlags()
+            XtraTheme(darkTheme = darkTheme, amoled = amoled, blue = blue) {
+                GamesPagingRoute(
+                    flow = viewModel.flow,
+                    refreshSignal = composeRefreshSignal,
+                    scrollTopSignal = composeScrollTopSignal,
+                    onGameClick = ::openGame,
+                    onTagClick = ::addTag,
+                    showTags = requireContext().prefs().getBoolean(C.UI_TAGS, true),
+                    viewersLabel = { count ->
+                        resources.getQuantityString(
+                            R.plurals.viewers,
+                            count,
+                            TwitchApiHelper.formatCount(count, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true)),
+                        )
+                    },
+                    showBroadcasters = requireContext().prefs().getBoolean(C.UI_BROADCASTERS_COUNT, true),
+                    broadcastersLabel = { count ->
+                        resources.getQuantityString(
+                            R.plurals.broadcasters,
+                            count,
+                            TwitchApiHelper.formatCount(count, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true)),
+                        )
+                    },
+                    onIntegrityFailed = {
+                        (requireActivity() as? MainActivity)?.getNewIntegrityToken("refresh", childFragmentManager)
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+
+    /**
+     * Maps the Views theme id (see `Activity.applyTheme`) onto Compose flags.
+     * Dynamic-color variants (4/5/6) fall back to their static base for now.
+     */
+    private fun themeFlags(): Triple<Boolean, Boolean, Boolean> {
+        val prefs = requireContext().prefs()
+        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
+            when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
+                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0") ?: "0"
+                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2") ?: "2"
+            }
+        } else {
+            prefs.getString(C.THEME, "0") ?: "0"
+        }
+        val darkTheme = theme != "2" && theme != "5"
+        val amoled = theme == "1" || theme == "6"
+        val blue = theme == "3"
+        return Triple(darkTheme, amoled, blue)
+    }
+
+    private fun openGame(game: Game) {
+        findNavController().navigate(
+            if (requireContext().prefs().getBoolean(C.UI_GAME_PAGER, true)) {
+                GamePagerFragmentDirections.actionGlobalGamePagerFragment(
+                    gameId = game.id,
+                    gameSlug = game.slug,
+                    gameName = game.name,
+                    boxArt = game.boxArt,
+                )
+            } else {
+                GameMediaFragmentDirections.actionGlobalGameMediaFragment(
+                    gameId = game.id,
+                    gameSlug = game.slug,
+                    gameName = game.name,
+                    boxArt = game.boxArt,
+                )
+            }
+        )
     }
 
     override fun initialize() {
@@ -140,19 +233,7 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
                     }
                 } else null
             }
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.flow.collectLatest { pagingData ->
-                    pagingAdapter.submitData(pagingData)
-                }
-            }
-        }
-        val enableScrollTopButton = !args.tagIds.isNullOrEmpty()
-        initializeAdapter(binding.recyclerViewLayout, pagingAdapter, enableScrollTopButton = enableScrollTopButton)
-        if (enableScrollTopButton && requireContext().prefs().getBoolean(C.UI_SCROLL_TOP, true)) {
-            binding.recyclerViewLayout.scrollTop.setOnClickListener {
-                scrollToTop()
-                it.visibility = View.GONE
-            }
+            // No adapter: GamesPagingRoute collects viewModel.flow and owns load states.
         }
         with(binding) {
             sortBar.root.visibility = View.VISIBLE
@@ -194,7 +275,7 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
 
     private fun addTag(tag: Tag) {
         viewLifecycleOwner.lifecycleScope.launch {
-            pagingAdapter.submitData(PagingData.empty())
+            // New filter emits a new PagingData via flatMapLatest; Compose reloads.
             val tags = viewModel.tags.plus(tag).sortedBy { it.id }.toTypedArray()
             viewModel.setFilter(tags)
             viewModel.filtersText.value = buildString {
@@ -211,7 +292,6 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
 
     override fun onChange(tags: Array<Tag>) {
         viewLifecycleOwner.lifecycleScope.launch {
-            pagingAdapter.submitData(PagingData.empty())
             viewModel.setFilter(tags)
             viewModel.filtersText.value = if (viewModel.tags.isNotEmpty()) {
                 buildString {
@@ -228,20 +308,18 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
     }
 
     override fun scrollToTop() {
-        with(binding) {
-            appBar.setExpanded(true, true)
-            recyclerViewLayout.recyclerView.scrollToPosition(0)
-        }
+        binding.appBar.setExpanded(true, true)
+        composeScrollTopSignal.value++
     }
 
     override fun onNetworkRestored() {
-        pagingAdapter.retry()
+        composeRefreshSignal.value++
     }
 
     override fun onIntegrityTokenLoaded(callback: String?) {
         when (callback) {
             "refresh" -> {
-                pagingAdapter.refresh()
+                composeRefreshSignal.value++
             }
         }
     }

@@ -14,9 +14,10 @@ import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource
-import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.shared.settings.AndroidXtraSettings
+import com.github.andreyasadchy.xtra.shared.settings.SharedAuthHeaders
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -33,18 +34,22 @@ class GamesViewModel(
     val tags: Array<Tag>
         get() = filter.value?.tags ?: emptyArray()
 
+    // Shared KMP auth/config path (same headers as TwitchApiHelper, no behavior change).
+    private val sharedSettings = AndroidXtraSettings(applicationContext.prefs(), applicationContext.tokenPrefs())
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {
+        val config = SharedAuthHeaders.loadConfig(sharedSettings)
         Pager(
             PagingConfig(pageSize = 30, prefetchDistance = 10, initialLoadSize = 30)
         ) {
             GamesDataSource(
                 tags = tags.ifEmpty { null }?.mapNotNull { it.id },
-                gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext),
+                gqlHeaders = SharedAuthHeaders.gqlHeaders(config),
                 graphQLRepository = graphQLRepository,
-                helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext),
+                helixHeaders = SharedAuthHeaders.helixHeaders(config),
                 helixRepository = helixRepository,
-                enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+                enableIntegrity = config.enableIntegrity,
             )
         }.flow
     }.cachedIn(viewModelScope)

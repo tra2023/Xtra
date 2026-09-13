@@ -19,10 +19,11 @@ import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.SavedFiltersRepository
 import com.github.andreyasadchy.xtra.repository.datasource.StreamsDataSource
+import com.github.andreyasadchy.xtra.shared.settings.AndroidXtraSettings
+import com.github.andreyasadchy.xtra.shared.settings.SharedAuthHeaders
 import com.github.andreyasadchy.xtra.ui.common.StreamsSortDialog
-import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -46,10 +47,14 @@ class TopStreamsViewModel(
     val languages: Array<String>
         get() = filter.value?.languages ?: emptyArray()
 
+    // Shared KMP auth/config path (same headers as TwitchApiHelper, no behavior change).
+    private val sharedSettings = AndroidXtraSettings(applicationContext.prefs(), applicationContext.tokenPrefs())
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {
+        val config = SharedAuthHeaders.loadConfig(sharedSettings)
         Pager(
-            if (applicationContext.prefs().getString(C.COMPACT_STREAMS, "disabled") == "all") {
+            if (config.compactStreams == "all") {
                 PagingConfig(pageSize = 30, prefetchDistance = 10, initialLoadSize = 30)
             } else {
                 PagingConfig(pageSize = 30, prefetchDistance = 3, initialLoadSize = 30)
@@ -73,11 +78,11 @@ class TopStreamsViewModel(
                     else -> "VIEWER_COUNT"
                 },
                 tags = tags.ifEmpty { null }?.toList(),
-                gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext),
+                gqlHeaders = SharedAuthHeaders.gqlHeaders(config),
                 graphQLRepository = graphQLRepository,
-                helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext),
+                helixHeaders = SharedAuthHeaders.helixHeaders(config),
                 helixRepository = helixRepository,
-                enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+                enableIntegrity = config.enableIntegrity,
             )
         }.flow
     }.cachedIn(viewModelScope)

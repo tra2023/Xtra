@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.navigation.safeargs)
+    alias(libs.plugins.jetbrains.compose)
+    alias(libs.plugins.compose.compiler)
 }
 
 kotlin {
@@ -71,6 +73,7 @@ dependencies {
     implementation(libs.navigation.fragment)
     implementation(libs.navigation.ui)
     implementation(libs.paging.runtime)
+    implementation(libs.paging.compose)
     implementation(libs.preference.ktx)
     implementation(libs.recyclerview)
     implementation(libs.room.runtime)
@@ -103,11 +106,17 @@ dependencies {
     implementation(libs.ktor.client.cio)
 
     implementation(libs.coroutines)
+    implementation(compose.runtime)
+    implementation(compose.foundation)
+    implementation(compose.material3)
+    implementation(compose.ui)
     implementation(project(":core:database"))
     implementation(project(":core:models"))
     implementation(project(":core:network"))
     // Shared Compose Multiplatform image UI (XtraAsyncImage). Views keep working unchanged.
     implementation(project(":core:ui"))
+    // Shared KMP browse logic (settings, auth headers, paging controllers, routes).
+    implementation(project(":shared"))
 }
 
 // Delete large build log files from ~/.gradle/daemon/X.X/daemon-XXX.out.log
