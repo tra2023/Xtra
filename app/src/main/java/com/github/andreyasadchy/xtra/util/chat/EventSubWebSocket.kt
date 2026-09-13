@@ -2,28 +2,27 @@ package com.github.andreyasadchy.xtra.util.chat
 
 import com.github.andreyasadchy.xtra.socket.EventSubEvent
 import com.github.andreyasadchy.xtra.socket.EventSubRouter
-import com.github.andreyasadchy.xtra.util.WebSocket
+import com.github.andreyasadchy.xtra.socket.WebSocket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Timer
-import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.schedule
 
 class EventSubWebSocket(
-    private val trustManager: Lazy<X509TrustManager>,
     private val listener: Listener,
 ) {
     private var webSocket: WebSocket? = null
+    private var scope: CoroutineScope? = null
     private var pongTimer: Timer? = null
     private var timeout = 10000L
     private val router = EventSubRouter()
 
     fun connect(coroutineScope: CoroutineScope): Job {
-        webSocket = WebSocket("wss://eventsub.wss.twitch.tv/ws", trustManager, WebSocketListener())
-        webSocket?.coroutineScope = coroutineScope
+        scope = coroutineScope
+        webSocket = WebSocket("wss://eventsub.wss.twitch.tv/ws", WebSocketListener())
         return coroutineScope.launch(Dispatchers.IO) {
             webSocket?.start()
         }
@@ -33,12 +32,15 @@ class EventSubWebSocket(
         pongTimer?.cancel()
         job?.cancel()
         webSocket?.disconnect()
+        webSocket?.close()
+        webSocket = null
+        scope = null
     }
 
     private suspend fun startPongTimer() = withContext(Dispatchers.IO) {
         pongTimer = Timer().apply {
             schedule(timeout) {
-                webSocket?.coroutineScope?.launch {
+                scope?.launch {
                     webSocket?.disconnect()
                 }
             }

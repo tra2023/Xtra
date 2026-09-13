@@ -2,14 +2,13 @@ package com.github.andreyasadchy.xtra.util.chat
 
 import com.github.andreyasadchy.xtra.socket.HermesEvent
 import com.github.andreyasadchy.xtra.socket.HermesRouter
-import com.github.andreyasadchy.xtra.util.WebSocket
+import com.github.andreyasadchy.xtra.socket.WebSocket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Timer
-import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.schedule
 import kotlin.concurrent.scheduleAtFixedRate
 
@@ -22,18 +21,18 @@ class HermesWebSocket(
     private val showRaids: Boolean,
     private val showPolls: Boolean,
     private val showPredictions: Boolean,
-    private val trustManager: Lazy<X509TrustManager>,
     private val listener: Listener,
 ) {
     private var webSocket: WebSocket? = null
+    private var scope: CoroutineScope? = null
     private var pongTimer: Timer? = null
     private var timeout = 15000L
     private var minuteWatchedTimer: Timer? = null
     private val router = HermesRouter()
 
     fun connect(coroutineScope: CoroutineScope): Job {
-        webSocket = WebSocket("wss://hermes.twitch.tv/v1?clientId=${gqlClientId}", trustManager, WebSocketListener())
-        webSocket?.coroutineScope = coroutineScope
+        scope = coroutineScope
+        webSocket = WebSocket("wss://hermes.twitch.tv/v1?clientId=${gqlClientId}", WebSocketListener())
         return coroutineScope.launch(Dispatchers.IO) {
             webSocket?.start()
         }
@@ -45,12 +44,15 @@ class HermesWebSocket(
         minuteWatchedTimer = null
         job?.cancel()
         webSocket?.disconnect()
+        webSocket?.close()
+        webSocket = null
+        scope = null
     }
 
     private suspend fun startPongTimer() = withContext(Dispatchers.IO) {
         pongTimer = Timer().apply {
             schedule(timeout) {
-                webSocket?.coroutineScope?.launch {
+                scope?.launch {
                     webSocket?.disconnect()
                 }
             }
@@ -60,7 +62,7 @@ class HermesWebSocket(
     private suspend fun startMinuteWatchedTimer() = withContext(Dispatchers.IO) {
         minuteWatchedTimer = Timer().apply {
             scheduleAtFixedRate(60000, 60000) {
-                webSocket?.coroutineScope?.launch {
+                scope?.launch {
                     listener.onMinuteWatched()
                 }
             }

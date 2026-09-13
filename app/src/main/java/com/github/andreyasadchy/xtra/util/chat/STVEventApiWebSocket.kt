@@ -3,17 +3,15 @@ package com.github.andreyasadchy.xtra.util.chat
 import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.socket.StvEvent
 import com.github.andreyasadchy.xtra.socket.StvRouter
-import com.github.andreyasadchy.xtra.util.WebSocket
+import com.github.andreyasadchy.xtra.socket.WebSocket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import javax.net.ssl.X509TrustManager
 
 class STVEventApiWebSocket(
     private val channelId: String,
-    private val trustManager: Lazy<X509TrustManager>,
     private val listener: Listener,
 ) {
     private var webSocket: WebSocket? = null
@@ -21,11 +19,9 @@ class STVEventApiWebSocket(
     fun connect(coroutineScope: CoroutineScope): Job {
         webSocket = WebSocket(
             url = "wss://events.7tv.io/v3",
-            trustManager = trustManager,
             listener = WebSocketListener(),
             headers = mapOf("User-Agent" to "Xtra/" + BuildConfig.VERSION_NAME)
         )
-        webSocket?.coroutineScope = coroutineScope
         return coroutineScope.launch(Dispatchers.IO) {
             webSocket?.start()
         }
@@ -34,6 +30,8 @@ class STVEventApiWebSocket(
     suspend fun disconnect(job: Job?) = withContext(Dispatchers.IO) {
         job?.cancel()
         webSocket?.disconnect()
+        webSocket?.close()
+        webSocket = null
     }
 
     interface Listener {

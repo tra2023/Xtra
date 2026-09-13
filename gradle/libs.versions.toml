@@ -12,6 +12,7 @@ coroutines = "1.11.0"
 fragment = "1.9.0"
 kotlin = "2.4.10"
 ksp = "2.3.11"
+ktor = "3.5.2"
 lifecycle = "2.11.0"
 markwon = "4.6.2"
 material = "1.14.0"
@@ -46,6 +47,9 @@ coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", ve
 fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
 lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", version.ref = "lifecycle" }
 lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
+ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
 markwon-core = { module = "io.noties.markwon:core", version.ref = "markwon" }
 markwon-linkify = { module = "io.noties.markwon:linkify", version.ref = "markwon" }
 material = { module = "com.google.android.material:material", version.ref = "material" }

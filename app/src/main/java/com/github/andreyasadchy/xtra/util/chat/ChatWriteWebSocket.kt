@@ -2,30 +2,29 @@ package com.github.andreyasadchy.xtra.util.chat
 
 import com.github.andreyasadchy.xtra.socket.IrcLineEvent
 import com.github.andreyasadchy.xtra.socket.IrcRouter
-import com.github.andreyasadchy.xtra.util.WebSocket
+import com.github.andreyasadchy.xtra.socket.WebSocket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Timer
-import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.schedule
 
 class ChatWriteWebSocket(
     private val userLogin: String?,
     private val userToken: String?,
     private val channelLogin: String,
-    private val trustManager: Lazy<X509TrustManager>,
     private val listener: ChatReadWebSocket.Listener,
 ) {
     private var webSocket: WebSocket? = null
+    private var scope: CoroutineScope? = null
     private var pingTimer: Timer? = null
     private var pongTimer: Timer? = null
 
     fun connect(coroutineScope: CoroutineScope): Job {
-        webSocket = WebSocket("wss://irc-ws.chat.twitch.tv", trustManager, WebSocketListener())
-        webSocket?.coroutineScope = coroutineScope
+        scope = coroutineScope
+        webSocket = WebSocket("wss://irc-ws.chat.twitch.tv", WebSocketListener())
         return coroutineScope.launch(Dispatchers.IO) {
             webSocket?.start()
         }
@@ -36,12 +35,15 @@ class ChatWriteWebSocket(
         pongTimer?.cancel()
         job?.cancel()
         webSocket?.disconnect()
+        webSocket?.close()
+        webSocket = null
+        scope = null
     }
 
     private suspend fun startPingTimer() = withContext(Dispatchers.IO) {
         pingTimer = Timer().apply {
             schedule(270000) {
-                webSocket?.coroutineScope?.launch {
+                scope?.launch {
                     webSocket?.write("PING")
                     startPongTimer()
                 }
@@ -52,7 +54,7 @@ class ChatWriteWebSocket(
     private suspend fun startPongTimer() = withContext(Dispatchers.IO) {
         pongTimer = Timer().apply {
             schedule(10000) {
-                webSocket?.coroutineScope?.launch {
+                scope?.launch {
                     webSocket?.disconnect()
                 }
             }

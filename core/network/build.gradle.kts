@@ -20,6 +20,9 @@ kotlin {
             implementation(libs.serialization.json)
             implementation(libs.apollo.api)
             implementation(libs.okio)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.cio)
+            implementation(libs.ktor.client.websockets)
         }
     }
 }
