@@ -11,7 +11,6 @@ import okio.Buffer
 import okio.BufferedSource
 import okio.ForwardingSource
 import okio.buffer
-import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 object NetworkUtils {

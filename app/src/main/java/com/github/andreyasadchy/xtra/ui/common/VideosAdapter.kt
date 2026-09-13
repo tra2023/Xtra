@@ -85,7 +85,8 @@ class VideosAdapter(
                 if (item != null) {
                     val context = fragment.requireContext()
                     val position = item.id?.toLongOrNull()?.let { id -> positions?.find { it.id == id }?.position }
-                    val startFromBeginning = position != null && item.durationSeconds != null && item.durationSeconds > 0 && position >= (item.durationSeconds * 1000)
+                    val durationSeconds = item.durationSeconds
+                    val startFromBeginning = position != null && durationSeconds != null && durationSeconds > 0 && position >= (durationSeconds * 1000)
                     root.setOnClickListener {
                         (fragment.activity as MainActivity).startVideo(
                             item,
@@ -109,8 +110,9 @@ class VideosAdapter(
                             target(thumbnail)
                         }.build()
                     )
-                    if (item.createdAt != null) {
-                        val text = Instant.parseOrNull(item.createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
+                    val createdAt = item.createdAt
+                    if (createdAt != null) {
+                        val text = Instant.parseOrNull(createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
                             TwitchApiHelper.formatDate(context, it)
                         }
                         if (text != null) {
@@ -122,9 +124,9 @@ class VideosAdapter(
                     } else {
                         date.visibility = View.GONE
                     }
-                    if (item.viewCount != null) {
+                    val count = item.viewCount
+                    if (count != null) {
                         views.visibility = View.VISIBLE
-                        val count = item.viewCount
                         views.text = context.resources.getQuantityString(
                             R.plurals.views,
                             count,
@@ -133,9 +135,9 @@ class VideosAdapter(
                     } else {
                         views.visibility = View.GONE
                     }
-                    if (item.durationSeconds != null) {
+                    if (durationSeconds != null) {
                         duration.visibility = View.VISIBLE
-                        duration.text = DateUtils.formatElapsedTime(item.durationSeconds.toLong())
+                        duration.text = DateUtils.formatElapsedTime(durationSeconds.toLong())
                     } else {
                         duration.visibility = View.GONE
                     }
@@ -150,8 +152,8 @@ class VideosAdapter(
                     } else {
                         type.visibility = View.GONE
                     }
-                    if (position != null && item.durationSeconds != null && item.durationSeconds > 0L) {
-                        progressBar.progress = (position / (item.durationSeconds * 10)).toInt()
+                    if (position != null && durationSeconds != null && durationSeconds > 0L) {
+                        progressBar.progress = (position / (durationSeconds * 10)).toInt()
                         progressBar.visibility = View.VISIBLE
                     } else {
                         progressBar.visibility = View.GONE
@@ -202,9 +204,10 @@ class VideosAdapter(
                         userImage.visibility = View.GONE
                         username.visibility = View.GONE
                     }
-                    if (!item.title.isNullOrBlank()) {
+                    val itemTitle = item.title
+                    if (!itemTitle.isNullOrBlank()) {
                         title.visibility = View.VISIBLE
-                        title.text = item.title.trim()
+                        title.text = itemTitle.trim()
                     } else {
                         title.visibility = View.GONE
                     }

@@ -123,9 +123,10 @@ class PlayerViewerListDialog : BottomSheetDialogFragment(), IntegrityDialog.List
                                 viewersText.visibility = View.GONE
                                 viewersList.visibility = View.GONE
                             }
-                            if (fullList.count != null) {
+                            val viewerCount = fullList.count
+                            if (viewerCount != null) {
                                 userCount.visibility = View.VISIBLE
-                                userCount.text = getString(R.string.user_count, TwitchApiHelper.formatCount(fullList.count, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true)))
+                                userCount.text = getString(R.string.user_count, TwitchApiHelper.formatCount(viewerCount, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true)))
                             } else {
                                 userCount.visibility = View.GONE
                             }

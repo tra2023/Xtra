@@ -8,8 +8,13 @@
         android:id="@+id/rootGamesFragment"
         android:name="com.github.andreyasadchy.xtra.ui.games.GamesFragment">
         <argument
-            android:name="tags"
-            app:argType="com.github.andreyasadchy.xtra.model.ui.Tag[]"
+            android:name="tagIds"
+            app:argType="string[]"
+            app:nullable="true"
+            android:defaultValue="@null" />
+        <argument
+            android:name="tagNames"
+            app:argType="string[]"
             app:nullable="true"
             android:defaultValue="@null" />
     </fragment>
@@ -31,8 +36,13 @@
         android:id="@+id/gamesFragment"
         android:name="com.github.andreyasadchy.xtra.ui.games.GamesFragment">
         <argument
-            android:name="tags"
-            app:argType="com.github.andreyasadchy.xtra.model.ui.Tag[]"
+            android:name="tagIds"
+            app:argType="string[]"
+            app:nullable="true"
+            android:defaultValue="@null" />
+        <argument
+            android:name="tagNames"
+            app:argType="string[]"
             app:nullable="true"
             android:defaultValue="@null" />
     </fragment>

@@ -127,7 +127,7 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
     override fun initialize() {
         viewLifecycleOwner.lifecycleScope.launch {
             if (viewModel.filter.value == null) {
-                viewModel.setFilter(viewModel.tags.ifEmpty { args.tags })
+                viewModel.setFilter(viewModel.tags.ifEmpty { navTags() })
                 viewModel.filtersText.value = if (viewModel.tags.isNotEmpty()) {
                     buildString {
                         append(
@@ -146,7 +146,7 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
                 }
             }
         }
-        val enableScrollTopButton = !args.tags.isNullOrEmpty()
+        val enableScrollTopButton = !args.tagIds.isNullOrEmpty()
         initializeAdapter(binding.recyclerViewLayout, pagingAdapter, enableScrollTopButton = enableScrollTopButton)
         if (enableScrollTopButton && requireContext().prefs().getBoolean(C.UI_SCROLL_TOP, true)) {
             binding.recyclerViewLayout.scrollTop.setOnClickListener {
@@ -158,8 +158,10 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
             sortBar.root.visibility = View.VISIBLE
             sortBar.root.setOnClickListener {
                 val tags = viewModel.tags.mapNotNull { tag ->
-                    if (tag.id != null && tag.name != null) {
-                        tag.id to tag.name
+                    val id = tag.id
+                    val name = tag.name
+                    if (id != null && name != null) {
+                        id to name
                     } else null
                 }.toMap()
                 GamesSortDialog.newInstance(
@@ -181,6 +183,13 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
                 }
             }
         }
+    }
+
+    private fun navTags(): Array<Tag>? {
+        val ids = args.tagIds
+        if (ids.isNullOrEmpty()) return null
+        val names = args.tagNames
+        return ids.mapIndexed { index, id -> Tag(id = id, name = names?.getOrNull(index)) }.toTypedArray()
     }
 
     private fun addTag(tag: Tag) {

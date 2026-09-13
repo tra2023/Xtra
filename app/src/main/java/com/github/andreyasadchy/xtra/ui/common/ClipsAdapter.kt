@@ -79,8 +79,9 @@ class ClipsAdapter(
                             target(thumbnail)
                         }.build()
                     )
-                    if (item.createdAt != null) {
-                        val text = Instant.parseOrNull(item.createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
+                    val createdAt = item.createdAt
+                    if (createdAt != null) {
+                        val text = Instant.parseOrNull(createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
                             TwitchApiHelper.formatDate(context, it)
                         }
                         if (text != null) {
@@ -92,9 +93,9 @@ class ClipsAdapter(
                     } else {
                         date.visibility = View.GONE
                     }
-                    if (item.viewCount != null) {
+                    val count = item.viewCount
+                    if (count != null) {
                         views.visibility = View.VISIBLE
-                        val count = item.viewCount
                         views.text = context.resources.getQuantityString(
                             R.plurals.views,
                             count,
@@ -103,9 +104,10 @@ class ClipsAdapter(
                     } else {
                         views.visibility = View.GONE
                     }
-                    if (item.durationSeconds != null) {
+                    val durationSeconds = item.durationSeconds
+                    if (durationSeconds != null) {
                         duration.visibility = View.VISIBLE
-                        duration.text = DateUtils.formatElapsedTime(item.durationSeconds.toLong())
+                        duration.text = DateUtils.formatElapsedTime(durationSeconds.toLong())
                     } else {
                         duration.visibility = View.GONE
                     }
@@ -155,9 +157,10 @@ class ClipsAdapter(
                         userImage.visibility = View.GONE
                         username.visibility = View.GONE
                     }
-                    if (!item.title.isNullOrBlank()) {
+                    val itemTitle = item.title
+                    if (!itemTitle.isNullOrBlank()) {
                         title.visibility = View.VISIBLE
-                        title.text = item.title.trim()
+                        title.text = itemTitle.trim()
                     } else {
                         title.visibility = View.GONE
                     }

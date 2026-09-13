@@ -75,10 +75,11 @@ class ChannelPanelAdapter(
                                 target(imageView)
                             }.build()
                         )
-                        if (item.linkUrl != null) {
+                        val linkUrl = item.linkUrl
+                        if (linkUrl != null) {
                             imageView.setOnClickListener {
                                 try {
-                                    val intent = Intent(Intent.ACTION_VIEW, item.linkUrl.toUri()).apply {
+                                    val intent = Intent(Intent.ACTION_VIEW, linkUrl.toUri()).apply {
                                         addCategory(Intent.CATEGORY_BROWSABLE)
                                     }
                                     context.startActivity(intent)
@@ -90,9 +91,10 @@ class ChannelPanelAdapter(
                     } else {
                         imageLayout.visibility = View.GONE
                     }
-                    if (item.description != null) {
+                    val itemDescription = item.description
+                    if (itemDescription != null) {
                         description.visibility = View.VISIBLE
-                        markwon.setMarkdown(description, item.description)
+                        markwon.setMarkdown(description, itemDescription)
                     } else {
                         description.visibility = View.GONE
                     }

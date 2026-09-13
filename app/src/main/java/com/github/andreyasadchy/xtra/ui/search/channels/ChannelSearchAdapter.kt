@@ -88,9 +88,9 @@ class ChannelSearchAdapter(
                     } else {
                         userName.visibility = View.GONE
                     }
-                    if (item.followerCount != null) {
+                    val count = item.followerCount
+                    if (count != null) {
                         userFollowers.visibility = View.VISIBLE
-                        val count = item.followerCount
                         userFollowers.text = context.resources.getQuantityString(
                             R.plurals.followers,
                             count,

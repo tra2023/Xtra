@@ -51,7 +51,8 @@ class GameSearchFragment : PagedListFragment(), Searchable {
         pagingAdapter = GamesAdapter(this) {
             findNavController().navigate(
                 GamesFragmentDirections.actionGlobalGamesFragment(
-                    tags = arrayOf(it)
+                    tagIds = listOfNotNull(it.id).toTypedArray(),
+                    tagNames = listOfNotNull(it.name).toTypedArray(),
                 )
             )
         }

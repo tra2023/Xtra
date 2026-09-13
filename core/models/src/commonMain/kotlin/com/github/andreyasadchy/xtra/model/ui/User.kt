@@ -1,10 +1,9 @@
 package com.github.andreyasadchy.xtra.model.ui
 
-import android.os.Parcelable
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import kotlinx.parcelize.Parcelize
+import com.github.andreyasadchy.xtra.util.TwitchImageUrls
+import kotlinx.serialization.Serializable
 
-@Parcelize
+@Serializable
 class User(
     val id: String? = null,
     val login: String? = null,
@@ -20,8 +19,8 @@ class User(
     var followedAt: String? = null,
     var accountFollow: Boolean = false,
     val localFollow: Boolean = false,
-) : Parcelable {
+) {
 
     val profileImage: String?
-        get() = TwitchApiHelper.getProfileImage(profileImageURL)
+        get() = TwitchImageUrls.getProfileImage(profileImageURL)
 }

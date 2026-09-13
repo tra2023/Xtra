@@ -385,13 +385,13 @@ class GameMediaFragment : BaseNetworkFragment(), Scrollable, FragmentHost, Integ
             } else {
                 broadcastersCount.visibility = View.GONE
             }
-            if (game?.followerCount != null) {
+            val followerCount = game?.followerCount
+            if (followerCount != null) {
                 followers.visibility = View.VISIBLE
-                val count = game.followerCount
                 followers.text = resources.getQuantityString(
                     R.plurals.followers,
-                    count,
-                    TwitchApiHelper.formatCount(count, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true))
+                    followerCount,
+                    TwitchApiHelper.formatCount(followerCount, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true))
                 )
             } else {
                 followers.visibility = View.GONE
@@ -426,7 +426,8 @@ class GameMediaFragment : BaseNetworkFragment(), Scrollable, FragmentHost, Integ
                         text.setOnClickListener {
                             findNavController().navigate(
                                 GamesFragmentDirections.actionGlobalGamesFragment(
-                                    tags = arrayOf(tag)
+                                    tagIds = listOfNotNull(tag.id).toTypedArray(),
+                                    tagNames = listOfNotNull(tag.name).toTypedArray(),
                                 )
                             )
                         }

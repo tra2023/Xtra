@@ -114,24 +114,27 @@ class FollowedChannelsDataSource(
                             localFollow = item.localFollow,
                         )
                     )
-                    if (item.localFollow && item.id != null && user.login != null && user.name != null
-                        && (item.login != user.login || item.name != user.name)) {
-                        localChannelFollowsRepository.getById(item.id)?.let {
+                    val itemId = item.id
+                    val login = user.login
+                    val name = user.name
+                    if (item.localFollow && itemId != null && login != null && name != null
+                        && (item.login != login || item.name != name)) {
+                        localChannelFollowsRepository.getById(itemId)?.let {
                             localChannelFollowsRepository.update(it.apply {
-                                userLogin = user.login
-                                userName = user.name
+                                userLogin = login
+                                userName = name
                             })
                         }
-                        offlineVideosRepository.getByUserId(item.id).forEach {
+                        offlineVideosRepository.getByUserId(itemId).forEach {
                             offlineVideosRepository.update(it.apply {
-                                channelLogin = user.login
-                                channelName = user.name
+                                channelLogin = login
+                                channelName = name
                             })
                         }
-                        bookmarksRepository.getByUserId(item.id).forEach {
+                        bookmarksRepository.getByUserId(itemId).forEach {
                             bookmarksRepository.update(it.apply {
-                                userLogin = user.login
-                                userName = user.name
+                                userLogin = login
+                                userName = name
                             })
                         }
                     }
@@ -159,24 +162,27 @@ class FollowedChannelsDataSource(
                                 localFollow = item.localFollow,
                             )
                         )
-                        if (item.localFollow && item.id != null && user?.login != null && user.displayName != null
-                            && (item.login != user.login || item.name != user.displayName)) {
-                            localChannelFollowsRepository.getById(item.id)?.let {
+                        val itemId = item.id
+                        val login = user?.login
+                        val displayName = user?.displayName
+                        if (item.localFollow && itemId != null && login != null && displayName != null
+                            && (item.login != login || item.name != displayName)) {
+                            localChannelFollowsRepository.getById(itemId)?.let {
                                 localChannelFollowsRepository.update(it.apply {
-                                    userLogin = user.login
-                                    userName = user.displayName
+                                    userLogin = login
+                                    userName = displayName
                                 })
                             }
-                            offlineVideosRepository.getByUserId(item.id).forEach {
+                            offlineVideosRepository.getByUserId(itemId).forEach {
                                 offlineVideosRepository.update(it.apply {
-                                    channelLogin = user.login
-                                    channelName = user.displayName
+                                    channelLogin = login
+                                    channelName = displayName
                                 })
                             }
-                            bookmarksRepository.getByUserId(item.id).forEach {
+                            bookmarksRepository.getByUserId(itemId).forEach {
                                 bookmarksRepository.update(it.apply {
-                                    userLogin = user.login
-                                    userName = user.displayName
+                                    userLogin = login
+                                    userName = displayName
                                 })
                             }
                         }

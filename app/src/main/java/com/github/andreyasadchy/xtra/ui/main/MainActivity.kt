@@ -561,7 +561,8 @@ class MainActivity : AppCompatActivity() {
                         (playerFragment as? PlayerFragment)?.minimize()
                         navController.navigate(
                             GamesFragmentDirections.actionGlobalGamesFragment(
-                                tags = arrayOf(tag)
+                                tagIds = listOfNotNull(tag.id).toTypedArray(),
+                                tagNames = listOfNotNull(tag.name).toTypedArray(),
                             )
                         )
                         viewModel.tag.value = null

@@ -1,6 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.player
 
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -14,6 +13,8 @@ import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.ui.view.GridRecyclerView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 
 class PlayerGamesDialog : BottomSheetDialogFragment() {
 
@@ -23,7 +24,7 @@ class PlayerGamesDialog : BottomSheetDialogFragment() {
         fun newInstance(gamesList: List<Game>): PlayerGamesDialog {
             return PlayerGamesDialog().apply {
                 arguments = Bundle().apply {
-                    putParcelableArrayList(GAMES, ArrayList(gamesList))
+                    putString(GAMES, Json.encodeToString(ListSerializer(Game.serializer()), gamesList))
                 }
             }
         }
@@ -41,11 +42,8 @@ class PlayerGamesDialog : BottomSheetDialogFragment() {
             }
             adapter = PlayerGamesDialogAdapter(this@PlayerGamesDialog).also {
                 it.submitList(
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        requireArguments().getParcelableArrayList(GAMES, Game::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        requireArguments().getParcelableArrayList(GAMES)
+                    requireArguments().getString(GAMES)?.let { json ->
+                        runCatching { Json.decodeFromString(ListSerializer(Game.serializer()), json) }.getOrNull()
                     }?.toList()
                 )
             }

@@ -1,10 +1,9 @@
 package com.github.andreyasadchy.xtra.model.ui
 
-import android.os.Parcelable
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import kotlinx.parcelize.Parcelize
+import com.github.andreyasadchy.xtra.util.TwitchImageUrls
+import kotlinx.serialization.Serializable
 
-@Parcelize
+@Serializable
 class Game(
     val id: String? = null,
     val slug: String? = null,
@@ -18,8 +17,8 @@ class Game(
     val vodDuration: Int? = null,
     var accountFollow: Boolean = false,
     val localFollow: Boolean = false,
-) : Parcelable {
+) {
 
     val boxArt: String?
-        get() = TwitchApiHelper.getGameBoxArt(boxArtURL)
+        get() = TwitchImageUrls.getGameBoxArt(boxArtURL)
 }

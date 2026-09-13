@@ -5,11 +5,11 @@ import com.github.andreyasadchy.xtra.db.OfflineVideosDao
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 
 class OfflineVideosRepository(
     private val offlineVideosDao: OfflineVideosDao,
     private val bookmarksDao: BookmarksDao,
+    private val deleteImage: (String) -> Unit = {},
 ) {
 
     fun getAll() = offlineVideosDao.getAll()
@@ -47,7 +47,7 @@ class OfflineVideosRepository(
             if (id.isNotBlank() && offlineVideosDao.getByVideoId(id).none { it.id != video.id } && bookmarksDao.getByVideoId(id) == null) {
                 video.thumbnail?.let {
                     if (it.isNotBlank()) {
-                        File(it).delete()
+                        deleteImage(it)
                     }
                 }
             }
@@ -56,7 +56,7 @@ class OfflineVideosRepository(
             if (id.isNotBlank() && getByUserId(id).none { it.id != video.id } && bookmarksDao.getByUserId(id).isEmpty()) {
                 video.channelLogo?.let {
                     if (it.isNotBlank()) {
-                        File(it).delete()
+                        deleteImage(it)
                     }
                 }
             }

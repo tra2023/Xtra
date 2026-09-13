@@ -199,13 +199,13 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
             } else {
                 teamName.visibility = View.GONE
             }
-            if (team.memberCount != null) {
+            val memberCount = team.memberCount
+            if (memberCount != null) {
                 teamMembers.visibility = View.VISIBLE
-                val count = team.memberCount
                 teamMembers.text = resources.getQuantityString(
                     R.plurals.members,
-                    count,
-                    TwitchApiHelper.formatCount(count, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true))
+                    memberCount,
+                    TwitchApiHelper.formatCount(memberCount, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true))
                 )
                 if (team.bannerUrl != null) {
                     teamMembers.setTextColor(Color.LTGRAY)
@@ -262,14 +262,15 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
             } else {
                 bannerImage.visibility = View.GONE
             }
-            if (!team.description.isNullOrBlank()) {
+            val description = team.description
+            if (!description.isNullOrBlank()) {
                 teamDescription.visibility = View.VISIBLE
                 val markwon = Markwon.builder(requireContext())
                     .usePlugin(SoftBreakAddsNewLinePlugin.create())
                     .usePlugin(LinkifyPlugin.create())
                     .usePlugin(HeadingFixPlugin())
                     .build()
-                markwon.setMarkdown(teamDescription, team.description)
+                markwon.setMarkdown(teamDescription, description)
                 teamDescription.setOnClickListener {
                     if (teamDescription.maxLines == 3) {
                         teamDescription.maxLines = Int.MAX_VALUE

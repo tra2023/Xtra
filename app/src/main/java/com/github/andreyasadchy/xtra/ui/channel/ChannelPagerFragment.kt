@@ -720,8 +720,9 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
             } else {
                 bannerImage.visibility = View.GONE
             }
-            if (user.createdAt != null) {
-                val text = Instant.parseOrNull(user.createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
+            val createdAt = user.createdAt
+            if (createdAt != null) {
+                val text = Instant.parseOrNull(createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
                     TwitchApiHelper.formatDate(requireContext(), it)
                 }
                 userCreated.visibility = View.VISIBLE
@@ -733,13 +734,13 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
             } else {
                 userCreated.visibility = View.GONE
             }
-            if (user.followerCount != null) {
-                val count = user.followerCount
+            val followerCount = user.followerCount
+            if (followerCount != null) {
                 userFollowers.visibility = View.VISIBLE
                 userFollowers.text = resources.getQuantityString(
                     R.plurals.followers,
-                    count,
-                    TwitchApiHelper.formatCount(count, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true))
+                    followerCount,
+                    TwitchApiHelper.formatCount(followerCount, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true))
                 )
                 if (user.bannerImageURL != null) {
                     userFollowers.setTextColor(Color.LTGRAY)

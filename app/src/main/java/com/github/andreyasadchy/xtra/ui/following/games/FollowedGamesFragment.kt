@@ -43,7 +43,8 @@ class FollowedGamesFragment : PagedListFragment(), Scrollable {
         pagingAdapter = FollowedGamesAdapter(this) {
             findNavController().navigate(
                 GamesFragmentDirections.actionGlobalGamesFragment(
-                    tags = arrayOf(it)
+                    tagIds = listOfNotNull(it.id).toTypedArray(),
+                    tagNames = listOfNotNull(it.name).toTypedArray(),
                 )
             )
         }

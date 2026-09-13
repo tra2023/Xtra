@@ -1,5 +1,8 @@
 package com.github.andreyasadchy.xtra.model.ui
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 class Team(
     val displayName: String? = null,
     val description: String? = null,

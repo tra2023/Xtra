@@ -315,8 +315,9 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
             } else {
                 userName.visibility = View.GONE
             }
-            if (user.createdAt != null) {
-                val text = Instant.parseOrNull(user.createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
+            val createdAt = user.createdAt
+            if (createdAt != null) {
+                val text = Instant.parseOrNull(createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
                     TwitchApiHelper.formatDate(requireContext(), it)
                 }
                 userLayout.visibility = View.VISIBLE

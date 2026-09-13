@@ -113,7 +113,7 @@ class XtraModule(application: Application) {
     }
 
     val offlineVideosRepository by lazy {
-        OfflineVideosRepository(database.offlineVideos(), database.bookmarks())
+        OfflineVideosRepository(database.offlineVideos(), database.bookmarks(), deleteImage = { java.io.File(it).delete() })
     }
 
     val playerRepository by lazy {
