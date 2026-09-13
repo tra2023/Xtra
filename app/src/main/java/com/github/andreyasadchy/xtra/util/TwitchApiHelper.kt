@@ -4,22 +4,17 @@ import android.content.Context
 import android.icu.number.Notation
 import android.icu.number.NumberFormatter
 import android.icu.number.Precision
-import android.icu.text.CompactDecimalFormat
-import android.os.Build
 import android.text.format.DateUtils
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.repository.TwitchHeaders
 import java.math.RoundingMode
 import java.text.NumberFormat
-import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.Year
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 
 object TwitchApiHelper {
@@ -105,22 +100,11 @@ object TwitchApiHelper {
     }
 
     fun getMinutesLeft(hour: Int, minute: Int): Int {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val currentDate = LocalDateTime.ofInstant(Instant.now(), ZoneOffset.systemDefault())
-            val date = currentDate.withHour(hour).withMinute(minute).let {
-                if (it < currentDate) it.plusDays(1) else it
-            }
-            return ChronoUnit.MINUTES.between(currentDate, date).toInt()
-        } else {
-            val currentDate = Calendar.getInstance()
-            val date = Calendar.getInstance()
-            date.set(Calendar.HOUR_OF_DAY, hour)
-            date.set(Calendar.MINUTE, minute)
-            if (date < currentDate) {
-                date.add(Calendar.DAY_OF_YEAR, 1)
-            }
-            return ((date.timeInMillis - currentDate.timeInMillis) / 60000).toInt()
+        val currentDate = LocalDateTime.ofInstant(Instant.now(), ZoneOffset.systemDefault())
+        val date = currentDate.withHour(hour).withMinute(minute).let {
+            if (it < currentDate) it.plusDays(1) else it
         }
+        return ChronoUnit.MINUTES.between(currentDate, date).toInt()
     }
 
     fun getTimestamp(input: Long, timestampFormat: String?): String? {
@@ -135,77 +119,32 @@ object TwitchApiHelper {
             else -> "hh:mm:ss a"
         }
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val date = LocalDateTime.ofInstant(Instant.ofEpochMilli(input), ZoneOffset.systemDefault())
-                DateTimeFormatter.ofPattern(pattern).format(date)
-            } else {
-                val format = SimpleDateFormat(pattern, Locale.getDefault())
-                format.format(Date(input))
-            }
+            val date = LocalDateTime.ofInstant(Instant.ofEpochMilli(input), ZoneOffset.systemDefault())
+            DateTimeFormatter.ofPattern(pattern).format(date)
         } catch (e: Exception) {
             null
         }
     }
 
     fun formatDate(context: Context, time: Long): String {
-        val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val currentYear = Year.now().value
-            val year = LocalDateTime.ofInstant(Instant.ofEpochMilli(time), ZoneOffset.UTC).year
-            if (year == currentYear) {
-                DateUtils.FORMAT_NO_YEAR
-            } else {
-                DateUtils.FORMAT_SHOW_DATE
-            }
+        val currentYear = Year.now().value
+        val year = LocalDateTime.ofInstant(Instant.ofEpochMilli(time), ZoneOffset.UTC).year
+        val format = if (year == currentYear) {
+            DateUtils.FORMAT_NO_YEAR
         } else {
-            val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-            val year = Calendar.getInstance().let {
-                it.timeInMillis = time
-                it.get(Calendar.YEAR)
-            }
-            if (year == currentYear) {
-                DateUtils.FORMAT_NO_YEAR
-            } else {
-                DateUtils.FORMAT_SHOW_DATE
-            }
+            DateUtils.FORMAT_SHOW_DATE
         }
         return DateUtils.formatDateTime(context, time, format)
     }
 
     fun formatCount(count: Int, compact: Boolean): String {
         return if (compact) {
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
-                    NumberFormatter.withLocale(Locale.getDefault())
-                        .notation(Notation.compactShort())
-                        .precision(Precision.maxFraction(1))
-                        .roundingMode(RoundingMode.DOWN)
-                        .format(count)
-                        .toString()
-                }
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.N -> {
-                    val format = CompactDecimalFormat.getInstance(Locale.getDefault(), CompactDecimalFormat.CompactStyle.SHORT)
-                    format.maximumFractionDigits = 1
-                    format.roundingMode = RoundingMode.DOWN.ordinal
-                    format.format(count)
-                }
-                else -> {
-                    if (count > 1000) {
-                        val divider: Int
-                        val suffix = if (count.toString().length < 7) {
-                            divider = 1000
-                            "K"
-                        } else {
-                            divider = 1_000_000
-                            "M"
-                        }
-                        val truncated = count / (divider / 10)
-                        val hasDecimal = truncated / 10.0 != (truncated / 10).toDouble()
-                        if (hasDecimal) "${truncated / 10.0}$suffix" else "${truncated / 10}$suffix"
-                    } else {
-                        count.toString()
-                    }
-                }
-            }
+            NumberFormatter.withLocale(Locale.getDefault())
+                .notation(Notation.compactShort())
+                .precision(Precision.maxFraction(1))
+                .roundingMode(RoundingMode.DOWN)
+                .format(count)
+                .toString()
         } else {
             NumberFormat.getInstance().format(count)
         }

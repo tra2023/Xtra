@@ -6,7 +6,6 @@ import android.app.Dialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.DocumentsContract
@@ -452,9 +451,7 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                             putBoolean(C.DOWNLOAD_CHAT_EMOTES, downloadChatEmotes)
                         }
                         directoryResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                putExtra(DocumentsContract.EXTRA_INITIAL_URI, sharedPath)
-                            }
+                            putExtra(DocumentsContract.EXTRA_INITIAL_URI, sharedPath)
                         })
                     }
                     radioGroup.removeAllViews()
@@ -635,8 +632,7 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                         putBoolean(C.DOWNLOAD_CHAT, downloadChat)
                         putBoolean(C.DOWNLOAD_CHAT_EMOTES, downloadChatEmotes)
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        ActivityCompat.checkSelfPermission(requireActivity(), Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+                    if (ActivityCompat.checkSelfPermission(requireActivity(), Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
                         !requireActivity().prefs().getBoolean(C.DOWNLOAD_NOTIFICATION_REQUESTED, false)) {
                         requireActivity().prefs().edit { putBoolean(C.DOWNLOAD_NOTIFICATION_REQUESTED, true) }
                         val activity = requireActivity()

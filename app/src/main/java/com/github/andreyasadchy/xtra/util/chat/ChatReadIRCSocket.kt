@@ -1,6 +1,5 @@
 package com.github.andreyasadchy.xtra.util.chat
 
-import android.os.Build
 import com.github.andreyasadchy.xtra.socket.IrcLineEvent
 import com.github.andreyasadchy.xtra.socket.IrcRouter
 import kotlinx.coroutines.Dispatchers
@@ -13,15 +12,12 @@ import java.io.BufferedWriter
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.Socket
-import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocketFactory
-import javax.net.ssl.X509TrustManager
 import kotlin.time.Duration.Companion.seconds
 
 class ChatReadIRCSocket(
     private val useSSL: Boolean,
     private val channelLogin: String,
-    private val trustManager: Lazy<X509TrustManager>,
     private val listener: ChatReadWebSocket.Listener,
 ) {
     private var socket: Socket? = null
@@ -67,15 +63,7 @@ class ChatReadIRCSocket(
 
     private suspend fun connect() = withContext(Dispatchers.IO) {
         socket = if (useSSL) {
-            val socketFactory = when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> SSLSocketFactory.getDefault()
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.N -> SSLContext.getDefault().socketFactory
-                else -> {
-                    val sslContext = SSLContext.getInstance("TLSv1.3")
-                    sslContext.init(null, arrayOf(trustManager.value), null)
-                    sslContext.socketFactory
-                }
-            }
+            val socketFactory = SSLSocketFactory.getDefault()
             socketFactory.createSocket("irc.twitch.tv", 6697)
         } else {
             Socket("irc.twitch.tv", 6667)

@@ -21,7 +21,6 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.Binder
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -147,44 +146,28 @@ class MediaPlayerService : BasePlaybackService() {
                 override fun onSkipToNext() {
                     player?.let { player ->
                         val position = player.currentPosition + fastForwardMs
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                        } else {
-                            player.seekTo(position.toInt())
-                        }
+                        player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
                     }
                 }
 
                 override fun onSkipToPrevious() {
                     player?.let { player ->
                         val position = player.currentPosition - rewindMs
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                        } else {
-                            player.seekTo(position.toInt())
-                        }
+                        player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
                     }
                 }
 
                 override fun onFastForward() {
                     player?.let { player ->
                         val position = player.currentPosition + fastForwardMs
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                        } else {
-                            player.seekTo(position.toInt())
-                        }
+                        player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
                     }
                 }
 
                 override fun onRewind() {
                     player?.let { player ->
                         val position = player.currentPosition - rewindMs
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                        } else {
-                            player.seekTo(position.toInt())
-                        }
+                        player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
                     }
                 }
 
@@ -198,11 +181,7 @@ class MediaPlayerService : BasePlaybackService() {
 
                 override fun onSeekTo(pos: Long) {
                     player?.let { player ->
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            player.seekTo(pos, MediaPlayer.SEEK_CLOSEST)
-                        } else {
-                            player.seekTo(pos.toInt())
-                        }
+                        player.seekTo(pos, MediaPlayer.SEEK_CLOSEST)
                     }
                 }
 
@@ -220,19 +199,11 @@ class MediaPlayerService : BasePlaybackService() {
                         when (action) {
                             INTENT_REWIND -> {
                                 val position = player.currentPosition - rewindMs
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                                } else {
-                                    player.seekTo(position.toInt())
-                                }
+                                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
                             }
                             INTENT_FAST_FORWARD -> {
                                 val position = player.currentPosition + fastForwardMs
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                                } else {
-                                    player.seekTo(position.toInt())
-                                }
+                                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
                             }
                         }
                     }
@@ -244,33 +215,20 @@ class MediaPlayerService : BasePlaybackService() {
                         true
                     } else {
                         if (mediaButtonIntent.action == Intent.ACTION_MEDIA_BUTTON) {
-                            val keyEvent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
-                            } else {
-                                @Suppress("DEPRECATION")
-                                mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
-                            }
+                            val keyEvent = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
                             if (keyEvent != null && keyEvent.action == KeyEvent.ACTION_DOWN) {
                                 when (keyEvent.keyCode) {
                                     KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
                                         player?.let { player ->
                                             val position = player.currentPosition - rewindMs
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                                            } else {
-                                                player.seekTo(position.toInt())
-                                            }
+                                            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
                                         }
                                         true
                                     }
                                     KeyEvent.KEYCODE_MEDIA_NEXT -> {
                                         player?.let { player ->
                                             val position = player.currentPosition + fastForwardMs
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                                            } else {
-                                                player.seekTo(position.toInt())
-                                            }
+                                            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
                                         }
                                         true
                                     }
@@ -293,11 +251,7 @@ class MediaPlayerService : BasePlaybackService() {
             )
             player.setOnPreparedListener { player ->
                 seekPosition?.let {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        player?.seekTo(it, MediaPlayer.SEEK_CLOSEST)
-                    } else {
-                        player?.seekTo(it.toInt())
-                    }
+                    player?.seekTo(it, MediaPlayer.SEEK_CLOSEST)
                     seekPosition = null
                 }
                 if (startPlayer) {
@@ -339,42 +293,26 @@ class MediaPlayerService : BasePlaybackService() {
                 return@setOnErrorListener true
             }
             val wifiManager = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
-            wifiLock = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "MediaPlayer:WifiLock")
-            } else {
-                @Suppress("DEPRECATION")
-                wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MediaPlayer:WifiLock")
-            }
+            wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "MediaPlayer:WifiLock")
             wifiLock?.acquire()
             val session = MediaSession(this, "MediaPlayerService")
             this.session = session
             session.setCallback(sessionCallback)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                try {
-                    session.setMediaButtonBroadcastReceiver(ComponentName(this, MediaButtonReceiver::class.java))
-                } catch (e: IllegalArgumentException) {
-                    // https://github.com/androidx/media/issues/1730
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                session.setMediaButtonReceiver(
-                    PendingIntent.getBroadcast(this, 0, Intent(Intent.ACTION_MEDIA_BUTTON).setClass(this, MediaButtonReceiver::class.java), PendingIntent.FLAG_MUTABLE)
-                )
+            try {
+                session.setMediaButtonBroadcastReceiver(ComponentName(this, MediaButtonReceiver::class.java))
+            } catch (e: IllegalArgumentException) {
+                // https://github.com/androidx/media/issues/1730
             }
             session.isActive = true
             notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             val channelId = getString(R.string.notification_playback_channel_id)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && notificationManager?.getNotificationChannel(channelId) == null) {
+            if (notificationManager?.getNotificationChannel(channelId) == null) {
                 notificationManager?.createNotificationChannel(
                     NotificationChannel(
                         channelId,
                         ContextCompat.getString(this, R.string.notification_playback_channel_title),
                         NotificationManager.IMPORTANCE_LOW
-                    ).apply {
-                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-                            setShowBadge(false)
-                        }
-                    }
+                    )
                 )
             }
             start(restorePauseState)
@@ -1169,17 +1107,7 @@ class MediaPlayerService : BasePlaybackService() {
                             } else {
                                 it
                             }.let {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                    (it or PlaybackState.ACTION_PREPARE).let {
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                            it or PlaybackState.ACTION_SET_PLAYBACK_SPEED
-                                        } else {
-                                            it
-                                        }
-                                    }
-                                } else {
-                                    it
-                                }
+                                (it or PlaybackState.ACTION_PREPARE) or PlaybackState.ACTION_SET_PLAYBACK_SPEED
                             }
                         }
                     )
@@ -1290,12 +1218,7 @@ class MediaPlayerService : BasePlaybackService() {
 
     private fun sendNotification(bitmap: Bitmap?) {
         player?.let { player ->
-            val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Notification.Builder(this, getString(R.string.notification_playback_channel_id))
-            } else {
-                @Suppress("DEPRECATION")
-                Notification.Builder(this)
-            }.apply {
+            val notification = Notification.Builder(this, getString(R.string.notification_playback_channel_id)).apply {
                 setContentTitle(title)
                 setContentText(channelName)
                 setSmallIcon(R.drawable.notification_icon)
@@ -1387,11 +1310,7 @@ class MediaPlayerService : BasePlaybackService() {
                     ).build()
                 )
             }.build()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-            } else {
-                startForeground(NOTIFICATION_ID, notification)
-            }
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         }
     }
 
@@ -1449,27 +1368,25 @@ class MediaPlayerService : BasePlaybackService() {
     }
 
     private fun reinitializeDynamicsProcessing(audioSessionId: Int) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            dynamicsProcessing = DynamicsProcessing(0, audioSessionId, null).apply {
-                for (channelIdx in 0 until channelCount) {
-                    for (bandIdx in 0 until getMbcByChannelIndex(channelIdx).bandCount) {
-                        setMbcBandByChannelIndex(
-                            channelIdx,
-                            bandIdx,
-                            getMbcBandByChannelIndex(channelIdx, bandIdx).apply {
-                                attackTime = 0f
-                                releaseTime = 0.25f
-                                ratio = 1.6f
-                                threshold = -50f
-                                kneeWidth = 40f
-                                preGain = 0f
-                                postGain = 10f
-                            }
-                        )
-                    }
+        dynamicsProcessing = DynamicsProcessing(0, audioSessionId, null).apply {
+            for (channelIdx in 0 until channelCount) {
+                for (bandIdx in 0 until getMbcByChannelIndex(channelIdx).bandCount) {
+                    setMbcBandByChannelIndex(
+                        channelIdx,
+                        bandIdx,
+                        getMbcBandByChannelIndex(channelIdx, bandIdx).apply {
+                            attackTime = 0f
+                            releaseTime = 0.25f
+                            ratio = 1.6f
+                            threshold = -50f
+                            kneeWidth = 40f
+                            preGain = 0f
+                            postGain = 10f
+                        }
+                    )
                 }
-                enabled = true
             }
+            enabled = true
         }
     }
 
@@ -1574,11 +1491,7 @@ class MediaPlayerService : BasePlaybackService() {
                 player?.let { player ->
                     val rewindMs = (prefs().getString(C.PLAYER_REWIND, "10")?.toLongOrNull() ?: 10) * 1000
                     val position = player.currentPosition - rewindMs
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                    } else {
-                        player.seekTo(position.toInt())
-                    }
+                    player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
                 }
             }
             INTENT_PLAY_PAUSE -> {
@@ -1596,11 +1509,7 @@ class MediaPlayerService : BasePlaybackService() {
                 player?.let { player ->
                     val fastForwardMs = (prefs().getString(C.PLAYER_FORWARD, "10")?.toLongOrNull() ?: 10) * 1000
                     val position = player.currentPosition + fastForwardMs
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                    } else {
-                        player.seekTo(position.toInt())
-                    }
+                    player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
                 }
             }
             INTENT_START -> create(restorePauseState = true)

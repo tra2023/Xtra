@@ -12,13 +12,11 @@ import android.content.SharedPreferences
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.Color
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.text.format.Formatter
@@ -35,7 +33,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.core.content.res.use
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import androidx.core.view.ViewCompat
@@ -96,7 +93,6 @@ import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.util.Timer
 import java.util.concurrent.TimeUnit
@@ -589,35 +585,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setNavBarColor(isPortrait: Boolean) {
-        when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
-                window.isNavigationBarContrastEnforced = !isPortrait || !binding.navBarContainer.isVisible
-            }
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> {
-                @Suppress("DEPRECATION")
-                window.navigationBarColor = if (isPortrait && binding.navBarContainer.isVisible) {
-                    Color.TRANSPARENT
-                } else {
-                    val isLightTheme = obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
-                        it.getBoolean(0, false)
-                    }
-                    ContextCompat.getColor(this, if (!isLightTheme) R.color.darkScrim else R.color.lightScrim)
-                }
-            }
-            else -> {
-                val isLightTheme = obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
-                    it.getBoolean(0, false)
-                }
-                @Suppress("DEPRECATION")
-                if (!isLightTheme) {
-                    window.navigationBarColor = if (isPortrait && binding.navBarContainer.isVisible) {
-                        Color.TRANSPARENT
-                    } else {
-                        ContextCompat.getColor(this, R.color.darkScrim)
-                    }
-                }
-            }
-        }
+        window.isNavigationBarContrastEnforced = !isPortrait || !binding.navBarContainer.isVisible
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -655,22 +623,6 @@ class MainActivity : AppCompatActivity() {
             },
             ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle()
         )
-    }
-
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S &&
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
-            prefs.getBoolean(C.PLAYER_PICTURE_IN_PICTURE, true) &&
-            (playerFragment as? PlayerFragment)?.canEnterPictureInPicture() == true
-        ) {
-            try {
-                enterPictureInPictureMode(PictureInPictureParams.Builder().build())
-            } catch (e: IllegalStateException) {
-                //device doesn't support PIP
-            }
-        }
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -801,12 +753,7 @@ class MainActivity : AppCompatActivity() {
             INTENT_INSTALL_UPDATE -> {
                 val extras = intent.extras
                 if (extras?.getInt(PackageInstaller.EXTRA_STATUS) == PackageInstaller.STATUS_PENDING_USER_ACTION) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        extras.getParcelable(Intent.EXTRA_INTENT, Intent::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        extras.getParcelable(Intent.EXTRA_INTENT)
-                    }?.let {
+                    extras.getParcelable(Intent.EXTRA_INTENT, Intent::class.java)?.let {
                         tokenPrefs().edit {
                             putLong(C.UPDATE_LAST_CHECKED, System.currentTimeMillis())
                         }
@@ -984,8 +931,7 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.playerContainer, fragment).commit()
         viewModel.isPlayerOpened = true
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
+        if (packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
             prefs.getBoolean(C.PLAYER_PICTURE_IN_PICTURE, true)
         ) {
             setPictureInPictureParams(PictureInPictureParams.Builder().setAutoEnterEnabled(true).build())
@@ -999,7 +945,7 @@ class MainActivity : AppCompatActivity() {
             .commit()
         playerFragment = null
         viewModel.isPlayerOpened = false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+        if (packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
             setPictureInPictureParams(PictureInPictureParams.Builder().setAutoEnterEnabled(false).build())
         }
         viewModel.sleepTimer?.cancel()
@@ -1038,7 +984,7 @@ class MainActivity : AppCompatActivity() {
                                 if ((getSystemService(POWER_SERVICE) as PowerManager).isInteractive) {
                                     try {
                                         (getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager).lockNow()
-                                    } catch (e: SecurityException) {
+                                    } catch (_: SecurityException) {
 
                                     }
                                 }
@@ -1073,10 +1019,6 @@ class MainActivity : AppCompatActivity() {
 
     fun downloadClip(filesDir: String, clipId: String?, title: String?, createdAt: String?, durationSeconds: Int?, videoId: String?, videoOffsetSeconds: Int?, videoCreatedAt: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, url: String, downloadPath: String, quality: String, downloadChat: Boolean, downloadChatEmotes: Boolean, wifiOnly: Boolean) {
         viewModel.downloadClip(filesDir, clipId, title, createdAt, durationSeconds, videoId, videoOffsetSeconds, videoCreatedAt, channelId, channelLogin, channelName, channelImage, thumbnail, gameId, gameSlug, gameName, url, downloadPath, quality, downloadChat, downloadChatEmotes, wifiOnly)
-    }
-
-    fun popFragment() {
-        navController.navigateUp()
     }
 
     private fun initNavigation() {
@@ -1195,9 +1137,7 @@ class MainActivity : AppCompatActivity() {
                     putString(C.PORTRAIT_COLUMN_COUNT, "2")
                     putString(C.LANDSCAPE_COLUMN_COUNT, "3")
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    putString(C.THEME, "4")
-                }
+                putString(C.THEME, "4")
             }
         }
         if (version < 3) {
@@ -1258,9 +1198,6 @@ class MainActivity : AppCompatActivity() {
         }
         if (version < 9) {
             prefs.edit {
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-                    putBoolean(C.CHAT_USE_WEBP, false)
-                }
                 putInt(C.SETTINGS_VERSION, 9)
             }
         }

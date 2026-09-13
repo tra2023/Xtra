@@ -8,9 +8,7 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.text.InputType
 import android.text.format.Formatter
 import android.util.TypedValue
@@ -320,19 +318,14 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
             findPreference<SwitchPreferenceCompat>(C.UI_DRAW_BEHIND_CUTOUTS)?.apply {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    setOnPreferenceChangeListener { _, _ ->
-                        (requireActivity() as? SettingsActivity)?.changed = true
-                        requireActivity().recreate()
-                        true
-                    }
-                } else {
-                    isVisible = false
+                setOnPreferenceChangeListener { _, _ ->
+                    (requireActivity() as? SettingsActivity)?.changed = true
+                    requireActivity().recreate()
+                    true
                 }
             }
             findPreference<SwitchPreferenceCompat>("live_notifications_enabled")?.setOnPreferenceChangeListener { _, newValue ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ActivityCompat.checkSelfPermission(requireActivity(), Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                if (ActivityCompat.checkSelfPermission(requireActivity(), Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                 ) {
                     ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
                 }
@@ -358,7 +351,7 @@ class SettingsActivity : AppCompatActivity() {
                 findNavController().navigate(SettingsNavGraphDirections.actionGlobalChatSettingsFragment())
                 true
             }
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            if (!requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                 findPreference<SwitchPreferenceCompat>(C.PLAYER_PICTURE_IN_PICTURE)?.isVisible = false
             }
             findPreference<Preference>("player_settings")?.setOnPreferenceClickListener {
@@ -453,20 +446,6 @@ class SettingsActivity : AppCompatActivity() {
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
                     viewModel.updateUrl.collectLatest {
                         if (it != null) {
-                            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
-                                !requireContext().prefs().getBoolean(C.UPDATE_USE_BROWSER, false) &&
-                                !requireContext().packageManager.canRequestPackageInstalls()
-                            ) {
-                                try {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                        "package:${requireContext().packageName}".toUri()
-                                    )
-                                    startActivity(intent)
-                                } catch (e: ActivityNotFoundException) {
-
-                                }
-                            }
                             requireActivity().getAlertDialogBuilder()
                                 .setTitle(getString(R.string.update_available))
                                 .setMessage(getString(R.string.update_message))
@@ -548,20 +527,6 @@ class SettingsActivity : AppCompatActivity() {
     class ThemeSettingsFragment : MaterialPreferenceFragment() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.theme_preferences, rootKey)
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                findPreference<ListPreference>(C.THEME)?.apply {
-                    setEntries(R.array.themeNoDynamicEntries)
-                    setEntryValues(R.array.themeNoDynamicValues)
-                }
-                findPreference<ListPreference>(C.UI_THEME_DARK_ON)?.apply {
-                    setEntries(R.array.themeNoDynamicEntries)
-                    setEntryValues(R.array.themeNoDynamicValues)
-                }
-                findPreference<ListPreference>(C.UI_THEME_DARK_OFF)?.apply {
-                    setEntries(R.array.themeNoDynamicEntries)
-                    setEntryValues(R.array.themeNoDynamicValues)
-                }
-            }
             val changeListener = Preference.OnPreferenceChangeListener { _, _ ->
                 (requireActivity() as? SettingsActivity)?.changed = true
                 requireActivity().recreate()
@@ -918,12 +883,9 @@ class SettingsActivity : AppCompatActivity() {
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.player_preferences, rootKey)
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            if (!requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                 findPreference<SwitchPreferenceCompat>(C.PLAYER_BACKGROUND_AUDIO_PIP_CLOSED)?.isVisible = false
                 findPreference<SwitchPreferenceCompat>(C.PLAYER_BACKGROUND_AUDIO_PIP_LOCKED)?.isVisible = false
-            }
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                findPreference<SwitchPreferenceCompat>(C.PLAYER_ROUNDED_CORNER_PADDING)?.isVisible = false
             }
             findPreference<Preference>("delete_video_positions")?.setOnPreferenceClickListener {
                 requireActivity().getAlertDialogBuilder()
@@ -987,9 +949,6 @@ class SettingsActivity : AppCompatActivity() {
             findPreference<Preference>("admin_settings")?.setOnPreferenceClickListener {
                 startActivity(Intent().setComponent(ComponentName("com.android.settings", "com.android.settings.DeviceAdminSettings")))
                 true
-            }
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-                findPreference<SwitchPreferenceCompat>(C.PLAYER_AUDIO_COMPRESSOR_BUTTON)?.isVisible = false
             }
             findPreference<Preference>("player_menu_settings")?.setOnPreferenceClickListener {
                 requireActivity().findViewById<AppBarLayout>(R.id.appBar)?.setExpanded(true)
@@ -1289,48 +1248,12 @@ class SettingsActivity : AppCompatActivity() {
     class UpdateSettingsFragment : MaterialPreferenceFragment() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.update_preferences, rootKey)
-            findPreference<SwitchPreferenceCompat>("update_check_enabled")?.setOnPreferenceChangeListener { _, newValue ->
-                if (Build.VERSION.SDK_INT == Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
-                    newValue == true &&
-                    !requireContext().prefs().getBoolean(C.UPDATE_USE_BROWSER, false) &&
-                    !requireContext().packageManager.canRequestPackageInstalls()
-                ) {
-                    try {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                            "package:${requireContext().packageName}".toUri()
-                        )
-                        startActivity(intent)
-                    } catch (e: ActivityNotFoundException) {
-
-                    }
-                }
-                true
-            }
             findPreference<EditTextPreference>("update_check_frequency")?.apply {
                 summary = getString(R.string.update_check_frequency_summary, text)
                 setOnPreferenceChangeListener { _, newValue ->
                     summary = getString(R.string.update_check_frequency_summary, newValue)
                     true
                 }
-            }
-            findPreference<SwitchPreferenceCompat>("update_use_browser")?.setOnPreferenceChangeListener { _, newValue ->
-                if (Build.VERSION.SDK_INT == Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
-                    newValue == false &&
-                    requireContext().prefs().getBoolean(C.UPDATE_CHECK_ENABLED, false) &&
-                    !requireContext().packageManager.canRequestPackageInstalls()
-                ) {
-                    try {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                            "package:${requireContext().packageName}".toUri()
-                        )
-                        startActivity(intent)
-                    } catch (e: ActivityNotFoundException) {
-
-                    }
-                }
-                true
             }
         }
 

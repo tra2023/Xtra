@@ -7,7 +7,6 @@ import android.content.ServiceConnection
 import android.graphics.Color
 import android.media.MediaPlayer
 import android.media.PlaybackParams
-import android.os.Build
 import android.os.IBinder
 import android.text.format.DateUtils
 import android.view.SurfaceHolder
@@ -316,11 +315,7 @@ class MediaPlayerFragment : PlayerFragment() {
         playbackService?.player?.let { player ->
             val rewindMs = (requireContext().prefs().getString(C.PLAYER_REWIND, "10")?.toLongOrNull() ?: 10) * 1000
             val position = player.currentPosition - rewindMs
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-            } else {
-                player.seekTo(position.toInt())
-            }
+            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
         }
     }
 
@@ -328,20 +323,12 @@ class MediaPlayerFragment : PlayerFragment() {
         playbackService?.player?.let { player ->
             val fastForwardMs = (requireContext().prefs().getString(C.PLAYER_FORWARD, "10")?.toLongOrNull() ?: 10) * 1000
             val position = player.currentPosition + fastForwardMs
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-            } else {
-                player.seekTo(position.toInt())
-            }
+            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
         }
     }
 
     override fun seek(position: Long) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            playbackService?.player?.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-        } else {
-            playbackService?.player?.seekTo(position.toInt())
-        }
+        playbackService?.player?.seekTo(position, MediaPlayer.SEEK_CLOSEST)
     }
 
     override fun setPlaybackSpeed(speed: Float) {
@@ -434,11 +421,7 @@ class MediaPlayerFragment : PlayerFragment() {
     override fun onStop() {
         super.onStop()
         if (playbackService != null) {
-            val isInPIPMode = when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> requireActivity().isInPictureInPictureMode
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> !useController && isMaximized
-                else -> false
-            }
+            val isInPIPMode = requireActivity().isInPictureInPictureMode
             playbackService?.stop(isInPIPMode)
             playbackService?.setSleepTimer((activity as? MainActivity)?.getSleepTimerTimeLeft() ?: 0)
             playbackService?.setStopServiceTimer(true)

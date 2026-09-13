@@ -1,15 +1,11 @@
 package com.github.andreyasadchy.xtra.ui.settings
 
-import android.content.Context
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
 import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -39,8 +35,6 @@ class VideoSwapSettingsFragment : Fragment() {
     private var _binding: FragmentProxySettingsBinding? = null
     private val binding get() = _binding!!
     private val viewModel: VideoSwapSettingsViewModel by viewModels { VideoSwapSettingsViewModelFactory }
-    private var mEditText: EditText? = null
-    private val mShowSoftInputRunnable = Runnable { scheduleShowSoftInputInner() }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentProxySettingsBinding.inflate(inflater, container, false)
@@ -179,12 +173,7 @@ class VideoSwapSettingsFragment : Fragment() {
             val string = item.platform ?: ""
             text.replace(0, length(), string, 0, string.length)
             if (requestFocus()) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    dialog.window?.decorView?.windowInsetsController?.show(WindowInsets.Type.ime())
-                } else {
-                    mEditText = this
-                    scheduleShowSoftInputInner()
-                }
+                dialog.window?.decorView?.windowInsetsController?.show(WindowInsets.Type.ime())
             }
         }
         binding.playerTypeInput.editText?.apply {
@@ -204,18 +193,6 @@ class VideoSwapSettingsFragment : Fragment() {
             }
         }
         dialog.show()
-    }
-
-    private fun scheduleShowSoftInputInner() {
-        mEditText?.let { mEditText ->
-            if (mEditText.isFocused) {
-                val imm = mEditText.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                if (!imm.showSoftInput(mEditText, 0)) {
-                    mEditText.removeCallbacks(mShowSoftInputRunnable)
-                    mEditText.postDelayed(mShowSoftInputRunnable, 50)
-                }
-            }
-        }
     }
 
     override fun onDestroyView() {

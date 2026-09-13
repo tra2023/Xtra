@@ -11,7 +11,6 @@ import android.graphics.drawable.Icon
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Binder
-import android.os.Build
 import android.os.IBinder
 import android.provider.DocumentsContract
 import android.util.Base64
@@ -123,7 +122,7 @@ class StreamDownloadService : LifecycleService() {
                     })
                     notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                     val channelId = getString(R.string.notification_downloads_channel_id)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && notificationManager?.getNotificationChannel(channelId) == null) {
+                    if (notificationManager?.getNotificationChannel(channelId) == null) {
                         notificationManager?.createNotificationChannel(
                             NotificationChannel(
                                 channelId,
@@ -1328,12 +1327,7 @@ class StreamDownloadService : LifecycleService() {
     }
 
     private fun sendNotification(offlineVideo: OfflineVideo, downloadProgress: DownloadProgress) {
-        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, getString(R.string.notification_downloads_channel_id))
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }.apply {
+        val notification = Notification.Builder(this, getString(R.string.notification_downloads_channel_id)).apply {
             setContentTitle(ContextCompat.getString(this@StreamDownloadService, if (downloadProgress.isLive) {
                 R.string.downloading
             } else {
@@ -1372,11 +1366,7 @@ class StreamDownloadService : LifecycleService() {
             )
         }.build()
         if (downloadProgress == activeDownloads.firstOrNull()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(offlineVideo.id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            } else {
-                startForeground(offlineVideo.id, notification)
-            }
+            startForeground(offlineVideo.id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
             notificationManager?.notify(offlineVideo.id, notification)
         }

@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
-import android.os.Build
 import android.os.IBinder
 import android.text.format.DateUtils
 import android.util.Base64
@@ -545,11 +544,7 @@ class ExoPlayerFragment : PlayerFragment() {
     override fun onStop() {
         super.onStop()
         if (playbackService != null) {
-            val isInPIPMode = when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> requireActivity().isInPictureInPictureMode
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> !useController && isMaximized
-                else -> false
-            }
+            val isInPIPMode = requireActivity().isInPictureInPictureMode
             playbackService?.stop(isInPIPMode)
             playbackService?.setSleepTimer((activity as? MainActivity)?.getSleepTimerTimeLeft() ?: 0)
             playbackService?.setStopServiceTimer(true)

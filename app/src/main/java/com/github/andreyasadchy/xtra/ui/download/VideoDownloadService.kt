@@ -11,7 +11,6 @@ import android.graphics.drawable.Icon
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Binder
-import android.os.Build
 import android.os.IBinder
 import android.provider.DocumentsContract
 import android.util.Base64
@@ -122,7 +121,7 @@ class VideoDownloadService : LifecycleService() {
                         })
                         notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                         val channelId = getString(R.string.notification_downloads_channel_id)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && notificationManager?.getNotificationChannel(channelId) == null) {
+                        if (notificationManager?.getNotificationChannel(channelId) == null) {
                             notificationManager?.createNotificationChannel(
                                 NotificationChannel(
                                     channelId,
@@ -173,12 +172,7 @@ class VideoDownloadService : LifecycleService() {
                             chatOffsetSeconds = downloadProgress.chatOffsetSeconds
                         })
                         if (done) {
-                            val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                Notification.Builder(this@VideoDownloadService, getString(R.string.notification_downloads_channel_id))
-                            } else {
-                                @Suppress("DEPRECATION")
-                                Notification.Builder(this@VideoDownloadService)
-                            }.apply {
+                            val notification = Notification.Builder(this@VideoDownloadService, getString(R.string.notification_downloads_channel_id)).apply {
                                 setContentTitle(ContextCompat.getString(this@VideoDownloadService, R.string.downloaded))
                                 setContentText(offlineVideo.name)
                                 setSmallIcon(android.R.drawable.stat_sys_download_done)
@@ -1288,12 +1282,7 @@ class VideoDownloadService : LifecycleService() {
     }
 
     private fun sendNotification(offlineVideo: OfflineVideo, downloadProgress: DownloadProgress, paused: Boolean = false) {
-        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, getString(R.string.notification_downloads_channel_id))
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }.apply {
+        val notification = Notification.Builder(this, getString(R.string.notification_downloads_channel_id)).apply {
             setContentTitle(ContextCompat.getString(this@VideoDownloadService, R.string.downloading))
             setContentText(offlineVideo.name)
             setSmallIcon(android.R.drawable.stat_sys_download)
@@ -1362,11 +1351,7 @@ class VideoDownloadService : LifecycleService() {
             )
         }.build()
         if (downloadProgress == activeDownloads.firstOrNull()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(offlineVideo.id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            } else {
-                startForeground(offlineVideo.id, notification)
-            }
+            startForeground(offlineVideo.id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
             notificationManager?.notify(offlineVideo.id, notification)
         }

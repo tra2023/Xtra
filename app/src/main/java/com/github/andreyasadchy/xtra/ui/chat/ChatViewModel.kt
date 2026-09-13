@@ -65,7 +65,6 @@ import java.util.Timer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.DeflaterOutputStream
 import java.util.zip.InflaterOutputStream
-import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.scheduleAtFixedRate
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -75,7 +74,6 @@ class ChatViewModel(
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
     private val playerRepository: PlayerRepository,
-    private val trustManager: Lazy<X509TrustManager>,
     private val json: Json,
 ) : ViewModel() {
 
@@ -1023,7 +1021,7 @@ class ChatViewModel(
                 }
             } else {
                 val useSSL = applicationContext.prefs().getBoolean(C.CHAT_USE_SSL, true)
-                chatReadIRCSocket = ChatReadIRCSocket(useSSL, channelLogin, trustManager, ChatReadListener(channelLogin, nameDisplay, showUserNotice, showClearMsg, showClearChat, usePubSub, isLoggedIn, accountId, channelId))
+                chatReadIRCSocket = ChatReadIRCSocket(useSSL, channelLogin, ChatReadListener(channelLogin, nameDisplay, showUserNotice, showClearMsg, showClearChat, usePubSub, isLoggedIn, accountId, channelId))
                 chatReadJob = viewModelScope.launch(Dispatchers.IO) {
                     chatReadIRCSocket?.start()
                 }
@@ -1033,7 +1031,6 @@ class ChatViewModel(
                         userLogin = accountLogin,
                         userToken = gqlToken?.takeIf { it.isNotBlank() } ?: helixToken,
                         channelLogin = channelLogin,
-                        trustManager = trustManager,
                         listener = ChatWriteListener(channelId, showWebSocketDebugInfo)
                     )
                     chatWriteJob = viewModelScope.launch(Dispatchers.IO) {
@@ -3162,7 +3159,7 @@ class ChatViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                ChatViewModel(application.applicationContext, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.trustManager, xtraModule.json)
+                ChatViewModel(application.applicationContext, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.json)
             }
         }
     }
