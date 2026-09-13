@@ -1,8 +1,5 @@
 package com.github.andreyasadchy.xtra.repository
 
-import android.util.Base64
-import androidx.core.net.toUri
-import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.db.PlaybackStatesDao
 import com.github.andreyasadchy.xtra.db.RecentEmotesDao
 import com.github.andreyasadchy.xtra.db.VideoPositionsDao
@@ -26,28 +23,28 @@ import com.github.andreyasadchy.xtra.model.misc.STVChannelResponse
 import com.github.andreyasadchy.xtra.model.misc.STVEmoteSetResponse
 import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONException
-import org.json.JSONObject
+import kotlin.io.encoding.Base64
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.uuid.Uuid
 
 class PlayerRepository(
-    private val okHttpClient: Lazy<OkHttpClient>,
+    private val httpClient: XtraHttpClient,
     private val json: Json,
+    private val userAgent: String,
     private val recentEmotes: RecentEmotesDao,
     private val videoSwapDao: VideoSwapDao,
     private val videoPositions: VideoPositionsDao,
@@ -55,6 +52,45 @@ class PlayerRepository(
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
 ) {
+
+    private suspend fun httpGet(url: String, headers: Map<String, String> = emptyMap()): String {
+        return httpClient.execute(
+            XtraHttpRequest(
+                method = XtraHttpRequest.GET,
+                url = url,
+                headers = headers,
+            )
+        ).bodyAsString()
+    }
+
+    private fun userAgentHeaders(extra: Map<String, String> = emptyMap()): Map<String, String> {
+        return extra + ("User-Agent" to userAgent)
+    }
+
+    private fun buildUrl(base: String, params: List<Pair<String, String?>>): String {
+        val query = params
+            .filter { !it.second.isNullOrBlank() }
+            .joinToString("&") { (key, value) -> "${encodeQueryComponent(key)}=${encodeQueryComponent(value!!)}" }
+        return if (query.isEmpty()) base else "$base?$query"
+    }
+
+    private fun encodeQueryComponent(value: String): String = buildString {
+        for (char in value) {
+            if (char in 'a'..'z' || char in 'A'..'Z' || char in '0'..'9' || char == '-' || char == '_' || char == '.' || char == '~') {
+                append(char)
+            } else {
+                for (byte in char.toString().toByteArray()) {
+                    append('%')
+                    append(HEX_DIGITS[(byte.toInt() shr 4) and 0xF])
+                    append(HEX_DIGITS[byte.toInt() and 0xF])
+                }
+            }
+        }
+    }
+
+    companion object {
+        private const val HEX_DIGITS = "0123456789ABCDEF"
+    }
 
     suspend fun loadStreamPlaylistUrl(gqlHeaders: Map<String, String>, channelLogin: String, platform: String?, playerType: String?, supportedCodecs: String?, enableIntegrity: Boolean): String = withContext(Dispatchers.IO) {
         val platform = platform?.takeIf { it.isNotBlank() } ?: "web"
@@ -66,19 +102,20 @@ class PlayerRepository(
         }
         val signature = accessToken.first
         val token = accessToken.second
-        "https://usher.ttvnw.net/api/v2/channel/hls/${channelLogin}.m3u8".toUri().buildUpon().apply {
-            appendQueryParameter("allow_source", "true")
-            appendQueryParameter("allow_audio_only", "true")
-            appendQueryParameter("fast_bread", "true") // low latency
-            appendQueryParameter("include_unavailable", "true")
-            appendQueryParameter("p", Random.nextInt(9999999).toString())
-            appendQueryParameter("platform", platform)
-            signature?.let { appendQueryParameter("sig", it) }
-            if (!supportedCodecs.isNullOrBlank()) {
-                appendQueryParameter("supported_codecs", supportedCodecs)
-            }
-            token?.let { appendQueryParameter("token", it) }
-        }.build().toString()
+        buildUrl(
+            base = "https://usher.ttvnw.net/api/v2/channel/hls/${channelLogin}.m3u8",
+            params = listOf(
+                "allow_source" to "true",
+                "allow_audio_only" to "true",
+                "fast_bread" to "true", // low latency
+                "include_unavailable" to "true",
+                "p" to Random.nextInt(9999999).toString(),
+                "platform" to platform,
+                "sig" to signature,
+                "supported_codecs" to supportedCodecs?.takeIf { it.isNotBlank() },
+                "token" to token,
+            )
+        )
     }
 
     private suspend fun loadStreamPlaybackAccessToken(gqlHeaders: Map<String, String>, channelLogin: String, platform: String, playerType: String, enableIntegrity: Boolean): Pair<String?, String?> = withContext(Dispatchers.IO) {
@@ -159,33 +196,33 @@ class PlayerRepository(
         val token = accessToken.second
         val backupQualities = mutableListOf<String>()
         token?.let { value ->
-            val json = try {
-                JSONObject(value)
-            } catch (_: JSONException) {
+            val array = try {
+                json.parseToJsonElement(value).jsonObject["chansub"]?.jsonObject?.get("restricted_bitrates")?.jsonArray
+            } catch (_: Exception) {
                 null
             }
-            val array = json?.optJSONObject("chansub")?.optJSONArray("restricted_bitrates")
             if (array != null) {
-                for (i in 0 until array.length()) {
-                    val quality = array.optString(i)
+                for (element in array) {
+                    val quality = if (element is JsonPrimitive && element !is JsonNull) element.content else null
                     if (!quality.isNullOrBlank()) {
                         backupQualities.add(quality)
                     }
                 }
             }
         }
-        val url = "https://usher.ttvnw.net/vod/v2/${videoId}.m3u8".toUri().buildUpon().apply {
-            appendQueryParameter("allow_source", "true")
-            appendQueryParameter("allow_audio_only", "true")
-            appendQueryParameter("include_unavailable", "true")
-            appendQueryParameter("p", Random.nextInt(9999999).toString())
-            appendQueryParameter("platform", "web")
-            signature?.let { appendQueryParameter("sig", it) }
-            if (!supportedCodecs.isNullOrBlank()) {
-                appendQueryParameter("supported_codecs", supportedCodecs)
-            }
-            token?.let { appendQueryParameter("token", it) }
-        }.build().toString()
+        val url = buildUrl(
+            base = "https://usher.ttvnw.net/vod/v2/${videoId}.m3u8",
+            params = listOf(
+                "allow_source" to "true",
+                "allow_audio_only" to "true",
+                "include_unavailable" to "true",
+                "p" to Random.nextInt(9999999).toString(),
+                "platform" to "web",
+                "sig" to signature,
+                "supported_codecs" to supportedCodecs?.takeIf { it.isNotBlank() },
+                "token" to token,
+            )
+        )
         url to backupQualities
     }
 
@@ -205,10 +242,13 @@ class PlayerRepository(
                         } else {
                             index.toString()
                         }
-                        val url = quality.sourceURL.toUri().buildUpon().apply {
-                            appendQueryParameter("sig", accessToken?.signature)
-                            appendQueryParameter("token", accessToken?.value)
-                        }.build().toString()
+                        val url = buildUrl(
+                            base = quality.sourceURL,
+                            params = listOf(
+                                "sig" to accessToken?.signature,
+                                "token" to accessToken?.value,
+                            )
+                        )
                         VideoQuality(name, quality.quality?.toIntOrNull(), quality.frameRate, quality.bitrate, quality.codecs, url)
                     } else null
                 }
@@ -231,10 +271,13 @@ class PlayerRepository(
                         } else {
                             index.toString()
                         }
-                        val url = sourceURL.toUri().buildUpon().apply {
-                            appendQueryParameter("sig", accessToken?.signature)
-                            appendQueryParameter("token", accessToken?.value)
-                        }.build().toString()
+                        val url = buildUrl(
+                            base = sourceURL,
+                            params = listOf(
+                                "sig" to accessToken?.signature,
+                                "token" to accessToken?.value,
+                            )
+                        )
                         VideoQuality(
                             name, qualityValue?.toIntOrNull(), quality.frameRate?.toFloat(), quality.bitrate, quality.codecs, url
                         )
@@ -247,17 +290,13 @@ class PlayerRepository(
     suspend fun sendMinuteWatched(userId: String?, streamId: String?, channelId: String?, channelLogin: String?) = withContext(Dispatchers.IO) {
         val pageResponse = channelLogin?.let {
             val pageUrl = "https://www.twitch.tv/${channelLogin}"
-            okHttpClient.value.newCall(Request.Builder().url(pageUrl).build()).executeAsync().use { response ->
-                        response.body.string()
-                    }
+            httpGet(pageUrl)
         }
         if (!pageResponse.isNullOrBlank()) {
             val settingsRegex = Regex("https://[\\w.]+/config/settings\\.\\w+?\\.js")
             val settingsUrl = settingsRegex.find(pageResponse)?.value
             val settingsResponse = settingsUrl?.let {
-                okHttpClient.value.newCall(Request.Builder().url(settingsUrl).build()).executeAsync().use { response ->
-                            response.body.string()
-                        }
+                httpGet(it)
             }
             if (!settingsResponse.isNullOrBlank()) {
                 val spadeRegex = Regex("\"(?:beacon_url|spade_url)\":\"(.*?)\"")
@@ -272,12 +311,15 @@ class PlayerRepository(
                             put("user_id", userId?.toLong())
                         }
                     }.toString()
-                    val spadeRequest = "data=" + Base64.encodeToString(body.toByteArray(), Base64.NO_WRAP)
-                    okHttpClient.value.newCall(Request.Builder().apply {
-                                url(spadeUrl)
-                                header("Content-Type", "application/x-www-form-urlencoded")
-                                post(spadeRequest.toRequestBody())
-                            }.build()).executeAsync()
+                    val spadeRequest = "data=" + Base64.Default.encode(body.toByteArray())
+                    httpClient.execute(
+                        XtraHttpRequest(
+                            method = XtraHttpRequest.POST,
+                            url = spadeUrl,
+                            headers = mapOf("Content-Type" to "application/x-www-form-urlencoded"),
+                            body = spadeRequest.toByteArray(),
+                        )
+                    )
                 }
             }
         }
@@ -285,32 +327,17 @@ class PlayerRepository(
 
     suspend fun loadRecentMessages(recentMessagesUrl: String, channelLogin: String, limit: String): RecentMessagesResponse = withContext(Dispatchers.IO) {
         val url = recentMessagesUrl.replace("\$channel", channelLogin) + "?limit=${limit}"
-        okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                }.build()).executeAsync().use { response ->
-                    json.decodeFromString<RecentMessagesResponse>(response.body.string())
-                }
+        json.decodeFromString<RecentMessagesResponse>(httpGet(url, userAgentHeaders()))
     }
 
     suspend fun loadGlobalSTVEmoteSetResponse(): String = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/emote-sets/global"
-        okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                }.build()).executeAsync().use { response ->
-                    response.body.string()
-                }
+        httpGet(url, userAgentHeaders())
     }
 
     suspend fun loadSTVEmoteSetResponse(setId: String): String = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/emote-sets/${setId}"
-        okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                }.build()).executeAsync().use { response ->
-                    response.body.string()
-                }
+        httpGet(url, userAgentHeaders())
     }
 
     suspend fun loadSTVEmoteSet(response: String, useWebp: Boolean, global: Boolean): Pair<String?, List<Emote>> = withContext(Dispatchers.IO) {
@@ -320,12 +347,7 @@ class PlayerRepository(
 
     suspend fun loadSTVUserResponse(channelId: String): String = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/users/twitch/${channelId}"
-        okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                }.build()).executeAsync().use { response ->
-                    response.body.string()
-                }
+        httpGet(url, userAgentHeaders())
     }
 
     suspend fun loadSTVUser(response: String, useWebp: Boolean): Pair<String?, List<Emote>?> = withContext(Dispatchers.IO) {
@@ -370,13 +392,15 @@ class PlayerRepository(
 
     suspend fun getSTVUser(userId: String): String? = withContext(Dispatchers.IO) {
         val url = "https://7tv.io/v3/users/twitch/${userId}"
-        val response = okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                }.build()).executeAsync().use { response ->
-                    response.body.string()
-                }
-        JSONObject(response).optJSONObject("user")?.optString("id")
+        val response = httpGet(url, userAgentHeaders())
+        try {
+            json.parseToJsonElement(response).jsonObject["user"]?.jsonObject?.let { user ->
+                val id = user["id"]
+                if (id is JsonPrimitive && id !is JsonNull) id.content else ""
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     suspend fun sendSTVPresence(stvUserId: String, channelId: String, sessionId: String?, self: Boolean) = withContext(Dispatchers.IO) {
@@ -390,22 +414,22 @@ class PlayerRepository(
                 put("id", channelId)
             }
         }.toString()
-        okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    header("Content-Type", "application/json")
-                    header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                    post(body.toRequestBody())
-                }.build()).executeAsync()
+        httpClient.execute(
+            XtraHttpRequest(
+                method = XtraHttpRequest.POST,
+                url = url,
+                headers = mapOf(
+                    "Content-Type" to "application/json",
+                    "User-Agent" to userAgent,
+                ),
+                body = body.toByteArray(),
+            )
+        )
     }
 
     suspend fun loadGlobalBTTVEmotesResponse(): String = withContext(Dispatchers.IO) {
         val url = "https://api.betterttv.net/3/cached/emotes/global"
-        okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                }.build()).executeAsync().use { response ->
-                    response.body.string()
-                }
+        httpGet(url, userAgentHeaders())
     }
 
     suspend fun loadGlobalBTTVEmotes(response: String, useWebp: Boolean): List<Emote> = withContext(Dispatchers.IO) {
@@ -415,12 +439,7 @@ class PlayerRepository(
 
     suspend fun loadBTTVEmotesResponse(channelId: String): String = withContext(Dispatchers.IO) {
         val url = "https://api.betterttv.net/3/cached/users/twitch/${channelId}"
-        okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                }.build()).executeAsync().use { response ->
-                    response.body.string()
-                }
+        httpGet(url, userAgentHeaders())
     }
 
     suspend fun loadBTTVEmotes(response: String, useWebp: Boolean): List<Emote> = withContext(Dispatchers.IO) {
@@ -457,12 +476,7 @@ class PlayerRepository(
 
     suspend fun loadGlobalFFZEmotesResponse(): String = withContext(Dispatchers.IO) {
         val url = "https://api.frankerfacez.com/v1/set/global"
-        okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                }.build()).executeAsync().use { response ->
-                    response.body.string()
-                }
+        httpGet(url, userAgentHeaders())
     }
 
     suspend fun loadGlobalFFZEmotes(response: String, useWebp: Boolean): List<Emote> = withContext(Dispatchers.IO) {
@@ -474,12 +488,7 @@ class PlayerRepository(
 
     suspend fun loadFFZEmotesResponse(channelId: String): String = withContext(Dispatchers.IO) {
         val url = "https://api.frankerfacez.com/v1/room/id/${channelId}"
-        okHttpClient.value.newCall(Request.Builder().apply {
-                    url(url)
-                    header("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
-                }.build()).executeAsync().use { response ->
-                    response.body.string()
-                }
+        httpGet(url, userAgentHeaders())
     }
 
     suspend fun loadFFZEmotes(response: String, useWebp: Boolean): List<Emote> = withContext(Dispatchers.IO) {
