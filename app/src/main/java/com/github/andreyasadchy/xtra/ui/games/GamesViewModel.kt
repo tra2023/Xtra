@@ -13,9 +13,9 @@ import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
+import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
 import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource
-import com.github.andreyasadchy.xtra.shared.settings.AndroidXtraSettings
-import com.github.andreyasadchy.xtra.shared.settings.SharedAuthHeaders
+import com.github.andreyasadchy.xtra.settings.AndroidXtraSettings
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.ExperimentalCoroutinesApi

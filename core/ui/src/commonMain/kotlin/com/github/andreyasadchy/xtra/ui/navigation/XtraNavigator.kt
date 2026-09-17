@@ -1,5 +1,6 @@
-package com.github.andreyasadchy.xtra.shared.navigation
+package com.github.andreyasadchy.xtra.ui.navigation
 
+import com.github.andreyasadchy.xtra.model.navigation.XtraRoute
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

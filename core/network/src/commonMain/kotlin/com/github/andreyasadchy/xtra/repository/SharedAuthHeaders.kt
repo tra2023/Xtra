@@ -1,7 +1,7 @@
-package com.github.andreyasadchy.xtra.shared.settings
+package com.github.andreyasadchy.xtra.repository
 
-import com.github.andreyasadchy.xtra.repository.TwitchAuthHeaders
-import com.github.andreyasadchy.xtra.repository.TwitchHeaders
+import com.github.andreyasadchy.xtra.settings.AuthConfig
+import com.github.andreyasadchy.xtra.settings.XtraSettings
 import com.github.andreyasadchy.xtra.util.C
 
 /**

@@ -115,8 +115,6 @@ dependencies {
     implementation(project(":core:network"))
     // Shared Compose Multiplatform image UI (XtraAsyncImage). Views keep working unchanged.
     implementation(project(":core:ui"))
-    // Shared KMP browse logic (settings, auth headers, paging controllers, routes).
-    implementation(project(":shared"))
 }
 
 // Delete large build log files from ~/.gradle/daemon/X.X/daemon-XXX.out.log

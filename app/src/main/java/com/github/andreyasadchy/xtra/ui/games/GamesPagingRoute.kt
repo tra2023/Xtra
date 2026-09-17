@@ -35,7 +35,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
-import com.github.andreyasadchy.xtra.shared.browse.GamesGridContent
+import com.github.andreyasadchy.xtra.ui.browse.GamesGridContent
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.flow.Flow

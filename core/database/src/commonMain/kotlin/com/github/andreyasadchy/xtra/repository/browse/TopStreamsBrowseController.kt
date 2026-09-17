@@ -1,4 +1,4 @@
-package com.github.andreyasadchy.xtra.shared.browse
+package com.github.andreyasadchy.xtra.repository.browse
 
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
@@ -8,9 +8,9 @@ import com.github.andreyasadchy.xtra.graphql.type.StreamSort
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
+import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
 import com.github.andreyasadchy.xtra.repository.datasource.StreamsDataSource
-import com.github.andreyasadchy.xtra.shared.settings.SharedAuthHeaders
-import com.github.andreyasadchy.xtra.shared.settings.XtraSettings
+import com.github.andreyasadchy.xtra.settings.XtraSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow

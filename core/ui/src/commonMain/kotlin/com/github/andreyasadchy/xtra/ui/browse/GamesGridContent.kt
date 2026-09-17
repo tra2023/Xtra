@@ -1,4 +1,4 @@
-package com.github.andreyasadchy.xtra.shared.browse
+package com.github.andreyasadchy.xtra.ui.browse
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column

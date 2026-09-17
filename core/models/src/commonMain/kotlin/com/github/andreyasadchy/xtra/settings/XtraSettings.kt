@@ -1,4 +1,4 @@
-package com.github.andreyasadchy.xtra.shared.settings
+package com.github.andreyasadchy.xtra.settings
 
 /**
  * Platform-agnostic settings reader shared by Android and JVM desktop.

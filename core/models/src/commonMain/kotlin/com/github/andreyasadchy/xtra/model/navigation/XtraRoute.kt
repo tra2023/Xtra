@@ -1,4 +1,4 @@
-package com.github.andreyasadchy.xtra.shared.navigation
+package com.github.andreyasadchy.xtra.model.navigation
 
 import kotlinx.serialization.Serializable
 

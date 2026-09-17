@@ -1,4 +1,4 @@
-package com.github.andreyasadchy.xtra.shared.settings
+package com.github.andreyasadchy.xtra.settings
 
 import android.content.SharedPreferences
 
