@@ -5,13 +5,21 @@ import android.app.admin.DeviceAdminReceiver
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
-import android.content.DialogInterface
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
+import android.view.WindowManager
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.edit
 import androidx.fragment.app.DialogFragment
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.DialogSleepTimerBinding
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
@@ -20,6 +28,9 @@ class SleepTimerDialog : DialogFragment() {
 
     companion object {
         private const val KEY_TIME_LEFT = "timeLeft"
+        private const val KEY_HOURS = "hours"
+        private const val KEY_MINUTES = "minutes"
+        private const val KEY_LOCK = "lock"
 
         fun newInstance(timeLeft: Long): SleepTimerDialog {
             return SleepTimerDialog().apply {
@@ -30,74 +41,95 @@ class SleepTimerDialog : DialogFragment() {
         }
     }
 
-    private var _binding: DialogSleepTimerBinding? = null
-    private val binding get() = _binding!!
+    private var state by mutableStateOf(SleepTimerUiState("0", "15", false))
+    private var composeView: ComposeView? = null
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        _binding = DialogSleepTimerBinding.inflate(layoutInflater)
-        val builder = requireContext().getAlertDialogBuilder()
-            .setTitle(getString(R.string.sleep_timer))
-            .setView(binding.root)
-        with(binding) {
-            hours.apply {
-                minValue = 0
-                maxValue = 23
+        val context = requireContext()
+        val prefs = context.prefs()
+        val timeLeft = requireArguments().getLong(KEY_TIME_LEFT)
+        val initialMinutes = if (timeLeft < 0L) {
+            prefs.getInt(C.SLEEP_TIMER_MINUTES, 15)
+        } else {
+            (timeLeft / 60_000L).toInt()
+        }
+        val devicePolicyManager = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val admin = ComponentName(context, DeviceAdminReceiver::class.java)
+        val adminActive = devicePolicyManager.isAdminActive(admin)
+        state = SleepTimerUiState(
+            hours = savedInstanceState?.getString(KEY_HOURS) ?: (initialMinutes / 60).coerceIn(0, 23).toString(),
+            minutes = savedInstanceState?.getString(KEY_MINUTES) ?: (initialMinutes % 60).coerceIn(0, 59).toString(),
+            lockScreen = adminActive && (savedInstanceState?.getBoolean(KEY_LOCK) ?: prefs.getBoolean(C.SLEEP_TIMER_LOCK, false)),
+        )
+        val builder = context.getAlertDialogBuilder()
+        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
+            when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
+                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0")
+                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2")
             }
-            minutes.apply {
-                minValue = 0
-                maxValue = 59
-            }
-            val positiveListener: (dialog: DialogInterface, which: Int) -> Unit = { _, _ ->
-                (parentFragment as? PlayerFragment)?.onSleepTimerChanged(hours.value * 3600_000L + minutes.value * 60_000L,  hours.value, minutes.value, lockCheckbox.isChecked)
-                requireContext().prefs().edit {
-                    putInt(C.SLEEP_TIMER_MINUTES, hours.value * 60 + minutes.value)
-                }
-                dismiss()
-            }
-            val timeLeft = requireArguments().getLong(KEY_TIME_LEFT)
-            if (timeLeft < 0L) {
-                val savedValue = requireContext().prefs().getInt(C.SLEEP_TIMER_MINUTES, 15)
-                hours.value = savedValue / 60
-                minutes.value = savedValue % 60
-                builder.setPositiveButton(getString(R.string.start), positiveListener)
-                builder.setNegativeButton(android.R.string.cancel) { _, _ -> dismiss() }
-            } else {
-                val hours = timeLeft / 3600_000L
-                binding.hours.value = hours.toInt()
-                minutes.value = ((timeLeft - hours * 3600_000L) / 60_000L).toInt()
-                builder.setPositiveButton(getString(R.string.set), positiveListener)
-                builder.setNegativeButton(getString(R.string.stop)) { _, _ ->
-                    (parentFragment as? PlayerFragment)?.onSleepTimerChanged(-1L, 0, 0, lockCheckbox.isChecked)
-                    dismiss()
-                }
-                builder.setNeutralButton(android.R.string.cancel) { _, _ -> dismiss() }
-            }
-            val devicePolicyManager = requireContext().getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-            val admin = ComponentName(requireContext(), DeviceAdminReceiver::class.java)
-            if (devicePolicyManager.isAdminActive(admin)) {
-                lockCheckbox.apply {
-                    isChecked = requireContext().prefs().getBoolean(C.SLEEP_TIMER_LOCK, false)
-                    text = getString(R.string.sleep_timer_lock)
-                }
-            } else {
-                lockCheckbox.apply {
-                    isChecked = false
-                    text = getString(R.string.sleep_timer_lock_permissions)
-                    setOnClickListener {
-                        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-                            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
-                        }
-                        startActivity(intent)
-                        dismiss()
-                    }
+        } else {
+            prefs.getString(C.THEME, "0")
+        }
+        val view = ComposeView(builder.context).apply {
+            setViewTreeLifecycleOwner(this@SleepTimerDialog)
+            setViewTreeSavedStateRegistryOwner(this@SleepTimerDialog)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@SleepTimerDialog.lifecycle))
+            setContent {
+                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                    SleepTimerDialogContent(
+                        state = state,
+                        title = getString(R.string.sleep_timer),
+                        hoursLabel = getString(R.string.hours),
+                        minutesLabel = getString(R.string.minutes),
+                        lockLabel = getString(if (adminActive) R.string.sleep_timer_lock else R.string.sleep_timer_lock_permissions),
+                        confirmLabel = getString(if (timeLeft < 0L) R.string.start else R.string.set),
+                        cancelLabel = getString(android.R.string.cancel),
+                        stopLabel = if (timeLeft < 0L) null else getString(R.string.stop),
+                        onHoursChanged = { state = state.copy(hours = it) },
+                        onMinutesChanged = { state = state.copy(minutes = it) },
+                        onLockChanged = {
+                            if (adminActive) {
+                                state = state.copy(lockScreen = it)
+                            } else {
+                                startActivity(Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                                    putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
+                                })
+                                dismiss()
+                            }
+                        },
+                        onConfirm = {
+                            (parentFragment as? PlayerFragment)?.onSleepTimerChanged(state.durationMs, state.hoursValue, state.minutesValue, state.lockScreen)
+                            prefs.edit { putInt(C.SLEEP_TIMER_MINUTES, state.hoursValue * 60 + state.minutesValue) }
+                            dismiss()
+                        },
+                        onCancel = { dismiss() },
+                        onStop = {
+                            (parentFragment as? PlayerFragment)?.onSleepTimerChanged(-1L, 0, 0, state.lockScreen)
+                            dismiss()
+                        },
+                    )
                 }
             }
         }
-        return builder.create()
+        composeView = view
+        return builder.setView(view).create()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        dialog?.window?.clearFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(KEY_HOURS, state.hours)
+        outState.putString(KEY_MINUTES, state.minutes)
+        outState.putBoolean(KEY_LOCK, state.lockScreen)
     }
 
     override fun onDestroyView() {
+        composeView?.disposeComposition()
+        composeView = null
         super.onDestroyView()
-        _binding = null
     }
 }

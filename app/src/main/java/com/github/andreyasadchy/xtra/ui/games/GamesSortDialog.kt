@@ -1,16 +1,26 @@
 package com.github.andreyasadchy.xtra.ui.games
 
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.github.andreyasadchy.xtra.databinding.DialogGamesSortBinding
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.unit.dp
+import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.ui.common.SearchTagsDialog
+import com.github.andreyasadchy.xtra.ui.sort.SortDialogAction
+import com.github.andreyasadchy.xtra.ui.sort.SortDialogContent
+import com.github.andreyasadchy.xtra.ui.sort.SortTagSelection
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
+import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.google.android.material.chip.Chip
 
 class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelectedListener {
 
@@ -32,11 +42,8 @@ class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelec
         }
     }
 
-    private var _binding: DialogGamesSortBinding? = null
-    private val binding get() = _binding!!
     private lateinit var listener: OnFilter
-
-    private var selectedTags = mutableListOf<Tag>()
+    private val selectedTags = mutableStateListOf<Tag>()
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -44,8 +51,54 @@ class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelec
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = DialogGamesSortBinding.inflate(inflater, container, false)
-        return binding.root
+        val args = requireArguments()
+        val originalTagIds = args.getStringArray(TAG_IDS) ?: emptyArray()
+        val originalTags = args.getStringArray(TAG_NAMES)?.let { names ->
+            originalTagIds.zip(names).map { Tag(id = it.first, name = it.second) }
+        } ?: emptyList()
+        selectedTags.clear()
+        val restoredTagIds = savedInstanceState?.getStringArray(TAG_IDS)
+        val restoredTagNames = savedInstanceState?.getStringArray(TAG_NAMES)
+        selectedTags.addAll(
+            if (restoredTagIds != null && restoredTagNames != null) {
+                restoredTagIds.zip(restoredTagNames).map { Tag(id = it.first, name = it.second) }
+            } else {
+                originalTags
+            }
+        )
+        val (darkTheme, amoled, blue) = themeFlags()
+        val padding = requireContext().obtainStyledAttributes(intArrayOf(R.attr.dialogPadding)).let {
+            val value = it.getDimension(0, 8f * resources.displayMetrics.density) / resources.displayMetrics.density
+            it.recycle()
+            value.dp
+        }
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                XtraTheme(darkTheme = darkTheme, amoled = amoled, blue = blue) {
+                    SortDialogContent(
+                        tags = SortTagSelection(
+                            title = getString(R.string.filters),
+                            tags = selectedTags.map { it.name.orEmpty() },
+                            addLabel = getString(R.string.add_tag),
+                            removeLabel = getString(R.string.delete),
+                            onAdd = { SearchTagsDialog.newInstance(true).show(childFragmentManager, null) },
+                            onRemove = { selectedTags.removeAt(it) },
+                        ),
+                        actions = listOf(
+                            SortDialogAction(getString(R.string.apply), {
+                                val tags = selectedTags.sortedBy { it.id }
+                                if (!tags.mapNotNull { it.id }.toTypedArray().contentEquals(originalTagIds)) {
+                                    listener.onChange(tags.toTypedArray())
+                                }
+                                dismiss()
+                            }),
+                        ),
+                        contentPadding = padding,
+                    )
+                }
+            }
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -53,63 +106,30 @@ class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelec
         val behavior = BottomSheetBehavior.from(view.parent as View)
         behavior.skipCollapsed = true
         behavior.state = BottomSheetBehavior.STATE_EXPANDED
-        with(binding) {
-            val args = requireArguments()
-            val originalTagIds = args.getStringArray(TAG_IDS) ?: emptyArray()
-            val originalTags = requireArguments().getStringArray(TAG_NAMES)?.let { names ->
-                originalTagIds.zip(names).map {
-                    Tag(
-                        id = it.first,
-                        name = it.second,
-                    )
-                }
-            } ?: emptyList()
-            selectedTags = originalTags.toMutableList()
-            originalTags.forEach { tag ->
-                tagGroup.addView(
-                    Chip(requireContext()).apply {
-                        text = tag.name
-                        isCloseIconVisible = true
-                        setOnCloseIconClickListener {
-                            selectedTags.find { it.id == tag.id }?.let { selectedTags.remove(it) }
-                            tagGroup.removeView(this)
-                        }
-                    }
-                )
-            }
-            selectTags.setOnClickListener {
-                SearchTagsDialog.Companion.newInstance(true).show(childFragmentManager, null)
-            }
-            apply.setOnClickListener {
-                val tags = selectedTags.sortedBy { it.id }
-                if (!tags.mapNotNull { it.id }.toTypedArray().contentEquals(originalTagIds)) {
-                    listener.onChange(
-                        tags.toTypedArray(),
-                    )
-                }
-                dismiss()
-            }
-        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putStringArray(TAG_IDS, selectedTags.mapNotNull { it.id }.toTypedArray())
+        outState.putStringArray(TAG_NAMES, selectedTags.map { it.name.orEmpty() }.toTypedArray())
+        super.onSaveInstanceState(outState)
     }
 
     override fun onTagSelected(tag: Tag) {
-        if (tag.id != null && selectedTags.find { it.id == tag.id } == null) {
+        if (tag.id != null && selectedTags.none { it.id == tag.id }) {
             selectedTags.add(tag)
-            binding.tagGroup.addView(
-                Chip(requireContext()).apply {
-                    text = tag.name
-                    isCloseIconVisible = true
-                    setOnCloseIconClickListener {
-                        selectedTags.find { it.id == tag.id }?.let { selectedTags.remove(it) }
-                        binding.tagGroup.removeView(this)
-                    }
-                }
-            )
         }
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
+    private fun themeFlags(): Triple<Boolean, Boolean, Boolean> {
+        val prefs = requireContext().prefs()
+        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
+            when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
+                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0") ?: "0"
+                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2") ?: "2"
+            }
+        } else {
+            prefs.getString(C.THEME, "0") ?: "0"
+        }
+        return Triple(theme != "2" && theme != "5", theme == "1" || theme == "6", theme == "3")
     }
 }
