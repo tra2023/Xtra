@@ -2,27 +2,38 @@ package com.github.andreyasadchy.xtra.ui.common
 
 import android.app.Dialog
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
-import androidx.appcompat.widget.SearchView
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
+import android.view.WindowManager
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.withResumed
-import androidx.paging.PagingDataAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.github.andreyasadchy.xtra.databinding.DialogSearchTagsBinding
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.ui.common.SearchTagsViewModel.Companion.SearchTagsViewModelFactory
+import com.github.andreyasadchy.xtra.ui.search.TagSearchContent
+import com.github.andreyasadchy.xtra.ui.search.TagSearchLoadState
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
+import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
+import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.milliseconds
 
 class SearchTagsDialog : DialogFragment() {
 
@@ -32,6 +43,8 @@ class SearchTagsDialog : DialogFragment() {
 
     companion object {
         private const val GET_GAME_TAGS = "getGameTags"
+        private const val QUERY = "query"
+        private const val APPLIED_QUERY = "appliedQuery"
 
         fun newInstance(getGameTags: Boolean): SearchTagsDialog {
             return SearchTagsDialog().apply {
@@ -42,10 +55,10 @@ class SearchTagsDialog : DialogFragment() {
         }
     }
 
-    private var _binding: DialogSearchTagsBinding? = null
-    private val binding get() = _binding!!
     private val viewModel: SearchTagsViewModel by viewModels { SearchTagsViewModelFactory }
-    private lateinit var pagingAdapter: PagingDataAdapter<Tag, out RecyclerView.ViewHolder>
+    private var composeView: ComposeView? = null
+    private var query by mutableStateOf("")
+    private var queryJob: Job? = null
     private var listener: OnTagSelectedListener? = null
 
     override fun onAttach(context: Context) {
@@ -53,72 +66,118 @@ class SearchTagsDialog : DialogFragment() {
         listener = parentFragment as? OnTagSelectedListener
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        viewModel.getGameTags = requireArguments().getBoolean(GET_GAME_TAGS)
+        savedInstanceState?.getString(APPLIED_QUERY)?.let(viewModel::setQuery)
+        query = savedInstanceState?.getString(QUERY) ?: viewModel.query.value
+    }
+
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        _binding = DialogSearchTagsBinding.inflate(layoutInflater)
         val builder = requireContext().getAlertDialogBuilder()
-            .setView(binding.root)
-        with(binding) {
-            viewModel.getGameTags = requireArguments().getBoolean(GET_GAME_TAGS)
-            pagingAdapter = SearchTagsAdapter { tag ->
-                listener?.onTagSelected(tag)
-                dismiss()
+        val prefs = requireContext().prefs()
+        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
+            when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
+                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0")
+                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2")
             }
-            pagingAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-
-                override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-                    pagingAdapter.unregisterAdapterDataObserver(this)
-                    pagingAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-                        override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-                            try {
-                                if (positionStart == 0) {
-                                    recyclerView.scrollToPosition(0)
-                                }
-                            } catch (e: Exception) {
-
-                            }
-                        }
-                    })
-                }
-            })
-            recyclerView.adapter = pagingAdapter
-            searchView.requestFocus()
-            WindowCompat.getInsetsController(requireActivity().window, searchView).show(WindowInsetsCompat.Type.ime())
-            lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.flow.collectLatest { pagingData ->
-                        pagingAdapter.submitData(pagingData)
-                    }
-                }
-            }
-            searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-                private var job: Job? = null
-
-                override fun onQueryTextSubmit(query: String): Boolean {
-                    viewModel.setQuery(query)
-                    return false
-                }
-
-                override fun onQueryTextChange(newText: String): Boolean {
-                    job?.cancel()
-                    if (newText.isNotEmpty()) {
-                        job = lifecycleScope.launch {
-                            delay(750.milliseconds)
-                            withResumed {
-                                viewModel.setQuery(newText)
-                            }
-                        }
-                    } else {
-                        viewModel.setQuery(newText)
-                    }
-                    return false
-                }
-            })
+        } else {
+            prefs.getString(C.THEME, "0")
         }
-        return builder.create()
+        val view = ComposeView(builder.context).apply {
+            id = R.id.searchView
+            setViewTreeLifecycleOwner(this@SearchTagsDialog)
+            setViewTreeSavedStateRegistryOwner(this@SearchTagsDialog)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@SearchTagsDialog.lifecycle))
+            setContent {
+                val pagingFlow = remember(viewModel, this@SearchTagsDialog.lifecycle) {
+                    viewModel.flow.flowWithLifecycle(this@SearchTagsDialog.lifecycle, Lifecycle.State.STARTED)
+                }
+                val lazyTags = pagingFlow.collectAsLazyPagingItems()
+                val appliedQuery by viewModel.query.collectAsState()
+                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                    TagSearchContent(
+                        query = query,
+                        appliedQuery = appliedQuery,
+                        onQueryChange = ::onQueryChange,
+                        onSubmit = ::submitQuery,
+                        itemCount = lazyTags.itemCount,
+                        tagAt = { index -> lazyTags[index] },
+                        refreshState = lazyTags.loadState.refresh.toTagSearchLoadState(),
+                        prependState = lazyTags.loadState.prepend.toTagSearchLoadState(),
+                        appendState = lazyTags.loadState.append.toTagSearchLoadState(),
+                        searchLabel = getString(R.string.search_tags),
+                        clearLabel = getString(androidx.appcompat.R.string.abc_searchview_description_clear),
+                        emptyLabel = if (appliedQuery.isNotBlank()) getString(R.string.nothing_here) else "",
+                        retryLabel = getString(R.string.retry),
+                        onRetry = { lazyTags.retry() },
+                        onTagSelected = { tag ->
+                            queryJob?.cancel()
+                            listener?.onTagSelected(tag)
+                            dismiss()
+                        },
+                    )
+                }
+            }
+        }
+        composeView = view
+        if (query != viewModel.query.value) {
+            onQueryChange(query)
+        }
+        return builder.setView(view).create()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        dialog?.window?.apply {
+            clearFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        }
+    }
+
+    private fun onQueryChange(value: String) {
+        query = value
+        queryJob?.cancel()
+        queryJob = null
+        if (value.isEmpty()) {
+            viewModel.setQuery(value)
+        } else {
+            queryJob = lifecycleScope.launch {
+                delay(750)
+                withResumed {
+                    viewModel.setQuery(value)
+                }
+            }
+        }
+    }
+
+    private fun submitQuery() {
+        queryJob?.cancel()
+        queryJob = null
+        viewModel.setQuery(query)
+    }
+
+    private fun LoadState.toTagSearchLoadState(): TagSearchLoadState = TagSearchLoadState(
+        isLoading = this is LoadState.Loading,
+        error = (this as? LoadState.Error)?.let { getString(R.string.error, it.error.message.orEmpty()) },
+    )
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(QUERY, query)
+        outState.putString(APPLIED_QUERY, viewModel.query.value)
     }
 
     override fun onDestroyView() {
+        queryJob?.cancel()
+        queryJob = null
+        composeView?.disposeComposition()
+        composeView = null
         super.onDestroyView()
-        _binding = null
+    }
+
+    override fun onDetach() {
+        listener = null
+        super.onDetach()
     }
 }

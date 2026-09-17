@@ -1,18 +1,17 @@
 package com.github.andreyasadchy.xtra.ui.player
 
-import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.RecyclerView
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.FragmentViewerListBinding
 import com.github.andreyasadchy.xtra.model.ui.ChannelViewerList
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
@@ -22,13 +21,11 @@ import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class PlayerViewerListDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener {
 
     companion object {
-
         private const val LOGIN = "login"
 
         fun newInstance(login: String): PlayerViewerListDialog {
@@ -40,20 +37,27 @@ class PlayerViewerListDialog : BottomSheetDialogFragment(), IntegrityDialog.List
         }
     }
 
-    private var _binding: FragmentViewerListBinding? = null
-    private val binding get() = _binding!!
     private val viewModel: PlayerViewerListViewModel by viewModels { PlayerViewerListViewModelFactory }
-
-    private val moderatorsListItems = mutableListOf<String>()
-    private var moderatorsListOffset = 0
-    private val vipsListItems = mutableListOf<String>()
-    private var vipsListOffset = 0
-    private val viewerListItems = mutableListOf<String>()
-    private var viewerListOffset = 0
+    private var viewerList by mutableStateOf<ChannelViewerList?>(null)
+    private var loading by mutableStateOf(true)
+    private var failed by mutableStateOf(false)
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = FragmentViewerListBinding.inflate(inflater, container, false)
-        return binding.root
+        return playerSheetComposeView(inflater) { modifier, _ ->
+            PlayerChattersSheetContent(
+                viewerList = viewerList,
+                loading = loading,
+                error = if (failed) getString(R.string.connection_error) else null,
+                countLabel = viewerList?.count?.let {
+                    getString(R.string.user_count, TwitchApiHelper.formatCount(it, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true)))
+                },
+                groupLabels = listOf(R.string.broadcaster, R.string.moderators, R.string.vips, R.string.viewers).map { getString(it) },
+                emptyLabel = getString(R.string.nothing_here),
+                retryLabel = getString(R.string.retry),
+                onRetry = ::loadViewerList,
+                modifier = modifier,
+            )
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -61,158 +65,30 @@ class PlayerViewerListDialog : BottomSheetDialogFragment(), IntegrityDialog.List
         val behavior = BottomSheetBehavior.from(view.parent as View)
         behavior.skipCollapsed = true
         behavior.state = BottomSheetBehavior.STATE_EXPANDED
-        with(binding) {
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
                     viewModel.integrity.collect {
                         (requireActivity() as? MainActivity)?.getNewIntegrityToken(it, childFragmentManager)
                     }
                 }
-            }
-            viewModel.loadViewerList(
-                requireArguments().getString(LOGIN),
-                TwitchApiHelper.getGQLHeaders(requireContext()),
-                requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
-            )
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.viewerList.collectLatest { fullList ->
-                        if (fullList != null) {
-                            if (fullList.broadcasters.isNotEmpty()) {
-                                broadcasterText.visibility = View.VISIBLE
-                                broadcasterList.visibility = View.VISIBLE
-                                broadcasterList.adapter = Adapter(context, fullList.broadcasters)
-                            } else {
-                                broadcasterText.visibility = View.GONE
-                                broadcasterList.visibility = View.GONE
-                            }
-                            if (fullList.moderators.isNotEmpty()) {
-                                moderatorsText.visibility = View.VISIBLE
-                                moderatorsList.apply {
-                                    visibility = View.VISIBLE
-                                    adapter = Adapter(context, moderatorsListItems)
-                                }
-                                loadItems(fullList, moderatorsList)
-                            } else {
-                                moderatorsText.visibility = View.GONE
-                                moderatorsList.visibility = View.GONE
-                            }
-                            if (fullList.vips.isNotEmpty()) {
-                                vipsText.visibility = View.VISIBLE
-                                vipsList.apply {
-                                    visibility = View.VISIBLE
-                                    adapter = Adapter(context, vipsListItems)
-                                }
-                                if (fullList.moderators.size <= 100) {
-                                    loadItems(fullList, vipsList)
-                                }
-                            } else {
-                                vipsText.visibility = View.GONE
-                                vipsList.visibility = View.GONE
-                            }
-                            if (fullList.viewers.isNotEmpty()) {
-                                viewersText.visibility = View.VISIBLE
-                                viewersList.apply {
-                                    visibility = View.VISIBLE
-                                    adapter = Adapter(context, viewerListItems)
-                                }
-                                if ((fullList.moderators.size + fullList.vips.size) <= 100) {
-                                    loadItems(fullList, viewersList)
-                                }
-                            } else {
-                                viewersText.visibility = View.GONE
-                                viewersList.visibility = View.GONE
-                            }
-                            val viewerCount = fullList.count
-                            if (viewerCount != null) {
-                                userCount.visibility = View.VISIBLE
-                                userCount.text = getString(R.string.user_count, TwitchApiHelper.formatCount(viewerCount, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true)))
-                            } else {
-                                userCount.visibility = View.GONE
-                            }
-                            scrollView.viewTreeObserver.addOnScrollChangedListener {
-                                if (!scrollView.canScrollVertically(1)) {
-                                    when {
-                                        moderatorsListOffset != fullList.moderators.size -> loadItems(fullList, moderatorsList)
-                                        vipsListOffset != fullList.vips.size -> loadItems(fullList, vipsList)
-                                        viewerListOffset != fullList.viewers.size -> loadItems(fullList, viewersList)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                launch { viewModel.viewerList.collect { viewerList = it } }
+                launch { viewModel.loading.collect { loading = it } }
+                launch { viewModel.failed.collect { failed = it } }
+                loadViewerList()
             }
         }
     }
 
-    private fun loadItems(fullList: ChannelViewerList, recyclerView: RecyclerView) {
-        with(binding) {
-            when (recyclerView) {
-                moderatorsList -> {
-                    val remaining = fullList.moderators.size - moderatorsListOffset
-                    val add = if (remaining > 100) { 100 } else { remaining }
-                    moderatorsListItems.addAll(fullList.moderators.subList(moderatorsListOffset, moderatorsListOffset + add))
-                    moderatorsListOffset += add
-                    moderatorsList.adapter?.let { it.notifyItemRangeChanged(it.itemCount - add, add) }
-                }
-                vipsList -> {
-                    val remaining = fullList.vips.size - vipsListOffset
-                    val add = if (remaining > 100) { 100 } else { remaining }
-                    vipsListItems.addAll(fullList.vips.subList(vipsListOffset, vipsListOffset + add))
-                    vipsListOffset += add
-                    vipsList.adapter?.let { it.notifyItemRangeChanged(it.itemCount - add, add) }
-                }
-                viewersList -> {
-                    val remaining = fullList.viewers.size - viewerListOffset
-                    val add = if (remaining > 100) { 100 } else { remaining }
-                    viewerListItems.addAll(fullList.viewers.subList(viewerListOffset, viewerListOffset + add))
-                    viewerListOffset += add
-                    viewersList.adapter?.let { it.notifyItemRangeChanged(it.itemCount - add, add) }
-                }
-                else -> {}
-            }
-        }
+    private fun loadViewerList() {
+        viewModel.loadViewerList(
+            requireArguments().getString(LOGIN),
+            TwitchApiHelper.getGQLHeaders(requireContext()),
+            requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+        )
     }
 
     override fun onIntegrityTokenLoaded(callback: String?) {
-        when (callback) {
-            "refresh" -> {
-                viewModel.loadViewerList(
-                    requireArguments().getString(LOGIN),
-                    TwitchApiHelper.getGQLHeaders(requireContext()),
-                    requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
-                )
-            }
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-
-    class Adapter internal constructor(context: Context?, data: List<String>) : RecyclerView.Adapter<Adapter.ViewHolder>() {
-        private val mData: List<String> = data
-        private val mInflater: LayoutInflater = LayoutInflater.from(context)
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-            val view = mInflater.inflate(R.layout.fragment_viewer_list_item, parent, false)
-            return ViewHolder(view)
-        }
-
-        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-            val item = mData[position]
-            holder.textView.text = item
-        }
-
-        override fun getItemCount(): Int {
-            return mData.size
-        }
-
-        inner class ViewHolder internal constructor(itemView: View) : RecyclerView.ViewHolder(itemView) {
-
-            val textView = itemView as TextView
-        }
+        if (callback == "refresh") loadViewerList()
     }
 }

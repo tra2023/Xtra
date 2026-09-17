@@ -1,11 +1,24 @@
 package com.github.andreyasadchy.xtra.ui.settings
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowInsets
-import android.view.inputmethod.EditorInfo
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -15,188 +28,118 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.ItemTouchHelper
-import androidx.recyclerview.widget.RecyclerView
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.DialogVideoSwapEditBinding
-import com.github.andreyasadchy.xtra.databinding.FragmentProxySettingsBinding
-import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.ui.settings.VideoSwapSettingsViewModel.Companion.VideoSwapSettingsViewModelFactory
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.appbar.AppBarLayout
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.util.Collections
 
 class VideoSwapSettingsFragment : Fragment() {
 
-    private var _binding: FragmentProxySettingsBinding? = null
-    private val binding get() = _binding!!
     private val viewModel: VideoSwapSettingsViewModel by viewModels { VideoSwapSettingsViewModelFactory }
+    private var uiState by mutableStateOf(VideoSwapSettingsUiState())
+    private var bottomInset by mutableIntStateOf(0)
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = FragmentProxySettingsBinding.inflate(inflater, container, false)
-        return binding.root
+        val prefs = requireContext().prefs()
+        viewModel.initialize(
+            platform = prefs.getString(C.TOKEN_PLATFORM, "web"),
+            playerType = prefs.getString(C.TOKEN_PLAYER_TYPE, "site"),
+        )
+        uiState = viewModel.state.value
+        bottomInset = 0
+        return ComposeView(requireContext()).apply {
+            id = R.id.layout
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val configuration = LocalConfiguration.current
+                val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
+                    if (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) {
+                        prefs.getString(C.UI_THEME_DARK_ON, "0") ?: "0"
+                    } else {
+                        prefs.getString(C.UI_THEME_DARK_OFF, "2") ?: "2"
+                    }
+                } else {
+                    prefs.getString(C.THEME, "0") ?: "0"
+                }
+                val listState = rememberLazyListState()
+                LaunchedEffect(listState) {
+                    snapshotFlow { listState.canScrollBackward }.collect { scrolled ->
+                        activity?.findViewById<AppBarLayout>(R.id.appBar)?.let { appBar ->
+                            if (prefs.getBoolean(C.UI_THEME_APPBAR_LIFT, true)) {
+                                appBar.isLifted = scrolled
+                            }
+                        }
+                    }
+                }
+                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                    VideoSwapSettingsScreen(
+                        state = uiState,
+                        labels = VideoSwapLabels(
+                            add = getString(R.string.add_item),
+                            defaultValues = getString(R.string.default_values),
+                            platform = getString(R.string.platform_param),
+                            playerType = getString(R.string.player_type_param),
+                            enabled = getString(R.string.enabled_setting),
+                            edit = getString(android.R.string.edit),
+                            delete = getString(R.string.delete),
+                            deleteMessage = getString(R.string.delete_item_message),
+                            confirm = getString(android.R.string.ok),
+                            cancel = getString(android.R.string.cancel),
+                            reorder = getString(R.string.order),
+                            moveUp = getString(R.string.ascending),
+                            moveDown = getString(R.string.descending),
+                            retry = getString(R.string.retry),
+                        ),
+                        onAdd = viewModel::add,
+                        onEdit = { id, platform, playerType ->
+                            if (viewModel.state.value.items.any { it.id == id && it.isDefault }) {
+                                prefs.edit {
+                                    putString(C.TOKEN_PLATFORM, platform)
+                                    putString(C.TOKEN_PLAYER_TYPE, playerType)
+                                }
+                                viewModel.updateDefault(platform, playerType)
+                            } else {
+                                viewModel.edit(id, platform, playerType)
+                            }
+                        },
+                        onToggle = viewModel::toggle,
+                        onDelete = viewModel::delete,
+                        onReorder = viewModel::reorder,
+                        onRetry = viewModel::load,
+                        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
+                        listState = listState,
+                        bottomPadding = with(LocalDensity.current) { bottomInset.toDp() },
+                    )
+                }
+            }
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        with(binding) {
-            addItem.text = getString(R.string.add_item)
-            val adapter = VideoSwapSettingsAdapter(this@VideoSwapSettingsFragment)
-            val itemTouchHelper = ItemTouchHelper(
-                object : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
-                    override fun onMove(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
-                        return if (viewHolder.bindingAdapterPosition == 0 || target.bindingAdapterPosition == 0) {
-                            false
-                        } else {
-                            val list = viewModel.list.value
-                            Collections.swap(list, viewHolder.bindingAdapterPosition, target.bindingAdapterPosition)
-                            adapter.notifyItemMoved(viewHolder.bindingAdapterPosition, target.bindingAdapterPosition)
-                            viewModel.updateVideoSwapItems()
-                            true
-                        }
-                    }
-
-                    override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
-
-                    override fun isLongPressDragEnabled(): Boolean {
-                        return false
-                    }
-                }
-            )
-            adapter.itemTouchHelper = itemTouchHelper
-            recyclerView.adapter = adapter
-            adapter.checkListener = { item ->
-                viewModel.updateVideoSwap(item)
-            }
-            adapter.editListener = { item ->
-                showEditDialog(item) { platform, playerType ->
-                    item.platform = platform
-                    item.playerType = playerType
-                    if (item.position == -1) {
-                        requireContext().prefs().edit {
-                            putString(C.TOKEN_PLATFORM, platform)
-                            putString(C.TOKEN_PLAYER_TYPE, playerType)
-                        }
-                    } else {
-                        viewModel.updateVideoSwap(item)
-                    }
-                    viewModel.list.value.indexOf(item).takeIf { it != -1 }?.let {
-                        adapter.notifyItemChanged(it)
-                    }
-                }
-            }
-            adapter.deleteListener = { item ->
-                val delete = getString(R.string.delete)
-                requireContext().getAlertDialogBuilder()
-                    .setTitle(delete)
-                    .setMessage(getString(R.string.delete_item_message))
-                    .setPositiveButton(delete) { _, _ ->
-                        val list = viewModel.list.value
-                        val index = list.indexOf(item).takeIf { it != -1 }
-                        list.remove(item)
-                        index?.let { adapter.notifyItemRemoved(it) }
-                        viewModel.deleteVideoSwap(item)
-                    }
-                    .setNegativeButton(getString(android.R.string.cancel), null)
-                    .show()
-            }
-            itemTouchHelper.attachToRecyclerView(recyclerView)
-            viewModel.getVideoSwapItems(
-                VideoSwap(
-                    platform = requireContext().prefs().getString(C.TOKEN_PLATFORM, "web"),
-                    playerType = requireContext().prefs().getString(C.TOKEN_PLAYER_TYPE, "site"),
-                    position = -1,
-                )
-            )
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.list.collectLatest { list ->
-                        adapter.submitList(list)
-                    }
-                }
-            }
-            addItem.setOnClickListener {
-                val list = viewModel.list.value
-                val index = list.lastIndex + 1
-                val item = VideoSwap(position = index)
-                showEditDialog(item) { platform, playerType ->
-                    item.platform = platform
-                    item.playerType = playerType
-                    list.add(item)
-                    adapter.notifyItemInserted(index)
-                    viewModel.saveVideoSwap(item)
-                }
-            }
-            requireActivity().findViewById<AppBarLayout>(R.id.appBar)?.let { appBar ->
-                if (requireContext().prefs().getBoolean(C.UI_THEME_APPBAR_LIFT, true)) {
-                    recyclerView.let {
-                        appBar.setLiftOnScrollTargetView(it)
-                        it.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                                super.onScrolled(recyclerView, dx, dy)
-                                appBar.isLifted = recyclerView.canScrollVertically(-1)
-                            }
-                        })
-                        it.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                            appBar.isLifted = it.canScrollVertically(-1)
-                        }
-                    }
-                } else {
-                    appBar.setLiftable(false)
-                    appBar.background = null
-                }
-            }
-            ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
-                val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-                recyclerView.updatePadding(bottom = insets.bottom)
-                WindowInsetsCompat.CONSUMED
+        super.onViewCreated(view, savedInstanceState)
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.state.collect { uiState = it }
             }
         }
-    }
-
-    private fun showEditDialog(item: VideoSwap, positiveButtonListener: (String?, String?) -> Unit) {
-        val binding = DialogVideoSwapEditBinding.inflate(layoutInflater)
-        val dialog = requireContext().getAlertDialogBuilder()
-            .setView(binding.root)
-            .setPositiveButton(getString(android.R.string.ok)) { _, _ ->
-                positiveButtonListener(
-                    binding.platformInput.editText?.text?.toString(),
-                    binding.playerTypeInput.editText?.text?.toString(),
-                )
-            }
-            .setNegativeButton(getString(android.R.string.cancel), null)
-            .create()
-        binding.platformInput.editText?.apply {
-            val string = item.platform ?: ""
-            text.replace(0, length(), string, 0, string.length)
-            if (requestFocus()) {
-                dialog.window?.decorView?.windowInsetsController?.show(WindowInsets.Type.ime())
+        requireActivity().findViewById<AppBarLayout>(R.id.appBar)?.let { appBar ->
+            if (requireContext().prefs().getBoolean(C.UI_THEME_APPBAR_LIFT, true)) {
+                appBar.setLiftOnScrollTargetView(view)
+            } else {
+                appBar.setLiftable(false)
+                appBar.background = null
             }
         }
-        binding.playerTypeInput.editText?.apply {
-            val string = item.playerType ?: ""
-            text.replace(0, length(), string, 0, string.length)
-            setOnEditorActionListener { _, actionId, _ ->
-                if (actionId == EditorInfo.IME_ACTION_DONE) {
-                    positiveButtonListener(
-                        binding.platformInput.editText?.text?.toString(),
-                        binding.playerTypeInput.editText?.text?.toString(),
-                    )
-                    dialog.dismiss()
-                    true
-                } else {
-                    false
-                }
-            }
+        ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            bottomInset = insets.bottom
+            view.updatePadding(left = insets.left, right = insets.right)
+            WindowInsetsCompat.CONSUMED
         }
-        dialog.show()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
+        ViewCompat.requestApplyInsets(view)
     }
 }

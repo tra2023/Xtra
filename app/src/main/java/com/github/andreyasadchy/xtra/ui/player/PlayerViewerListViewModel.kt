@@ -9,6 +9,7 @@ import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.ChannelViewerList
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.util.C
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,54 +23,63 @@ class PlayerViewerListViewModel(
 
     private val _viewerList = MutableStateFlow<ChannelViewerList?>(null)
     val viewerList: StateFlow<ChannelViewerList?> = _viewerList
-    private var isLoading = false
+    private val _loading = MutableStateFlow(false)
+    val loading: StateFlow<Boolean> = _loading
+    private val _failed = MutableStateFlow(false)
+    val failed: StateFlow<Boolean> = _failed
 
     fun loadViewerList(channelLogin: String?, gqlHeaders: Map<String, String>, enableIntegrity: Boolean) {
-        if (_viewerList.value == null && !isLoading) {
-            isLoading = true
-            viewModelScope.launch {
+        if (_viewerList.value != null || _loading.value) return
+        _loading.value = true
+        _failed.value = false
+        viewModelScope.launch {
+            var needsIntegrity = false
+            try {
                 try {
                     val response = graphQLRepository.loadQueryUserChatters(gqlHeaders, login = channelLogin)
-                    if (enableIntegrity) {
-                        response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
-                            integrity.emit("refresh")
-                            isLoading = false
-                            return@launch
-                        }
-                    }
-                    _viewerList.value = response.data?.user?.channel?.chatters?.let { response ->
-                        ChannelViewerList(
-                            broadcasters = response.broadcasters?.mapNotNull { it.login } ?: emptyList(),
-                            moderators = response.moderators?.mapNotNull { it.login } ?: emptyList(),
-                            vips = response.vips?.mapNotNull { it.login } ?: emptyList(),
-                            viewers = response.viewers?.mapNotNull { it.login } ?: emptyList(),
-                            count = response.count
-                        )
-                    }
-                } catch (e: Exception) {
-                    try {
-                        val response = graphQLRepository.loadChannelViewerList(gqlHeaders, channelLogin)
-                        if (enableIntegrity) {
-                            response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
-                                integrity.emit("refresh")
-                                isLoading = false
-                                return@launch
-                            }
-                        }
-                        _viewerList.value = response.data?.user?.channel?.chatters?.let { response ->
+                    if (enableIntegrity && response.errors?.any { it.message == C.FAILED_INTEGRITY_CHECK } == true) {
+                        needsIntegrity = true
+                    } else {
+                        _viewerList.value = response.data?.user?.channel?.chatters?.let { chatters ->
                             ChannelViewerList(
-                                broadcasters = response.broadcasters?.mapNotNull { it.login } ?: emptyList(),
-                                moderators = response.moderators?.mapNotNull { it.login } ?: emptyList(),
-                                vips = response.vips?.mapNotNull { it.login } ?: emptyList(),
-                                viewers = response.viewers?.mapNotNull { it.login } ?: emptyList(),
-                                count = response.count
+                                broadcasters = chatters.broadcasters?.mapNotNull { it.login } ?: emptyList(),
+                                moderators = chatters.moderators?.mapNotNull { it.login } ?: emptyList(),
+                                vips = chatters.vips?.mapNotNull { it.login } ?: emptyList(),
+                                viewers = chatters.viewers?.mapNotNull { it.login } ?: emptyList(),
+                                count = chatters.count,
                             )
                         }
-                    } catch (e: Exception) {
-
+                        _failed.value = _viewerList.value == null
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    val response = graphQLRepository.loadChannelViewerList(gqlHeaders, channelLogin)
+                    if (enableIntegrity && response.errors?.any { it.message == C.FAILED_INTEGRITY_CHECK } == true) {
+                        needsIntegrity = true
+                    } else {
+                        _viewerList.value = response.data?.user?.channel?.chatters?.let { chatters ->
+                            ChannelViewerList(
+                                broadcasters = chatters.broadcasters?.mapNotNull { it.login } ?: emptyList(),
+                                moderators = chatters.moderators?.mapNotNull { it.login } ?: emptyList(),
+                                vips = chatters.vips?.mapNotNull { it.login } ?: emptyList(),
+                                viewers = chatters.viewers?.mapNotNull { it.login } ?: emptyList(),
+                                count = chatters.count,
+                            )
+                        }
+                        _failed.value = _viewerList.value == null
                     }
                 }
-                isLoading = false
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _failed.value = true
+            } finally {
+                _loading.value = false
+            }
+            if (needsIntegrity) {
+                _failed.value = true
+                integrity.emit("refresh")
             }
         }
     }

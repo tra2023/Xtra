@@ -1,16 +1,16 @@
 package com.github.andreyasadchy.xtra.ui.player
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
-import androidx.core.content.res.use
-import androidx.core.view.setPadding
-import androidx.core.widget.NestedScrollView
+import androidx.compose.ui.platform.LocalConfiguration
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Game
-import com.github.andreyasadchy.xtra.ui.view.GridRecyclerView
+import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.serialization.builtins.ListSerializer
@@ -31,24 +31,33 @@ class PlayerGamesDialog : BottomSheetDialogFragment() {
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        val recycleView = GridRecyclerView(requireContext()).apply {
-            id = R.id.recyclerView
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+        val games = requireArguments().getString(GAMES)?.let { json ->
+            runCatching { Json.decodeFromString(ListSerializer(Game.serializer()), json) }.getOrNull()
+        }.orEmpty()
+        return playerSheetComposeView(inflater) { modifier, padding ->
+            val portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
+            val columns = requireContext().prefs().getString(
+                if (portrait) C.PORTRAIT_COLUMN_COUNT else C.LANDSCAPE_COLUMN_COUNT,
+                if (portrait) "1" else "2",
+            )?.toIntOrNull() ?: if (portrait) 1 else 2
+            PlayerChaptersSheetContent(
+                games = games,
+                onGameClick = { game ->
+                    game.vodPosition?.let { (parentFragment as? PlayerFragment)?.seek(it.toLong()) }
+                    dismiss()
+                },
+                positionLabel = { durationLabel(R.string.position, it) },
+                durationLabel = { durationLabel(R.string.duration, it) },
+                modifier = modifier,
+                columns = columns,
+                contentPadding = padding,
             )
-            requireContext().obtainStyledAttributes(intArrayOf(R.attr.dialogLayoutPadding)).use {
-                setPadding(it.getDimensionPixelSize(0, 0))
-            }
-            adapter = PlayerGamesDialogAdapter(this@PlayerGamesDialog).also {
-                it.submitList(
-                    requireArguments().getString(GAMES)?.let { json ->
-                        runCatching { Json.decodeFromString(ListSerializer(Game.serializer()), json) }.getOrNull()
-                    }?.toList()
-                )
-            }
         }
-        return NestedScrollView(requireContext()).apply { addView(recycleView) }
+    }
+
+    private fun durationLabel(label: Int, milliseconds: Int): String? {
+        return TwitchApiHelper.getDurationFromSeconds(requireContext(), (milliseconds / 1000).toString())
+            .takeIf { !it.isNullOrBlank() }?.let { getString(label, it) }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
