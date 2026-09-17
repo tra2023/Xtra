@@ -1,23 +1,20 @@
 package com.github.andreyasadchy.xtra.ui.following.channels
 
-import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
+import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
-import coil3.request.transformations
-import coil3.transform.CircleCropTransformation
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.FragmentFollowedChannelsListItemBinding
 import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
+import com.github.andreyasadchy.xtra.ui.collections.ChannelCollectionRow
+import com.github.andreyasadchy.xtra.ui.collections.bindCollection
+import com.github.andreyasadchy.xtra.ui.collections.collectionComposeView
+import com.github.andreyasadchy.xtra.ui.collections.collectionFollowLabels
+import com.github.andreyasadchy.xtra.ui.collections.collectionName
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
@@ -30,106 +27,57 @@ class FollowedChannelsAdapter(
         override fun areItemsTheSame(oldItem: User, newItem: User): Boolean =
             oldItem.id == newItem.id
 
-        override fun areContentsTheSame(oldItem: User, newItem: User): Boolean = true
+        override fun areContentsTheSame(oldItem: User, newItem: User): Boolean =
+            oldItem.login == newItem.login && oldItem.name == newItem.name &&
+                    oldItem.profileImage == newItem.profileImage && oldItem.lastBroadcast == newItem.lastBroadcast &&
+                    oldItem.followedAt == newItem.followedAt && oldItem.accountFollow == newItem.accountFollow &&
+                    oldItem.localFollow == newItem.localFollow
     }) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PagingViewHolder {
-        val binding = FragmentFollowedChannelsListItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return PagingViewHolder(binding, fragment)
-    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PagingViewHolder =
+        PagingViewHolder(parent.collectionComposeView(), fragment)
 
     override fun onBindViewHolder(holder: PagingViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
 
+    override fun onViewRecycled(holder: PagingViewHolder) {
+        holder.bind(null)
+        super.onViewRecycled(holder)
+    }
+
     class PagingViewHolder(
-        private val binding: FragmentFollowedChannelsListItemBinding,
+        private val composeView: ComposeView,
         private val fragment: Fragment,
-    ) : RecyclerView.ViewHolder(binding.root) {
+    ) : RecyclerView.ViewHolder(composeView) {
         fun bind(item: User?) {
-            with(binding) {
-                if (item != null) {
-                    val context = fragment.requireContext()
-                    root.setOnClickListener {
-                        fragment.findNavController().navigate(
-                            ChannelPagerFragmentDirections.actionGlobalChannelPagerFragment(
-                                channelId = item.id,
-                                channelLogin = item.login,
-                                channelName = item.name,
-                                channelImage = item.profileImage,
-                            )
-                        )
-                    }
-                    if (item.profileImage != null) {
-                        userImage.visibility = View.VISIBLE
-                        fragment.requireContext().imageLoader.enqueue(
-                            ImageRequest.Builder(fragment.requireContext()).apply {
-                                data(item.profileImage)
-                                if (context.prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
-                                    transformations(CircleCropTransformation())
-                                }
-                                crossfade(true)
-                                target(userImage)
-                            }.build()
-                        )
-                    } else {
-                        userImage.visibility = View.GONE
-                    }
-                    if (item.name != null) {
-                        username.visibility = View.VISIBLE
-                        username.text = if (item.login != null && !item.login.equals(item.name, true)) {
-                            when (context.prefs().getString(C.UI_NAME_DISPLAY, "0")) {
-                                "0" -> "${item.name}(${item.login})"
-                                "1" -> item.name
-                                else -> item.login
-                            }
-                        } else {
-                            item.name
-                        }
-                    } else {
-                        username.visibility = View.GONE
-                    }
-                    if (item.lastBroadcast != null) {
-                        val text = item.lastBroadcast?.let {
-                            Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { time ->
-                                formatChatDate(time)
-                            }
-                        }
-                        if (text != null) {
-                            userStream.visibility = View.VISIBLE
-                            userStream.text = context.getString(R.string.last_broadcast_date, text)
-                        } else {
-                            userStream.visibility = View.GONE
-                        }
-                    } else {
-                        userStream.visibility = View.GONE
-                    }
-                    if (item.followedAt != null) {
-                        val text = item.followedAt?.let {
-                            Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { time ->
-                                formatChatDate(time)
-                            }
-                        }
-                        if (text != null) {
-                            userFollowed.visibility = View.VISIBLE
-                            userFollowed.text = context.getString(R.string.followed_at, text)
-                        } else {
-                            userFollowed.visibility = View.GONE
-                        }
-                    } else {
-                        userFollowed.visibility = View.GONE
-                    }
-                    if (item.accountFollow) {
-                        accountText.visibility = View.VISIBLE
-                    } else {
-                        accountText.visibility = View.GONE
-                    }
-                    if (item.localFollow) {
-                        localText.visibility = View.VISIBLE
-                    } else {
-                        localText.visibility = View.GONE
+            val context = composeView.context
+            composeView.bindCollection(item) { user ->
+                fun date(value: String?, label: Int): String? = value?.let {
+                    Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { time ->
+                        context.getString(label, formatChatDate(time))
                     }
                 }
+                ChannelCollectionRow(
+                    name = context.collectionName(user.name, user.login),
+                    image = user.profileImage,
+                    roundImage = context.prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true),
+                    details = listOfNotNull(
+                        date(user.lastBroadcast, R.string.last_broadcast_date),
+                        date(user.followedAt, R.string.followed_at),
+                    ),
+                    labels = context.collectionFollowLabels(user.accountFollow, user.localFollow),
+                    onClick = {
+                        fragment.findNavController().navigate(
+                            ChannelPagerFragmentDirections.actionGlobalChannelPagerFragment(
+                                channelId = user.id,
+                                channelLogin = user.login,
+                                channelName = user.name,
+                                channelImage = user.profileImage,
+                            )
+                        )
+                    },
+                )
             }
         }
     }

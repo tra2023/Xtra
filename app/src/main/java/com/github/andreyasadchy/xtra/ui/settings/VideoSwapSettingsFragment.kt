@@ -84,7 +84,7 @@ class VideoSwapSettingsFragment : Fragment() {
                             platform = getString(R.string.platform_param),
                             playerType = getString(R.string.player_type_param),
                             enabled = getString(R.string.enabled_setting),
-                            edit = getString(android.R.string.edit),
+                                            edit = getString(R.string.edit),
                             delete = getString(R.string.delete),
                             deleteMessage = getString(R.string.delete_item_message),
                             confirm = getString(android.R.string.ok),

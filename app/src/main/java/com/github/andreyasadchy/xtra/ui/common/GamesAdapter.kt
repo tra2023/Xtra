@@ -1,31 +1,22 @@
 package com.github.andreyasadchy.xtra.ui.common
 
-import android.util.TypedValue
-import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
-import androidx.constraintlayout.helper.widget.Flow
-import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.content.res.use
-import androidx.core.widget.TextViewCompat
+import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.FragmentGamesListItemBinding
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
+import com.github.andreyasadchy.xtra.ui.collections.GameCollectionRow
+import com.github.andreyasadchy.xtra.ui.collections.bindCollection
+import com.github.andreyasadchy.xtra.ui.collections.collectionComposeView
+import com.github.andreyasadchy.xtra.ui.collections.collectionCount
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
 
 class GamesAdapter(
@@ -37,125 +28,62 @@ class GamesAdapter(
             oldItem.id == newItem.id
 
         override fun areContentsTheSame(oldItem: Game, newItem: Game): Boolean =
-            oldItem.viewerCount == newItem.viewerCount
+            oldItem.slug == newItem.slug && oldItem.name == newItem.name &&
+                    oldItem.boxArt == newItem.boxArt && oldItem.viewerCount == newItem.viewerCount &&
+                    oldItem.broadcasterCount == newItem.broadcasterCount && oldItem.tags == newItem.tags
     }) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PagingViewHolder {
-        val binding = FragmentGamesListItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return PagingViewHolder(binding, fragment)
-    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PagingViewHolder =
+        PagingViewHolder(parent.collectionComposeView(), fragment)
 
     override fun onBindViewHolder(holder: PagingViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
 
+    override fun onViewRecycled(holder: PagingViewHolder) {
+        holder.bind(null)
+        super.onViewRecycled(holder)
+    }
+
     inner class PagingViewHolder(
-        private val binding: FragmentGamesListItemBinding,
+        private val composeView: ComposeView,
         private val fragment: Fragment,
-    ) : RecyclerView.ViewHolder(binding.root) {
+    ) : RecyclerView.ViewHolder(composeView) {
         fun bind(item: Game?) {
-            with(binding) {
-                if (item != null) {
-                    val context = fragment.requireContext()
-                    root.setOnClickListener {
+            val context = composeView.context
+            composeView.bindCollection(item) { game ->
+                GameCollectionRow(
+                    name = game.name,
+                    image = game.boxArt,
+                    viewers = context.collectionCount(game.viewerCount, R.plurals.viewers),
+                    broadcasters = context.collectionCount(
+                        game.broadcasterCount.takeIf { context.prefs().getBoolean(C.UI_BROADCASTERS_COUNT, true) },
+                        R.plurals.broadcasters,
+                    ),
+                    tags = game.tags.orEmpty().takeIf { context.prefs().getBoolean(C.UI_TAGS, true) }.orEmpty(),
+                    tagLabel = { it.name.orEmpty() },
+                    tagEnabled = { it.id != null },
+                    onTagClick = selectTag,
+                    onClick = {
                         fragment.findNavController().navigate(
                             if (context.prefs().getBoolean(C.UI_GAME_PAGER, true)) {
                                 GamePagerFragmentDirections.actionGlobalGamePagerFragment(
-                                    gameId = item.id,
-                                    gameSlug = item.slug,
-                                    gameName = item.name,
-                                    boxArt = item.boxArt
+                                    gameId = game.id,
+                                    gameSlug = game.slug,
+                                    gameName = game.name,
+                                    boxArt = game.boxArt,
                                 )
                             } else {
                                 GameMediaFragmentDirections.actionGlobalGameMediaFragment(
-                                    gameId = item.id,
-                                    gameSlug = item.slug,
-                                    gameName = item.name,
-                                    boxArt = item.boxArt
+                                    gameId = game.id,
+                                    gameSlug = game.slug,
+                                    gameName = game.name,
+                                    boxArt = game.boxArt,
                                 )
                             }
                         )
-                    }
-                    if (item.boxArt != null) {
-                        gameImage.visibility = View.VISIBLE
-                        fragment.requireContext().imageLoader.enqueue(
-                            ImageRequest.Builder(fragment.requireContext()).apply {
-                                data(item.boxArt)
-                                crossfade(true)
-                                target(gameImage)
-                            }.build()
-                        )
-                    } else {
-                        gameImage.visibility = View.GONE
-                    }
-                    if (item.name != null) {
-                        gameName.visibility = View.VISIBLE
-                        gameName.text = item.name
-                    } else {
-                        gameName.visibility = View.GONE
-                    }
-                    if (item.viewerCount != null) {
-                        viewers.visibility = View.VISIBLE
-                        val count = item.viewerCount ?: 0
-                        viewers.text = context.resources.getQuantityString(
-                            R.plurals.viewers,
-                            count,
-                            TwitchApiHelper.formatCount(count, context.prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true))
-                        )
-                    } else {
-                        viewers.visibility = View.GONE
-                    }
-                    if (item.broadcasterCount != null && context.prefs().getBoolean(C.UI_BROADCASTERS_COUNT, true)) {
-                        broadcastersCount.visibility = View.VISIBLE
-                        val count = item.broadcasterCount ?: 0
-                        broadcastersCount.text = context.resources.getQuantityString(
-                            R.plurals.broadcasters,
-                            count,
-                            TwitchApiHelper.formatCount(count, context.prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true))
-                        )
-                    } else {
-                        broadcastersCount.visibility = View.GONE
-                    }
-                    if (!item.tags.isNullOrEmpty() && context.prefs().getBoolean(C.UI_TAGS, true)) {
-                        tagsLayout.removeAllViews()
-                        tagsLayout.visibility = View.VISIBLE
-                        val tagsFlowLayout = Flow(context).apply {
-                            layoutParams = ConstraintLayout.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.WRAP_CONTENT
-                            ).apply {
-                                topToTop = tagsLayout.id
-                                bottomToBottom = tagsLayout.id
-                                startToStart = tagsLayout.id
-                                endToEnd = tagsLayout.id
-                            }
-                            setWrapMode(Flow.WRAP_CHAIN)
-                        }
-                        tagsLayout.addView(tagsFlowLayout)
-                        val ids = mutableListOf<Int>()
-                        for (tag in item.tags!!) {
-                            val text = TextView(context)
-                            val id = View.generateViewId()
-                            text.id = id
-                            ids.add(id)
-                            text.text = tag.name
-                            context.obtainStyledAttributes(intArrayOf(com.google.android.material.R.attr.textAppearanceBodyMedium)).use {
-                                TextViewCompat.setTextAppearance(text, it.getResourceId(0, 0))
-                            }
-                            if (tag.id != null) {
-                                text.setOnClickListener {
-                                    selectTag(tag)
-                                }
-                            }
-                            val padding = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 5f, context.resources.displayMetrics).toInt()
-                            text.setPadding(padding, 0, padding, 0)
-                            tagsLayout.addView(text)
-                        }
-                        tagsFlowLayout.referencedIds = ids.toIntArray()
-                    } else {
-                        tagsLayout.visibility = View.GONE
-                    }
-                }
+                    },
+                )
             }
         }
     }

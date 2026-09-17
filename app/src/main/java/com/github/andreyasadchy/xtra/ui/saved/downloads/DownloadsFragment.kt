@@ -11,13 +11,46 @@ import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Environment
 import android.os.IBinder
-import android.util.TypedValue
+import android.content.res.Configuration
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.paging.AsyncPagingDataDiffer
+import androidx.paging.LoadState
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListUpdateCallback
+import com.github.andreyasadchy.xtra.ui.common.FragmentHost
+import com.github.andreyasadchy.xtra.ui.downloads.DownloadsList
+import com.github.andreyasadchy.xtra.ui.downloads.StorageSelector
+import com.github.andreyasadchy.xtra.ui.downloads.DownloadCheckBox
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
+import com.google.android.material.appbar.AppBarLayout
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.CheckBox
 import android.widget.LinearLayout
-import android.widget.RadioButton
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
@@ -25,18 +58,13 @@ import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
-import androidx.core.view.updatePadding
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.paging.PagingDataAdapter
-import androidx.recyclerview.widget.RecyclerView
-import androidx.recyclerview.widget.SimpleItemAnimator
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.CommonRecyclerViewLayoutBinding
-import com.github.andreyasadchy.xtra.databinding.FragmentDownloadsListItemBinding
-import com.github.andreyasadchy.xtra.databinding.StorageSelectionBinding
 import com.github.andreyasadchy.xtra.model.ui.DownloadProgress
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
@@ -47,17 +75,23 @@ import com.github.andreyasadchy.xtra.ui.saved.downloads.DownloadsViewModel.Compa
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
-import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.io.File
 
 class DownloadsFragment : PagedListFragment(), Scrollable {
 
-    private var _binding: CommonRecyclerViewLayoutBinding? = null
-    private val binding get() = _binding!!
     private val viewModel: DownloadsViewModel by viewModels { DownloadsViewModelFactory }
-    private lateinit var pagingAdapter: PagingDataAdapter<OfflineVideo, out RecyclerView.ViewHolder>
+    private val progressViewModel: DownloadsProgressViewModel by viewModels()
+    private var pagingDiffer: AsyncPagingDataDiffer<OfflineVideo>? = null
+    private var collectionJob: Job? = null
+    private var gridState by mutableStateOf<LazyGridState?>(null)
+    private var bottomInset by mutableIntStateOf(0)
+    private var pageVersion by mutableIntStateOf(0)
+    private var insertionScroll by mutableIntStateOf(0)
+    private var loading by mutableStateOf(true)
+    private var actions by mutableStateOf<DownloadsAdapter?>(null)
+    private val actionDialogs = mutableListOf<androidx.appcompat.app.AlertDialog>()
     override var enableNetworkCheck = false
     private var fileResultLauncher: ActivityResultLauncher<Intent>? = null
     private var chatFileResultLauncher: ActivityResultLauncher<Intent>? = null
@@ -91,13 +125,81 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = CommonRecyclerViewLayoutBinding.inflate(inflater, container, false)
-        return binding.root
+        var receivedInsertion = false
+        bottomInset = 0
+        pageVersion = 0
+        insertionScroll = 0
+        loading = true
+        val differ = AsyncPagingDataDiffer(
+            diffCallback = object : DiffUtil.ItemCallback<OfflineVideo>() {
+                override fun areItemsTheSame(oldItem: OfflineVideo, newItem: OfflineVideo) = oldItem.id == newItem.id
+                override fun areContentsTheSame(oldItem: OfflineVideo, newItem: OfflineVideo) = false
+            },
+            updateCallback = object : ListUpdateCallback {
+                override fun onInserted(position: Int, count: Int) {
+                    if (receivedInsertion && position == 0) insertionScroll++
+                    receivedInsertion = true
+                    pageVersion++
+                }
+                override fun onRemoved(position: Int, count: Int) { pageVersion++ }
+                override fun onMoved(fromPosition: Int, toPosition: Int) { pageVersion++ }
+                override fun onChanged(position: Int, count: Int, payload: Any?) { pageVersion++ }
+            },
+        )
+        pagingDiffer = differ
+        return ComposeView(requireContext()).apply {
+            id = R.id.swipeRefresh
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val configuration = LocalConfiguration.current
+                val prefs = requireContext().prefs()
+                val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
+                    prefs.getString(if (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) C.UI_THEME_DARK_ON else C.UI_THEME_DARK_OFF, if (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) "0" else "2")
+                } else prefs.getString(C.THEME, "0")
+                val columns = prefs.getString(if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) C.PORTRAIT_COLUMN_COUNT else C.LANDSCAPE_COLUMN_COUNT, if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) "1" else "2")?.toIntOrNull() ?: 1
+                val state = rememberLazyGridState()
+                DisposableEffect(state) {
+                    gridState = state
+                    onDispose { gridState = null }
+                }
+                LaunchedEffect(insertionScroll) { if (insertionScroll > 0) state.animateScrollToItem(0) }
+                val snapshot = remember(pageVersion) { differ.snapshot() }
+                val progress by progressViewModel.progress.collectAsState()
+                val adapter = actions
+                val material3 = prefs.getBoolean(C.UI_THEME_MATERIAL3, true)
+                fun find(id: Int) = differ.snapshot().items.find { it.id == id }
+                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                    DownloadsList(
+                        itemCount = snapshot.size,
+                        itemKey = { snapshot[it]?.id ?: "placeholder:$it" },
+                        itemAt = { index ->
+                            if (index < differ.itemCount) differ.getItem(index)
+                            snapshot[index]?.let { adapter?.item(it, progress[it.id]) }
+                        },
+                        loading = loading, columns = columns, state = state,
+                        emptyText = getString(R.string.nothing_here),
+                        optionsText = getString(androidx.appcompat.R.string.abc_action_menu_overflow_description),
+                        deleteText = getString(R.string.delete),
+                        onOpen = { find(it)?.let { adapter?.open(it) } },
+                        onChannel = { find(it)?.let { adapter?.channel(it) } },
+                        onGame = { find(it)?.let { adapter?.game(it) } },
+                        onDelete = { find(it)?.let { adapter?.deleteVideo?.invoke(it) } },
+                        onAction = { id, action -> find(id)?.let { adapter?.action(it, action) } },
+                        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
+                        bottomPadding = with(LocalDensity.current) { bottomInset.toDp() },
+                        cardMargin = if (!material3) 0.dp else if (prefs.getBoolean(C.UI_THEME_REDUCED_PADDING, false)) 4.dp else 8.dp,
+                        cornerRadius = if (!material3) 0.dp else when (prefs.getString(C.UI_THEME_ROUNDED_CORNERS, "0")) { "1" -> 9.dp; "2" -> 0.dp; else -> 12.dp },
+                        material3 = material3,
+                    )
+                }
+            }
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        pagingAdapter = DownloadsAdapter(
+        actions = DownloadsAdapter(
             fragment = this,
             stopDownload = { video ->
                 if (video.status == OfflineVideo.STATUS_WAITING_FOR_NETWORK || video.status == OfflineVideo.STATUS_WAITING_FOR_WIFI) {
@@ -177,45 +279,24 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
                             }
                         }
                     }
-                    val binding = StorageSelectionBinding.inflate(layoutInflater).apply {
-                        storageSpinner.visibility = View.GONE
-                        if (Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED) {
-                            appStorageLayout.visibility = View.VISIBLE
-                            storage.forEachIndexed { index, pair ->
-                                radioGroup.addView(
-                                    RadioButton(requireContext()).apply {
-                                        id = index
-                                        text = pair.first
-                                    }
-                                )
-                            }
-                            radioGroup.check(
-                                if (storage.size == 1) {
-                                    0
-                                } else {
-                                    requireContext().prefs().getInt(C.DOWNLOAD_STORAGE, 0)
-                                }
+                    var checked by mutableIntStateOf(if (storage.size == 1) 0 else requireContext().prefs().getInt(C.DOWNLOAD_STORAGE, 0))
+                    val mounted = Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
+                    showActionDialog(
+                        content = {
+                            StorageSelector(
+                                title = getString(R.string.save_to), noStorageText = getString(R.string.no_storage_detected),
+                                selectDirectoryText = getString(R.string.select_directory), available = mounted,
+                                locations = emptyList(), location = 1, storageNames = storage.map { it.first },
+                                selectedStorage = checked, directory = null, onLocation = {}, onStorage = { checked = it }, onDirectory = {},
                             )
-                        } else {
-                            noStorageDetected.apply {
-                                visibility = View.VISIBLE
-                                layoutParams = layoutParams.apply {
-                                    width = ViewGroup.LayoutParams.WRAP_CONTENT
-                                }
-                            }
-                        }
-                    }
-                    requireActivity().getAlertDialogBuilder()
-                        .setView(binding.root)
-                        .setPositiveButton(getString(android.R.string.ok)) { _, _ ->
-                            val checked = binding.radioGroup.checkedRadioButtonId
-                            storage.getOrNull(checked)?.let { storage ->
+                        },
+                        confirm = {
+                            if (mounted) storage.getOrNull(checked)?.let { storage ->
                                 requireContext().prefs().edit { putInt(C.DOWNLOAD_STORAGE, checked) }
                                 viewModel.moveToAppStorage(storage.second, it)
                             }
-                        }
-                        .setNegativeButton(getString(android.R.string.cancel), null)
-                        .show()
+                        },
+                    )
                 } else {
                     viewModel.selectedVideo = it
                     fileResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
@@ -246,20 +327,13 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
             },
             deleteVideo = { video ->
                 val delete = getString(R.string.delete)
-                val checkBox = CheckBox(requireContext()).apply {
-                    text = getString(R.string.keep_files)
-                    isChecked = true
-                }
-                val checkBoxView = LinearLayout(requireContext()).apply {
-                    addView(checkBox)
-                    val padding = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20f, resources.displayMetrics).toInt()
-                    setPadding(padding, 0, padding, 0)
-                }
-                requireActivity().getAlertDialogBuilder()
-                    .setTitle(delete)
-                    .setMessage(getString(R.string.are_you_sure))
-                    .setView(checkBoxView)
-                    .setPositiveButton(delete) { _, _ ->
+                var keepFiles by mutableStateOf(true)
+                showActionDialog(
+                    title = delete,
+                    message = getString(R.string.are_you_sure),
+                    confirmText = delete,
+                    content = { DownloadCheckBox(getString(R.string.keep_files), keepFiles) { keepFiles = it } },
+                    confirm = {
                         if (video.live) {
                             if (streamDownloadService?.activeDownloads?.find { it.id == video.id } != null) {
                                 val intent = Intent(requireContext(), StreamDownloadService::class.java).apply {
@@ -279,35 +353,29 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
                                 bindVideoDownloadService(true)
                             }
                         }
-                        viewModel.delete(video, checkBox.isChecked)
-                    }
-                    .setNegativeButton(getString(android.R.string.cancel), null)
-                    .show()
+                        viewModel.delete(video, keepFiles)
+                    },
+                )
             }
         )
-        with(binding) {
-            pagingAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-                override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-                    pagingAdapter.unregisterAdapterDataObserver(this)
-                    pagingAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-                        override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-                            if (positionStart == 0) {
-                                recyclerView.smoothScrollToPosition(0)
-                            }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                snapshotFlow { gridState?.canScrollBackward == true }.collectLatest { scrolled ->
+                    val parent = parentFragment
+                    if ((parent as? FragmentHost)?.currentFragment === this@DownloadsFragment && requireContext().prefs().getBoolean(C.UI_THEME_APPBAR_LIFT, true)) {
+                        parent.view?.findViewById<AppBarLayout>(R.id.appBar)?.apply {
+                            setLiftOnScrollTargetView(view)
+                            isLifted = scrolled
                         }
-                    })
+                    }
                 }
-            })
-            recyclerView.adapter = pagingAdapter
-            (recyclerView.itemAnimator as SimpleItemAnimator).supportsChangeAnimations = false
-            ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
-                if (activity?.findViewById<LinearLayout>(R.id.navBarContainer)?.isVisible == false) {
-                    val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-                    recyclerView.updatePadding(bottom = insets.bottom)
-                }
-                WindowInsetsCompat.CONSUMED
             }
         }
+        ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
+            bottomInset = if (activity?.findViewById<LinearLayout>(R.id.navBarContainer)?.isVisible == false) windowInsets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom else 0
+            WindowInsetsCompat.CONSUMED
+        }
+        ViewCompat.requestApplyInsets(view)
     }
 
     override fun onStart() {
@@ -326,33 +394,60 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
     }
 
     override fun initialize() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.flow.collectLatest { pagingData ->
-                    pagingAdapter.submitData(pagingData)
+        if (collectionJob != null) return
+        val differ = pagingDiffer ?: return
+        collectionJob = viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch { viewModel.flow.collectLatest { differ.submitData(it) } }
+                launch { differ.loadStateFlow.collectLatest { loading = it.refresh is LoadState.Loading; pageVersion++ } }
+                launch { differ.onPagesUpdatedFlow.collectLatest { pageVersion++ } }
+                launch {
+                    while (true) {
+                        progressViewModel.replace(false, videoDownloadService?.activeDownloads?.toList().orEmpty())
+                        progressViewModel.replace(true, streamDownloadService?.activeDownloads?.toList().orEmpty())
+                        delay(500)
+                    }
                 }
             }
         }
-        initializeAdapter(binding, pagingAdapter, enableSwipeRefresh = false, enableScrollTopButton = false)
+    }
+
+    private fun showActionDialog(
+        title: String? = null,
+        message: String? = null,
+        confirmText: String = getString(android.R.string.ok),
+        content: @androidx.compose.runtime.Composable () -> Unit,
+        confirm: () -> Unit,
+    ) {
+        val builder = requireActivity().getAlertDialogBuilder().setTitle(title).setMessage(message)
+        val composeView = ComposeView(builder.context).apply {
+            setViewTreeLifecycleOwner(viewLifecycleOwner)
+            setViewTreeSavedStateRegistryOwner(this@DownloadsFragment)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val prefs = requireContext().prefs()
+                val night = LocalConfiguration.current.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+                val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) prefs.getString(if (night) C.UI_THEME_DARK_ON else C.UI_THEME_DARK_OFF, if (night) "0" else "2") else prefs.getString(C.THEME, "0")
+                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") { content() }
+            }
+        }
+        val dialog = builder.setView(composeView)
+            .setPositiveButton(confirmText) { _, _ -> confirm() }
+            .setNegativeButton(android.R.string.cancel, null).create()
+        actionDialogs.add(dialog)
+        dialog.setOnDismissListener { composeView.disposeComposition(); actionDialogs.remove(dialog) }
+        dialog.show()
     }
 
     fun bindVideoDownloadService(started: Boolean = false) {
         if (videoDownloadServiceConnection == null) {
             val listener = object : VideoDownloadService.Listener {
                 override fun update(downloadProgress: DownloadProgress) {
-                    val list = pagingAdapter.snapshot()
-                    val item = list.find { it?.id == downloadProgress.id }
-                    if (item != null) {
-                        val index = list.indexOf(item)
-                        (binding.recyclerView.layoutManager?.findViewByPosition(index) as? MaterialCardView)?.let {
-                            val binding = FragmentDownloadsListItemBinding.bind(it)
-                            (pagingAdapter as? DownloadsAdapter)?.updateStatus(binding, requireContext(), item, downloadProgress)
-                        } ?: pagingAdapter.notifyItemChanged(index)
-                    }
+                    progressViewModel.update(downloadProgress, false)
                 }
 
                 override fun unbind() {
-                    (pagingAdapter as? DownloadsAdapter)?.activeVideoDownloads = null
+                    progressViewModel.replace(false, emptyList())
                     videoDownloadService?.listener = null
                     videoDownloadServiceConnection?.let { requireContext().unbindService(it) }
                     videoDownloadServiceConnection = null
@@ -365,7 +460,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
                         val binder = service as VideoDownloadService.ServiceBinder
                         videoDownloadService = binder.getService()
                         if (started || !videoDownloadService?.activeDownloads.isNullOrEmpty()) {
-                            (pagingAdapter as? DownloadsAdapter)?.activeVideoDownloads = videoDownloadService?.activeDownloads
+                            progressViewModel.replace(false, videoDownloadService?.activeDownloads?.toList().orEmpty())
                             videoDownloadService?.listener = listener
                             videoDownloadService?.activeDownloads?.toList()?.forEach {
                                 listener.update(it)
@@ -381,7 +476,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
 
                 override fun onServiceDisconnected(name: ComponentName?) {
                     videoDownloadService = null
-                    (pagingAdapter as? DownloadsAdapter)?.activeVideoDownloads = null
+                    progressViewModel.replace(false, emptyList())
                 }
             }
             val intent = Intent(requireContext(), VideoDownloadService::class.java)
@@ -394,7 +489,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
         if (streamDownloadServiceConnection == null) {
             val listener = object : StreamDownloadService.Listener {
                 override fun unbind() {
-                    (pagingAdapter as? DownloadsAdapter)?.activeStreamDownloads = null
+                    progressViewModel.replace(true, emptyList())
                     streamDownloadService?.listener = null
                     streamDownloadServiceConnection?.let { requireContext().unbindService(it) }
                     streamDownloadServiceConnection = null
@@ -408,7 +503,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
                         val binder = service as StreamDownloadService.ServiceBinder
                         streamDownloadService = binder.getService()
                         if (started || !streamDownloadService?.activeDownloads.isNullOrEmpty()) {
-                            (pagingAdapter as? DownloadsAdapter)?.activeStreamDownloads = streamDownloadService?.activeDownloads
+                            progressViewModel.replace(true, streamDownloadService?.activeDownloads?.toList().orEmpty())
                             streamDownloadService?.listener = listener
                         } else {
                             streamDownloadServiceConnection?.let { requireContext().unbindService(it) }
@@ -420,7 +515,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
 
                 override fun onServiceDisconnected(name: ComponentName?) {
                     streamDownloadService = null
-                    (pagingAdapter as? DownloadsAdapter)?.activeStreamDownloads = null
+                    progressViewModel.replace(true, emptyList())
                 }
             }
             val intent = Intent(requireContext(), StreamDownloadService::class.java)
@@ -431,12 +526,12 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
 
     override fun onStop() {
         super.onStop()
-        (pagingAdapter as? DownloadsAdapter)?.activeVideoDownloads = null
+        progressViewModel.replace(false, emptyList())
         videoDownloadService?.listener = null
         videoDownloadServiceConnection?.let { requireContext().unbindService(it) }
         videoDownloadServiceConnection = null
         videoDownloadService = null
-        (pagingAdapter as? DownloadsAdapter)?.activeStreamDownloads = null
+        progressViewModel.replace(true, emptyList())
         streamDownloadService?.listener = null
         streamDownloadServiceConnection?.let { requireContext().unbindService(it) }
         streamDownloadServiceConnection = null
@@ -444,7 +539,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
     }
 
     override fun scrollToTop() {
-        binding.recyclerView.scrollToPosition(0)
+        viewLifecycleOwner.lifecycleScope.launch { gridState?.scrollToItem(0) }
     }
 
     override fun onNetworkRestored() {
@@ -454,7 +549,39 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
     }
 
     override fun onDestroyView() {
+        collectionJob?.cancel()
+        collectionJob = null
+        actionDialogs.toList().forEach { it.dismiss() }
+        pagingDiffer = null
+        actions = null
+        gridState = null
         super.onDestroyView()
-        _binding = null
     }
+}
+
+data class DownloadProgressState(
+    val live: Boolean,
+    val progress: Int,
+    val maxProgress: Int,
+    val chatProgress: Int,
+    val maxChatProgress: Int,
+)
+
+class DownloadsProgressViewModel : ViewModel() {
+    private val _progress = MutableStateFlow<Map<Int, DownloadProgressState>>(emptyMap())
+    val progress: StateFlow<Map<Int, DownloadProgressState>> = _progress
+
+    fun update(progress: DownloadProgress, live: Boolean) {
+        val snapshot = snapshot(progress, live)
+        _progress.update { it + (progress.id to snapshot) }
+    }
+
+    fun replace(live: Boolean, downloads: List<DownloadProgress>) {
+        val snapshots = downloads.associate { it.id to snapshot(it, live) }
+        _progress.update { current -> current.filterValues { it.live != live } + snapshots }
+    }
+
+    private fun snapshot(progress: DownloadProgress, live: Boolean) = DownloadProgressState(
+        live, progress.progress, progress.maxProgress, progress.chatProgress, progress.maxChatProgress,
+    )
 }

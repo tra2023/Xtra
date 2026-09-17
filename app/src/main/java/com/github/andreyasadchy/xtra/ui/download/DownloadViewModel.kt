@@ -35,6 +35,13 @@ class DownloadViewModel(
     val dismiss = MutableStateFlow(false)
     var backupQualities: List<String>? = null
     var selectedQuality: String? = null
+    private val _form = MutableStateFlow(com.github.andreyasadchy.xtra.ui.downloads.DownloadFormState())
+    val form: StateFlow<com.github.andreyasadchy.xtra.ui.downloads.DownloadFormState> = _form
+    var sharedPath: String? = null
+
+    fun updateForm(state: com.github.andreyasadchy.xtra.ui.downloads.DownloadFormState) {
+        _form.value = state
+    }
 
     fun setStream(gqlHeaders: Map<String, String>, channelLogin: String?, qualities: List<VideoQuality>?, platform: String?, playerType: String?, supportedCodecs: String?, enableIntegrity: Boolean) {
         if (_qualities.value == null) {

@@ -1,12 +1,17 @@
 package com.github.andreyasadchy.xtra.ui.search
 
-import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.github.andreyasadchy.xtra.databinding.FragmentRecentSearchListItemBinding
+import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.RecentSearch
+import com.github.andreyasadchy.xtra.ui.collections.RecentSearchCollectionRow
+import com.github.andreyasadchy.xtra.ui.collections.bindCollection
+import com.github.andreyasadchy.xtra.ui.collections.collectionComposeView
 
 class RecentSearchAdapter(
     private val select: (RecentSearch) -> Unit,
@@ -22,29 +27,31 @@ class RecentSearchAdapter(
         }
     }) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding = FragmentRecentSearchListItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return ViewHolder(binding)
-    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder =
+        ViewHolder(parent.collectionComposeView())
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
 
+    override fun onViewRecycled(holder: ViewHolder) {
+        holder.bind(null)
+        super.onViewRecycled(holder)
+    }
+
     inner class ViewHolder(
-        private val binding: FragmentRecentSearchListItemBinding,
-    ) : RecyclerView.ViewHolder(binding.root) {
+        private val composeView: ComposeView,
+    ) : RecyclerView.ViewHolder(composeView) {
         fun bind(item: RecentSearch?) {
-            with(binding) {
-                if (item != null) {
-                    root.setOnClickListener {
-                        select(item)
-                    }
-                    text.text = item.query
-                    delete.setOnClickListener {
-                        delete(item)
-                    }
-                }
+            composeView.bindCollection(item) { search ->
+                RecentSearchCollectionRow(
+                    query = search.query,
+                    historyIcon = painterResource(R.drawable.baseline_history_black_24),
+                    deleteIcon = painterResource(R.drawable.baseline_delete_black_24),
+                    deleteLabel = stringResource(R.string.delete),
+                    onClick = { select(search) },
+                    onDelete = { delete(search) },
+                )
             }
         }
     }
