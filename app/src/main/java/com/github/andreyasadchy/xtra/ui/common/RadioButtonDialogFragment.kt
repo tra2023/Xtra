@@ -1,20 +1,22 @@
 package com.github.andreyasadchy.xtra.ui.common
 
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.widget.LinearLayout
-import android.widget.RadioButton
-import android.widget.RadioGroup
-import androidx.appcompat.widget.AppCompatRadioButton
-import androidx.core.content.res.use
-import androidx.core.view.setPadding
-import androidx.core.widget.NestedScrollView
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
+import androidx.compose.ui.unit.dp
 import com.github.andreyasadchy.xtra.R
+import com.github.andreyasadchy.xtra.ui.selection.RadioButtonDialogContent
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
+import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
@@ -53,37 +55,46 @@ class RadioButtonDialogFragment : BottomSheetDialogFragment() {
         listenerSort = parentFragment as OnSortOptionChanged
     }
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        val context = requireContext()
-        val arguments = requireArguments()
-        val params = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
-        val radioGroup = RadioGroup(context).apply {
-            layoutParams = params
-            context.obtainStyledAttributes(intArrayOf(R.attr.dialogLayoutPadding)).use {
-                setPadding(it.getDimensionPixelSize(0, 0))
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        val args = requireArguments()
+        val labels = args.getCharSequenceArrayList(LABELS).orEmpty()
+        val displayLabels = labels.map { it.toString() }
+        val checkedIndex = args.getInt(CHECKED)
+        val requestCode = args.getInt(REQUEST_CODE)
+        val tags = args.getStringArray(TAGS)
+        val tags2 = args.getStringArray(TAGS2)
+        val (darkTheme, amoled, blue) = themeFlags()
+        val padding = requireContext().obtainStyledAttributes(intArrayOf(R.attr.dialogLayoutPadding)).let {
+            val value = it.getDimension(0, 0f) / resources.displayMetrics.density
+            it.recycle()
+            value.dp
+        }
+        return ComposeView(requireContext()).apply {
+            id = R.id.sort
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                XtraTheme(darkTheme = darkTheme, amoled = amoled, blue = blue) {
+                    RadioButtonDialogContent(
+                        labels = displayLabels,
+                        checkedIndex = checkedIndex,
+                        onSelect = { index ->
+                            if (index != checkedIndex) {
+                                listenerSort.onChange(
+                                    requestCode,
+                                    index,
+                                    labels[index],
+                                    tags?.getOrNull(index)?.takeIf { it != "null" },
+                                    tags2?.getOrNull(index)?.takeIf { it != "null" },
+                                )
+                            }
+                            dismiss()
+                        },
+                        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
+                        contentPadding = padding,
+                    )
+                }
             }
         }
-        val checkedId = arguments.getInt(CHECKED)
-        val tags2 = arguments.getStringArray(TAGS2)
-        val clickListener = View.OnClickListener { v ->
-            val clickedId = v.id
-            if (clickedId != checkedId) {
-                listenerSort.onChange(arguments.getInt(REQUEST_CODE), clickedId, (v as RadioButton).text, v.tag as String?, tags2?.getOrNull(clickedId)?.takeIf { it != "null" })
-            }
-            dismiss()
-        }
-        val tags = arguments.getStringArray(TAGS)
-        arguments.getCharSequenceArrayList(LABELS)?.forEachIndexed { index, label ->
-            val button = AppCompatRadioButton(context).apply {
-                id = index
-                text = label
-                tag = tags?.getOrNull(index)?.takeIf { it != "null" }
-                setOnClickListener(clickListener)
-            }
-            radioGroup.addView(button, params)
-        }
-        radioGroup.check(checkedId)
-        return NestedScrollView(context).apply { addView(radioGroup) }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -91,5 +102,18 @@ class RadioButtonDialogFragment : BottomSheetDialogFragment() {
         val behavior = BottomSheetBehavior.from(view.parent as View)
         behavior.skipCollapsed = true
         behavior.state = BottomSheetBehavior.STATE_EXPANDED
+    }
+
+    private fun themeFlags(): Triple<Boolean, Boolean, Boolean> {
+        val prefs = requireContext().prefs()
+        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
+            when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
+                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0") ?: "0"
+                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2") ?: "2"
+            }
+        } else {
+            prefs.getString(C.THEME, "0") ?: "0"
+        }
+        return Triple(theme != "2" && theme != "5", theme == "1" || theme == "6", theme == "3")
     }
 }
