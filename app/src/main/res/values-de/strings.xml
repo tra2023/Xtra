@@ -20,7 +20,6 @@
     <string name="videos">Videos</string>
     <string name="clips">Clips</string>
     <string name="scroll_down">Nach unten scrollen</string>
-    <string name="scroll_top">Nach oben scrollen</string>
     <string name="auto">Automatisch</string>
     <string name="source">Quelle</string>
     <string name="audio_only">Nur Ton</string>
@@ -127,7 +126,6 @@
     <string name="broadcastersCount">Anzahl der Broadcasters je Spiel anzeigen</string>
     <string name="startonfollowed">Auf Folge Seite starten</string>
     <string name="when_logged_in">Wenn eingeloggt</string>
-    <string name="show_scrolltop">Nach-oben-scrollen Button anzeigen</string>
     <string name="bold_usernames">Fette Benutzernamen</string>
     <string name="randomcolor">Zufällige Farbe für Nutzer ohne Farbe</string>
     <string name="message_limit">Nachrichtenlimit</string>

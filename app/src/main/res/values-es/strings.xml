@@ -131,7 +131,6 @@
     <string name="broadcastersCount">Mostrar recuento de transmisiones en "juegos"</string>
     <string name="startonfollowed">Iniciar en la página de "Siguiendo"</string>
     <string name="when_logged_in">Al tener una sesión iniciada</string>
-    <string name="show_scrolltop">Mostrar el botón de desplazamiento hacia arriba</string>
     <string name="bold_usernames">Nombres de usuario en negritas</string>
     <string name="randomcolor">Color aleatorio para usuarios sin color</string>
     <string name="message_limit">Límite de mensajes</string>

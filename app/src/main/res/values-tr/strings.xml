@@ -127,7 +127,6 @@
     <string name="broadcastersCount">Oyunlarda yayıncı sayısını göster</string>
     <string name="startonfollowed">Takip edilenler sayfasında başlat</string>
     <string name="when_logged_in">Giriş yapıldığında</string>
-    <string name="show_scrolltop">Yukarı kaydırma düğmesini göster</string>
     <string name="bold_usernames">Kalın kullanıcı adları</string>
     <string name="randomcolor">Rengi olmayan kullanıcılar için rastgele renk</string>
     <string name="message_limit">Mesaj limiti</string>

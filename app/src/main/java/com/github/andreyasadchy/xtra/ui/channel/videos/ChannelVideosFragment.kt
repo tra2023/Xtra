@@ -93,7 +93,6 @@ class ChannelVideosFragment : PagedListFragment(), Scrollable, Sortable, VideosS
             portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
             refreshTick = refreshTick,
             scrollTick = scrollTick,
-            parentScrollTop = { (parentFragment as? Scrollable)?.scrollToTop() },
             modifier = Modifier.fillMaxSize().nestedScroll(rememberNestedScrollInteropConnection()),
             showChannel = false,
             positionFor = { positions.positionFor(it) },

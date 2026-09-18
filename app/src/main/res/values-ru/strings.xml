@@ -126,7 +126,6 @@
     <string name="broadcastersCount">Счётчик стримеров в играх</string>
     <string name="startonfollowed">Запуск со страницы отслеживания</string>
     <string name="when_logged_in">При входе в систему</string>
-    <string name="show_scrolltop">Кнопка прокрутки до верха</string>
     <string name="bold_usernames">Жирный шрифт имён участников</string>
     <string name="randomcolor">Случайная окраска участников без цвета</string>
     <string name="message_limit">Ограничение сообщений</string>

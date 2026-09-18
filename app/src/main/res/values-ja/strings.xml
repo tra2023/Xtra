@@ -126,7 +126,6 @@
     <string name="broadcastersCount">ゲームの配信者数の表示</string>
     <string name="startonfollowed">起動時に [フォロー中] タブを開く</string>
     <string name="when_logged_in">ログイン時のみ</string>
-    <string name="show_scrolltop">最上部へスクロールボタンの表示</string>
     <string name="bold_usernames">ユーザー名を太字で表示</string>
     <string name="randomcolor">色が未設定のユーザーのランダム色表示</string>
     <string name="message_limit">メッセージ数の上限</string>

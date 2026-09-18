@@ -126,7 +126,6 @@
     <string name="broadcastersCount">在遊戲項目上顯示實況者數量</string>
     <string name="startonfollowed">開始於追隨中頁面</string>
     <string name="when_logged_in">登入時</string>
-    <string name="show_scrolltop">顯示捲動到頂部按鈕</string>
     <string name="bold_usernames">粗體使用者名稱</string>
     <string name="randomcolor">對於沒有顏色的使用者隨機顏色</string>
     <string name="message_limit">訊息限制</string>

@@ -126,7 +126,6 @@
     <string name="broadcastersCount">Mostra il conteggio dei trasmettitori sui giochi</string>
     <string name="startonfollowed">Inizia sulla pagina dei seguiti</string>
     <string name="when_logged_in">Quando loggato</string>
-    <string name="show_scrolltop">Mostra il pulsante per tornare in alto</string>
     <string name="bold_usernames">Nomi utente in grassetto</string>
     <string name="randomcolor">Colore casuale per gli utenti senza colore</string>
     <string name="message_limit">Limite messaggi</string>

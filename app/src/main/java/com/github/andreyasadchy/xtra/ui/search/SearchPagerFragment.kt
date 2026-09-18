@@ -386,7 +386,6 @@ class SearchPagerFragment : BaseNetworkFragment(), IntegrityDialog.Listener {
                             // Search results are not "followed" content.
                             compact = streamsCompact(followedContent = false),
                             showGame = true,
-                            enableScrollTop = false,
                             bottomInset = bottomInset,
                             portrait = portrait,
                             refreshTick = refreshTick,

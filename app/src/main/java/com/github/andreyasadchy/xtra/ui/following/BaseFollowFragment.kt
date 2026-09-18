@@ -52,7 +52,6 @@ import com.github.andreyasadchy.xtra.ui.collections.collectionFollowLabels
 import com.github.andreyasadchy.xtra.ui.common.ChannelsTab
 import com.github.andreyasadchy.xtra.ui.common.CollapsingHeaderState
 import com.github.andreyasadchy.xtra.ui.common.GamesTab
-import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
@@ -93,7 +92,6 @@ import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.time.Instant
 
@@ -371,7 +369,6 @@ abstract class BaseFollowFragment : PagedListFragment(), Scrollable, FollowedCha
                             flow = streamsViewModel.flow,
                             compact = streamsCompact(followedContent = true),
                             showGame = true,
-                            enableScrollTop = false,
                             bottomInset = bottomInset,
                             portrait = portrait,
                             refreshTick = refreshTick,

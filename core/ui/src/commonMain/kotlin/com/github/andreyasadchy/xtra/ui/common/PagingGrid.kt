@@ -24,10 +24,6 @@ import kotlinx.coroutines.launch
  * delegates here; full-Compose screens call this directly.
  *
  * @param portrait orientation used to resolve the configured column count.
- * @param parentScrollTop scroll action of an embedding scrollable parent, if
- * any. Runs before this grid's own scroll-to-top.
- * @param onScrollTop override for the scroll-top button. Defaults to
- * [parentScrollTop], then this grid.
  * @param modifier host-provided modifier (e.g. the Android nested-scroll
  * interop connection).
  */
@@ -39,12 +35,9 @@ fun <T : Any> PagingGrid(
     bottomInset: Dp,
     portrait: Boolean,
     scrollTopSignal: Int = 0,
-    enableScrollTop: Boolean = true,
     enableRefresh: Boolean = true,
     itemKey: ((Int) -> Any)? = null,
     keyForItem: ((T) -> Any?)? = null,
-    parentScrollTop: (() -> Unit)? = null,
-    onScrollTop: (() -> Unit)? = null,
     onIntegrityFailed: () -> Unit,
     onAtTopChanged: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -116,11 +109,8 @@ fun <T : Any> PagingGrid(
         errorText = error?.let { strings.error(it.error.message.orEmpty()) },
         emptyText = strings.nothingHere,
         retryText = strings.retry,
-        scrollTopText = strings.scrollTop,
         state = state, columns = columns,
         onRefresh = { items.refresh() }, onRetry = { items.retry() },
-        onScrollTop = { onScrollTop?.invoke() ?: parentScrollTop?.invoke() ?: scrollTop() },
-        enableScrollTop = enableScrollTop && settings.getBoolean(C.UI_SCROLL_TOP, true),
         enableRefresh = enableRefresh,
         contentPadding = PaddingValues(bottom = bottomInset),
         modifier = modifier,

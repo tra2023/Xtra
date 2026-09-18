@@ -66,7 +66,6 @@ fun Context.xtraStrings(): XtraStrings {
         error = { getString(R.string.error, it) },
         nothingHere = getString(R.string.nothing_here),
         retry = getString(R.string.retry),
-        scrollTop = getString(R.string.scroll_top),
         sort = getString(R.string.sort),
         viewers = { count -> resources.getQuantityString(R.plurals.viewers, count, TwitchFormats.formatCount(count, truncate)) },
         views = { count -> resources.getQuantityString(R.plurals.views, count, TwitchFormats.formatCount(count, truncate)) },

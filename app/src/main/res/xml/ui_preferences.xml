@@ -162,13 +162,6 @@
 
     <SwitchPreferenceCompat
         android:defaultValue="true"
-        android:key="ui_scrolltop"
-        android:title="@string/show_scrolltop"
-        app:iconSpaceReserved="false"
-        app:singleLineTitle="false" />
-
-    <SwitchPreferenceCompat
-        android:defaultValue="true"
         android:key="ui_bookmark_time_left"
         android:title="@string/show_vod_time_left"
         app:iconSpaceReserved="false"

@@ -31,7 +31,6 @@ fun TeamMembersTab(
     refreshTick: Int,
     scrollTick: Int,
     onAtTopChanged: ((Boolean) -> Unit)? = null,
-    parentScrollTop: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     onClick: (Stream, Boolean) -> Unit,
     onChannelClick: (Stream) -> Unit,
@@ -50,7 +49,6 @@ fun TeamMembersTab(
         portrait = portrait,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
-        parentScrollTop = parentScrollTop,
         modifier = modifier,
     ) { stream ->
         val live = stream.viewerCount != null

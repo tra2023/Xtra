@@ -87,7 +87,6 @@ class ChannelClipsFragment : PagedListFragment(), Scrollable, Sortable, VideosSo
             portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
             refreshTick = refreshTick,
             scrollTick = scrollTick,
-            parentScrollTop = { (parentFragment as? Scrollable)?.scrollToTop() },
             modifier = Modifier.fillMaxSize().nestedScroll(rememberNestedScrollInteropConnection()),
             showChannel = false,
             onDownload = ::showDownloadDialog,

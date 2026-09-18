@@ -16,7 +16,6 @@ data class XtraStrings(
     val error: (String) -> String,
     val nothingHere: String,
     val retry: String,
-    val scrollTop: String,
     val sort: String,
     val viewers: (Int) -> String,
     val views: (Int) -> String,

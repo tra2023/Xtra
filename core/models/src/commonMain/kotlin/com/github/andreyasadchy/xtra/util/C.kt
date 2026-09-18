@@ -85,7 +85,6 @@ object C {
     const val UI_ACTIVATE_NOTIFICATIONS_WHEN_FOLLOWING = "ui_activate_notifications_when_following"
     const val UI_UPTIME = "ui_uptime"
     const val UI_TAGS = "ui_tags"
-    const val UI_SCROLL_TOP = "ui_scrolltop"
     const val UI_BOOKMARK_TIME_LEFT = "ui_bookmark_time_left"
     const val UI_DEFAULT_PAGE = "ui_default_page"
     const val UI_NAVIGATION_TABS = "ui_navigation_tabs"

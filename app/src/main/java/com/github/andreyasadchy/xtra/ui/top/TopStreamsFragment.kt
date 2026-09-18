@@ -95,7 +95,6 @@ class TopStreamsFragment : PagedListFragment(), Scrollable, StreamsSortDialog.On
         val liftOptOut = !requireContext().prefs().getBoolean(C.UI_THEME_APPBAR_LIFT, true)
         val portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
         val bottomInset = xtraBottomInset(activity)
-        val enableScrollTop = !args.tags.isNullOrEmpty() || !args.languages.isNullOrEmpty()
         val refreshTick by composeRefreshSignal.collectAsState()
         val scrollTick by composeScrollTopSignal.collectAsState()
         val sortText by viewModel.sortText.collectAsState()
@@ -132,7 +131,6 @@ class TopStreamsFragment : PagedListFragment(), Scrollable, StreamsSortDialog.On
                 flow = viewModel.flow,
                 compact = streamsCompact(followedContent = false),
                 showGame = true,
-                enableScrollTop = enableScrollTop,
                 bottomInset = bottomInset,
                 portrait = portrait,
                 refreshTick = refreshTick,

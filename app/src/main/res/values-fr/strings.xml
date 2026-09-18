@@ -126,7 +126,6 @@
     <string name="broadcastersCount">Afficher le nombre de diffuseurs sur les catégories</string>
     <string name="startonfollowed">Démarrer sur la page des suivis</string>
     <string name="when_logged_in">Une fois connecté</string>
-    <string name="show_scrolltop">Afficher le bouton de défilement vers le haut</string>
     <string name="bold_usernames">Noms d\'utilisateurs en gras</string>
     <string name="randomcolor">Couleur aléatoire pour les utilisateurs sans couleur</string>
     <string name="message_limit">Limite de messages</string>

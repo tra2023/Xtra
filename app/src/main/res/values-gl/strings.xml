@@ -126,7 +126,6 @@
     <string name="broadcastersCount">Mostrar número de emisores nos xogos</string>
     <string name="startonfollowed">Comezar na páxina \"Seguindo\"</string>
     <string name="when_logged_in">Cando se iniciou sesión</string>
-    <string name="show_scrolltop">Mostrar botón para ir arriba</string>
     <string name="bold_usernames">Nomes de usuario en negra</string>
     <string name="randomcolor">Cor aleatoria para usuarios sen cor</string>
     <string name="message_limit">Límite de mensaxes</string>

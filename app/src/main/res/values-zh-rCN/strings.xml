@@ -126,7 +126,6 @@
     <string name="broadcastersCount">在游戏项目上显示主播数量</string>
     <string name="startonfollowed">开始于关注页面</string>
     <string name="when_logged_in">登录时</string>
-    <string name="show_scrolltop">显示滚动到顶部按钮</string>
     <string name="bold_usernames">粗体用户名称</string>
     <string name="randomcolor">对于没有颜色的用户随机颜色</string>
     <string name="message_limit">信息限制</string>

@@ -126,7 +126,6 @@
     <string name="broadcastersCount">Show broadcasters count on games</string>
     <string name="startonfollowed">Start on following page</string>
     <string name="when_logged_in">When logged in</string>
-    <string name="show_scrolltop">Show scroll to top button</string>
     <string name="bold_usernames">Bold usernames</string>
     <string name="randomcolor">Random color for users without color</string>
     <string name="message_limit">Message limit</string>

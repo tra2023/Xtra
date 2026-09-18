@@ -17,7 +17,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
@@ -396,7 +395,6 @@ abstract class BaseGameFragment : PagedListFragment(), Scrollable, StreamsSortDi
                             flow = streamsViewModel.flow,
                             compact = streamsCompact(followedContent = false),
                             showGame = false,
-                            enableScrollTop = args.gameId != null || args.gameName != null || !args.tags.isNullOrEmpty(),
                             bottomInset = bottomInset,
                             portrait = portrait,
                             refreshTick = refreshTick,
