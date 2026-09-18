@@ -45,14 +45,16 @@ class StreamsSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSel
         private const val TAGS = "tags"
         private const val LANGUAGES = "languages"
         private const val SAVED = "saved"
+        private const val SHOW_SAVE_SORT = "show_save_sort"
 
-        fun newInstance(sort: String?, tags: Array<String>?, languages: Array<String>?, saved: Boolean = false): StreamsSortDialog {
+        fun newInstance(sort: String?, tags: Array<String>?, languages: Array<String>?, saved: Boolean = false, showSaveSort: Boolean? = null): StreamsSortDialog {
             return StreamsSortDialog().apply {
                 arguments = Bundle().apply {
                     putString(SORT, sort)
                     putStringArray(TAGS, tags)
                     putStringArray(LANGUAGES, languages)
                     putBoolean(SAVED, saved)
+                    showSaveSort?.let { putBoolean(SHOW_SAVE_SORT, it) }
                 }
             }
         }
@@ -80,7 +82,9 @@ class StreamsSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSel
         selectedTags.clear()
         selectedTags.addAll(originalTags)
         selectedLanguages = originalLanguages
-        val showSaveSort = when (parentFragment) {
+        val showSaveSort = if (args.containsKey(SHOW_SAVE_SORT)) {
+            args.getBoolean(SHOW_SAVE_SORT)
+        } else when (parentFragment) {
             is GameStreamsFragment -> !parentFragment?.arguments?.getString(C.GAME_ID).isNullOrBlank()
             is TopStreamsFragment -> false
             else -> true

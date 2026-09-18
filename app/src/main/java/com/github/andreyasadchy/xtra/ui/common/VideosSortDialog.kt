@@ -54,8 +54,18 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
         private const val TYPE = "type"
         private const val LANGUAGES = "languages"
         private const val SAVED = "saved"
+        private const val TAB = "tab"
+        private const val CONTEXT = "context"
+        private const val HAS_ID = "has_id"
 
-        fun newInstance(sort: String? = SORT_TIME, period: String? = PERIOD_WEEK, type: String? = VIDEO_TYPE_ALL, languages: Array<String>? = null, saved: Boolean = false): VideosSortDialog {
+        /**
+         * Explicit host description for Compose pager screens, which have no
+         * [GameVideosFragment]/[GameClipsFragment]/... host to sniff:
+         * [tab] is `"videos"` or `"clips"`, [context] is `"game"`,
+         * `"channel"` or `"followed"`, [hasId] tells whether a game/channel id
+         * is present. Null (default) keeps the legacy fragment sniffing.
+         */
+        fun newInstance(sort: String? = SORT_TIME, period: String? = PERIOD_WEEK, type: String? = VIDEO_TYPE_ALL, languages: Array<String>? = null, saved: Boolean = false, tab: String? = null, context: String? = null, hasId: Boolean? = null): VideosSortDialog {
             return VideosSortDialog().apply {
                 arguments = Bundle().apply {
                     putString(SORT, sort)
@@ -63,6 +73,9 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
                     putString(TYPE, type)
                     putStringArray(LANGUAGES, languages)
                     putBoolean(SAVED, saved)
+                    tab?.let { putString(TAB, it) }
+                    context?.let { putString(CONTEXT, it) }
+                    hasId?.let { putBoolean(HAS_ID, it) }
                 }
             }
         }
@@ -100,21 +113,33 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
         val originalLanguages = args.getStringArray(LANGUAGES) ?: emptyArray()
         selectedLanguages = originalLanguages
         val owner = parentFragment
-        val showSortAndType = owner !is ChannelClipsFragment && owner !is GameClipsFragment
-        val showLanguages = owner !is ChannelClipsFragment && owner !is ChannelVideosFragment && owner !is FollowedVideosFragment
-        val showPeriod = when (owner) {
-            is ChannelVideosFragment, is FollowedVideosFragment -> false
-            is GameVideosFragment -> !TwitchApiHelper.getHelixHeaders(requireContext())[C.HEADER_TOKEN].isNullOrBlank()
+        val explicitTab = args.getString(TAB)
+        val explicitContext = args.getString(CONTEXT)
+        val isClips = explicitTab?.let { it == "clips" } ?: (owner is ChannelClipsFragment || owner is GameClipsFragment)
+        val showSortAndType = !isClips
+        val showLanguages = explicitContext?.let { it == "game" }
+            ?: (owner !is ChannelClipsFragment && owner !is ChannelVideosFragment && owner !is FollowedVideosFragment)
+        val showPeriod = when {
+            explicitTab != null -> when {
+                explicitTab == "clips" -> true
+                explicitContext == "game" -> !TwitchApiHelper.getHelixHeaders(requireContext())[C.HEADER_TOKEN].isNullOrBlank()
+                explicitContext == "channel" || explicitContext == "followed" -> false
+                else -> true
+            }
+            owner is ChannelVideosFragment || owner is FollowedVideosFragment -> false
+            owner is GameVideosFragment -> !TwitchApiHelper.getHelixHeaders(requireContext())[C.HEADER_TOKEN].isNullOrBlank()
             else -> true
         }
-        val showSaveSort = when (owner) {
+        val showSaveSort = if (args.containsKey(HAS_ID)) {
+            args.getBoolean(HAS_ID)
+        } else when (owner) {
             is ChannelClipsFragment, is ChannelVideosFragment -> !owner.arguments?.getString(C.CHANNEL_ID).isNullOrBlank()
             is GameClipsFragment, is GameVideosFragment -> !owner.arguments?.getString(C.GAME_ID).isNullOrBlank()
             is FollowedVideosFragment -> false
             else -> true
         }
         val saveSortLabel = getString(
-            if (owner is ChannelClipsFragment || owner is ChannelVideosFragment) R.string.save_sort_channel else R.string.save_sort_game
+            if (explicitContext?.let { it == "channel" } ?: (owner is ChannelClipsFragment || owner is ChannelVideosFragment)) R.string.save_sort_channel else R.string.save_sort_game
         )
         val (darkTheme, amoled, blue) = requireContext().getThemeFlags()
         val padding = requireContext().obtainStyledAttributes(intArrayOf(R.attr.dialogPadding)).let {
