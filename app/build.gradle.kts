@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.coordinatorlayout)
     implementation(libs.core)
     implementation(libs.fragment)
+    implementation(libs.fragment.compose)
     implementation(libs.lifecycle.service)
     implementation(libs.lifecycle.viewmodel)
     implementation(libs.navigation.fragment)
