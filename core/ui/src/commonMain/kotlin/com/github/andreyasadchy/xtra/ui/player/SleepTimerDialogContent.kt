@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -20,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 
 data class SleepTimerUiState(
     val hours: String,
@@ -91,10 +93,7 @@ private fun DurationInput(
     onValueChanged: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        TextButton(onClick = { onValueChanged((((value.toIntOrNull() ?: 0) + 1) % (maximum + 1)).toString()) }) {
-            Text("+")
-        }
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = value,
             onValueChange = { text ->
@@ -107,8 +106,12 @@ private fun DurationInput(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        TextButton(onClick = { onValueChanged((((value.toIntOrNull() ?: 0) + maximum) % (maximum + 1)).toString()) }) {
-            Text("−")
-        }
+        Slider(
+            value = (value.toIntOrNull() ?: 0).toFloat().coerceIn(0f, maximum.toFloat()),
+            onValueChange = { onValueChanged(it.roundToInt().toString()) },
+            valueRange = 0f..maximum.toFloat(),
+            steps = (maximum - 1).coerceAtLeast(0),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
