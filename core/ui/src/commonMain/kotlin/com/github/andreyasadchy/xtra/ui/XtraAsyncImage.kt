@@ -9,6 +9,7 @@ import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
+import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 
@@ -26,6 +27,7 @@ import coil3.request.crossfade
  * - `target(imageView)` -> this composable itself (no target needed)
  * - `httpHeaders(...)` -> [httpHeaders], for hosts that reject requests without a
  *   User-Agent (the third-party emote providers).
+ * - `diskCachePolicy(DISABLED)` -> [diskCache] = false, for locally stored images.
  */
 @Composable
 fun XtraAsyncImage(
@@ -36,12 +38,14 @@ fun XtraAsyncImage(
     circleCrop: Boolean = false,
     crossfade: Boolean = true,
     httpHeaders: NetworkHeaders? = null,
+    diskCache: Boolean = true,
 ) {
     val context = LocalPlatformContext.current
     val headers = httpHeaders
     AsyncImage(
         model = ImageRequest.Builder(context)
             .data(model)
+            .diskCachePolicy(if (diskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
             .apply {
                 if (crossfade) crossfade(true)
                 headers?.let { httpHeaders(it) }
