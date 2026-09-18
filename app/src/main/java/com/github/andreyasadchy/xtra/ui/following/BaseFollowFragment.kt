@@ -6,13 +6,13 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.DropdownMenu
@@ -52,6 +52,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
@@ -143,6 +146,7 @@ abstract class BaseFollowFragment : PagedListFragment(), Scrollable, FollowedCha
     private var tabs: List<String> = listOf("1")
     private var initialTabIndex: Int = 0
     private var currentTabIndex by mutableIntStateOf(0)
+    private var bottomInset by mutableIntStateOf(0)
     private val headerState = CollapsingHeaderState()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -162,6 +166,18 @@ abstract class BaseFollowFragment : PagedListFragment(), Scrollable, FollowedCha
                     }
                 }
             }
+        }
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        // Only pad for the system bar when the app draws no bottom bar of its
+        // own, matching what the child fragments' PagingContent used to do.
+        ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
+            bottomInset = if (activity?.findViewById<LinearLayout>(R.id.navBarContainer)?.isVisible == false) {
+                windowInsets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
+            } else 0
+            windowInsets
         }
     }
 
@@ -267,7 +283,7 @@ abstract class BaseFollowFragment : PagedListFragment(), Scrollable, FollowedCha
         }
         var overflowExpanded by remember { mutableStateOf(false) }
         val liftOptOut = remember { !requireContext().prefs().getBoolean(C.UI_THEME_APPBAR_LIFT, true) }
-        val bottomInset = with(LocalDensity.current) { WindowInsets.systemBars.getBottom(this).toDp() }
+        val bottomPadding = with(LocalDensity.current) { bottomInset.toDp() }
         Scaffold(
             modifier = Modifier.nestedScroll(collapseConnection),
             topBar = {
@@ -394,7 +410,7 @@ abstract class BaseFollowFragment : PagedListFragment(), Scrollable, FollowedCha
                         val scrollTick by gamesScrollTop.collectAsState()
                         GamesTab(
                             flow = gamesViewModel.flow,
-                            bottomInset = bottomInset,
+                            bottomInset = bottomPadding,
                             portrait = portrait,
                             refreshTick = refreshTick,
                             scrollTick = scrollTick,
@@ -414,7 +430,7 @@ abstract class BaseFollowFragment : PagedListFragment(), Scrollable, FollowedCha
                             compact = streamsCompact(followedContent = true),
                             showGame = true,
                             enableScrollTop = false,
-                            bottomInset = bottomInset,
+                            bottomInset = bottomPadding,
                             portrait = portrait,
                             refreshTick = refreshTick,
                             scrollTick = scrollTick,
@@ -436,7 +452,7 @@ abstract class BaseFollowFragment : PagedListFragment(), Scrollable, FollowedCha
                         VideosTab(
                             flow = videosViewModel.flow,
                             showGame = true,
-                            bottomInset = bottomInset,
+                            bottomInset = bottomPadding,
                             portrait = portrait,
                             refreshTick = refreshTick,
                             scrollTick = scrollTick,
@@ -461,7 +477,7 @@ abstract class BaseFollowFragment : PagedListFragment(), Scrollable, FollowedCha
                         }
                         ChannelsTab(
                             flow = channelsViewModel.flow,
-                            bottomInset = bottomInset,
+                            bottomInset = bottomPadding,
                             portrait = portrait,
                             refreshTick = refreshTick,
                             scrollTick = scrollTick,
