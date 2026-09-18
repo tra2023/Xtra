@@ -1,13 +1,21 @@
 package com.github.andreyasadchy.xtra.ui.channel.videos
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.core.view.isVisible
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -15,7 +23,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.CommonRecyclerViewLayoutBinding
 import com.github.andreyasadchy.xtra.databinding.SortBarBinding
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
 import com.github.andreyasadchy.xtra.model.ui.Video
@@ -27,73 +34,74 @@ import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.common.Sortable
-import com.github.andreyasadchy.xtra.ui.common.VideoListItem
 import com.github.andreyasadchy.xtra.ui.common.VideosSortDialog
+import com.github.andreyasadchy.xtra.ui.common.VideosTab
 import com.github.andreyasadchy.xtra.ui.common.positionFor
+import com.github.andreyasadchy.xtra.ui.common.xtraBottomInset
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
+import com.github.andreyasadchy.xtra.ui.main.MainActivity
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+/**
+ * Channel videos as Compose: the shared videos list with its own sort bar, which
+ * the channel pager still hands in as a `SortBarBinding`.
+ */
 class ChannelVideosFragment : PagedListFragment(), Scrollable, Sortable, VideosSortDialog.OnFilter {
 
-    private var _binding: CommonRecyclerViewLayoutBinding? = null
-    private val binding get() = _binding!!
     private val args: ChannelPagerFragmentArgs by navArgs()
     private val viewModel: ChannelVideosViewModel by viewModels { ChannelVideosViewModelFactory }
-    // Compose owns list + load states now (PagedListFragment.PagingContent): signals drive refresh / scroll-top.
     private val composeRefreshSignal = MutableStateFlow(0)
     private val composeScrollTopSignal = MutableStateFlow(0)
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = CommonRecyclerViewLayoutBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        // Compose owns list + load states. The hidden RecyclerView container keeps
-        // its overlays off; refresh gesture + scroll-top live in Compose now.
-        binding.recyclerView.isVisible = false
-        binding.progressBar.isVisible = false
-        binding.nothingHere.isVisible = false
-        binding.scrollTop.isVisible = false
-        binding.swipeRefresh.isEnabled = false
-        val composeView = createPagingView()
-        (binding.root as ViewGroup).addView(
-            composeView, 0,
-            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
-        )
-        pagingContent = {
-            val refreshTick by composeRefreshSignal.collectAsState()
-            val scrollTick by composeScrollTopSignal.collectAsState()
-            val positions by viewModel.positions.collectAsState(initial = null)
-            val bookmarks by viewModel.bookmarks.collectAsState(initial = emptyList())
-            val bookmarkIds = remember(bookmarks) { bookmarks.map { it.videoId }.toSet() }
-            PagingContent(
-                flow = viewModel.flow,
-                refreshSignal = refreshTick,
-                retrySignal = 0,
-                scrollTopSignal = scrollTick,
-                keyForItem = { it.id ?: it.hashCode().toString() },
-            ) { video ->
-                VideoListItem(
-                    video = video,
-                    position = positions.positionFor(video.id),
-                    bookmarked = video.id in bookmarkIds,
-                    showChannel = false,
-                    onDownload = ::showDownloadDialog,
-                    onBookmark = ::saveBookmark,
-                    onChannelClick = ::openChannel,
-                    onGameClick = ::openGame,
-                )
+        return ComposeView(requireContext()).apply {
+            id = R.id.swipeRefresh
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val theme = rememberThemeId()
+                XtraTheme(themeId = theme) {
+                    VideosScreen()
+                }
             }
         }
+    }
+
+    @Composable
+    private fun VideosScreen() {
+        val activity = requireActivity() as MainActivity
+        val refreshTick by composeRefreshSignal.collectAsState()
+        val scrollTick by composeScrollTopSignal.collectAsState()
+        val positions by viewModel.positions.collectAsState(initial = null)
+        val bookmarks by viewModel.bookmarks.collectAsState(initial = emptyList())
+        val bookmarkIds = remember(bookmarks) { bookmarks.map { it.videoId }.toSet() }
+        VideosTab(
+            flow = viewModel.flow,
+            showGame = true,
+            bottomInset = xtraBottomInset(activity),
+            portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
+            refreshTick = refreshTick,
+            scrollTick = scrollTick,
+            parentScrollTop = { (parentFragment as? Scrollable)?.scrollToTop() },
+            modifier = Modifier.fillMaxSize().nestedScroll(rememberNestedScrollInteropConnection()),
+            showChannel = false,
+            positionFor = { positions.positionFor(it) },
+            isBookmarked = { it in bookmarkIds },
+            onDownload = ::showDownloadDialog,
+            onBookmark = ::saveBookmark,
+            onChannelClick = ::openChannel,
+            onGameClick = ::openGame,
+            onIntegrityFailed = { activity.getNewIntegrityToken("refresh", childFragmentManager) },
+        )
     }
 
     override fun initialize() {
@@ -123,7 +131,7 @@ class ChannelVideosFragment : PagedListFragment(), Scrollable, Sortable, VideosS
                     )
                 )
             }
-            // No adapter: PagingContent collects viewModel.flow and owns load states.
+            // No adapter: VideosTab collects viewModel.flow and owns load states.
         }
     }
 
@@ -263,10 +271,5 @@ class ChannelVideosFragment : PagedListFragment(), Scrollable, Sortable, VideosS
                 composeRefreshSignal.value++
             }
         }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 }

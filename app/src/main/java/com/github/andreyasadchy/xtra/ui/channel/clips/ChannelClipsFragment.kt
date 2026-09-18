@@ -1,12 +1,20 @@
 package com.github.andreyasadchy.xtra.ui.channel.clips
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.core.view.isVisible
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -14,77 +22,77 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.CommonRecyclerViewLayoutBinding
 import com.github.andreyasadchy.xtra.databinding.SortBarBinding
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
 import com.github.andreyasadchy.xtra.model.ui.Clip
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentArgs
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.channel.clips.ChannelClipsViewModel.Companion.ChannelClipsViewModelFactory
-import com.github.andreyasadchy.xtra.ui.common.ClipListItem
+import com.github.andreyasadchy.xtra.ui.common.ClipsTab
 import com.github.andreyasadchy.xtra.ui.common.FragmentHost
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.common.Sortable
 import com.github.andreyasadchy.xtra.ui.common.VideosSortDialog
+import com.github.andreyasadchy.xtra.ui.common.xtraBottomInset
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
+import com.github.andreyasadchy.xtra.ui.main.MainActivity
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+/**
+ * Channel clips as Compose: the shared clips list with its own sort bar, which
+ * the channel pager still hands in as a `SortBarBinding`.
+ */
 class ChannelClipsFragment : PagedListFragment(), Scrollable, Sortable, VideosSortDialog.OnFilter {
 
-    private var _binding: CommonRecyclerViewLayoutBinding? = null
-    private val binding get() = _binding!!
     private val args: ChannelPagerFragmentArgs by navArgs()
     private val viewModel: ChannelClipsViewModel by viewModels { ChannelClipsViewModelFactory }
-    // Compose owns list + load states now (PagedListFragment.PagingContent): signals drive refresh / scroll-top.
     private val composeRefreshSignal = MutableStateFlow(0)
     private val composeScrollTopSignal = MutableStateFlow(0)
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = CommonRecyclerViewLayoutBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        // Compose owns list + load states. The hidden RecyclerView container keeps
-        // its overlays off; refresh gesture + scroll-top live in Compose now.
-        binding.recyclerView.isVisible = false
-        binding.progressBar.isVisible = false
-        binding.nothingHere.isVisible = false
-        binding.scrollTop.isVisible = false
-        binding.swipeRefresh.isEnabled = false
-        val composeView = createPagingView()
-        (binding.root as ViewGroup).addView(
-            composeView, 0,
-            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
-        )
-        pagingContent = {
-            val refreshTick by composeRefreshSignal.collectAsState()
-            val scrollTick by composeScrollTopSignal.collectAsState()
-            PagingContent(
-                flow = viewModel.flow,
-                refreshSignal = refreshTick,
-                retrySignal = 0,
-                scrollTopSignal = scrollTick,
-                keyForItem = { it.id ?: it.hashCode().toString() },
-            ) { clip ->
-                ClipListItem(
-                    clip = clip,
-                    showChannel = false,
-                    onDownload = ::showDownloadDialog,
-                    onChannelClick = ::openChannel,
-                    onGameClick = ::openGame,
-                )
+        return ComposeView(requireContext()).apply {
+            id = R.id.swipeRefresh
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val theme = rememberThemeId()
+                XtraTheme(themeId = theme) {
+                    ClipsScreen()
+                }
             }
         }
+    }
+
+    @Composable
+    private fun ClipsScreen() {
+        val activity = requireActivity() as MainActivity
+        val refreshTick by composeRefreshSignal.collectAsState()
+        val scrollTick by composeScrollTopSignal.collectAsState()
+        ClipsTab(
+            flow = viewModel.flow,
+            showGame = true,
+            bottomInset = xtraBottomInset(activity),
+            portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
+            refreshTick = refreshTick,
+            scrollTick = scrollTick,
+            parentScrollTop = { (parentFragment as? Scrollable)?.scrollToTop() },
+            modifier = Modifier.fillMaxSize().nestedScroll(rememberNestedScrollInteropConnection()),
+            showChannel = false,
+            onDownload = ::showDownloadDialog,
+            onChannelClick = ::openChannel,
+            onGameClick = ::openGame,
+            onIntegrityFailed = { activity.getNewIntegrityToken("refresh", childFragmentManager) },
+        )
     }
 
     override fun initialize() {
@@ -108,7 +116,7 @@ class ChannelClipsFragment : PagedListFragment(), Scrollable, Sortable, VideosSo
                     )
                 )
             }
-            // No adapter: PagingContent collects viewModel.flow and owns load states.
+            // No adapter: ClipsTab collects viewModel.flow and owns load states.
         }
     }
 
@@ -235,10 +243,5 @@ class ChannelClipsFragment : PagedListFragment(), Scrollable, Sortable, VideosSo
                 composeRefreshSignal.value++
             }
         }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 }

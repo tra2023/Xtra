@@ -1,82 +1,90 @@
 package com.github.andreyasadchy.xtra.ui.channel.suggestions
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.core.view.isVisible
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
-import com.github.andreyasadchy.xtra.databinding.CommonRecyclerViewLayoutBinding
+import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.channel.suggestions.ChannelSuggestionsViewModel.Companion.ChannelSuggestionsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
-import com.github.andreyasadchy.xtra.ui.common.StreamListItem
+import com.github.andreyasadchy.xtra.ui.common.StreamsTab
+import com.github.andreyasadchy.xtra.ui.common.xtraBottomInset
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragmentDirections
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import kotlinx.coroutines.flow.MutableStateFlow
 
+/**
+ * Suggested channels as Compose: the shared streams list, no container View.
+ */
 class ChannelSuggestionsFragment : PagedListFragment(), Scrollable {
 
-    private var _binding: CommonRecyclerViewLayoutBinding? = null
-    private val binding get() = _binding!!
     private val viewModel: ChannelSuggestionsViewModel by viewModels { ChannelSuggestionsViewModelFactory }
-    // Compose owns list + load states now (PagedListFragment.PagingContent): signals drive refresh / scroll-top.
     private val composeRefreshSignal = MutableStateFlow(0)
     private val composeScrollTopSignal = MutableStateFlow(0)
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = CommonRecyclerViewLayoutBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        // Compose owns list + load states. The hidden RecyclerView container keeps
-        // its overlays off; refresh gesture + scroll-top live in Compose now.
-        binding.recyclerView.isVisible = false
-        binding.progressBar.isVisible = false
-        binding.nothingHere.isVisible = false
-        binding.scrollTop.isVisible = false
-        binding.swipeRefresh.isEnabled = false
-        val composeView = createPagingView()
-        (binding.root as ViewGroup).addView(
-            composeView, 0,
-            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
-        )
-        pagingContent = {
-            val refreshTick by composeRefreshSignal.collectAsState()
-            val scrollTick by composeScrollTopSignal.collectAsState()
-            PagingContent(
-                flow = viewModel.flow,
-                refreshSignal = refreshTick,
-                retrySignal = 0,
-                scrollTopSignal = scrollTick,
-                keyForItem = { it.id ?: it.channelId ?: it.channelLogin ?: it.hashCode().toString() },
-            ) { stream ->
-                StreamListItem(
-                    stream = stream,
-                    compact = true,
-                    onStreamClick = { (activity as? MainActivity)?.startStream(it) },
-                    onChannelClick = ::openChannel,
-                    onGameClick = ::openGame,
-                    onTagClick = ::openTag,
-                )
+        return ComposeView(requireContext()).apply {
+            id = R.id.swipeRefresh
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val theme = rememberThemeId()
+                XtraTheme(themeId = theme) {
+                    SuggestionsScreen()
+                }
             }
         }
     }
 
+    @Composable
+    private fun SuggestionsScreen() {
+        val activity = requireActivity() as MainActivity
+        val refreshTick by composeRefreshSignal.collectAsState()
+        val scrollTick by composeScrollTopSignal.collectAsState()
+        StreamsTab(
+            flow = viewModel.flow,
+            compact = true,
+            showGame = true,
+            enableScrollTop = true,
+            bottomInset = xtraBottomInset(activity),
+            portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
+            refreshTick = refreshTick,
+            scrollTick = scrollTick,
+            parentScrollTop = { (parentFragment as? Scrollable)?.scrollToTop() },
+            modifier = Modifier.fillMaxSize().nestedScroll(rememberNestedScrollInteropConnection()),
+            onStreamClick = { activity.startStream(it) },
+            onChannelClick = ::openChannel,
+            onGameClick = ::openGame,
+            onTagClick = ::openTag,
+            onIntegrityFailed = { activity.getNewIntegrityToken("refresh", childFragmentManager) },
+        )
+    }
+
     override fun initialize() {
-        // No adapter: PagingContent collects viewModel.flow and owns load states.
+        // No adapter: StreamsTab collects viewModel.flow and owns load states.
     }
 
     private fun openChannel(item: Stream) {
@@ -132,10 +140,5 @@ class ChannelSuggestionsFragment : PagedListFragment(), Scrollable {
                 composeRefreshSignal.value++
             }
         }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 }

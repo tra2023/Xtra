@@ -34,6 +34,7 @@ fun StreamsTab(
     refreshTick: Int,
     scrollTick: Int,
     onAtTopChanged: ((Boolean) -> Unit)? = null,
+    parentScrollTop: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     onStreamClick: (Stream) -> Unit,
     onChannelClick: (Stream) -> Unit,
@@ -52,6 +53,7 @@ fun StreamsTab(
         portrait = portrait,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
+        parentScrollTop = parentScrollTop,
         modifier = modifier,
     ) { stream ->
         StreamListItem(
@@ -75,7 +77,9 @@ fun VideosTab(
     refreshTick: Int,
     scrollTick: Int,
     onAtTopChanged: ((Boolean) -> Unit)? = null,
+    parentScrollTop: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    showChannel: Boolean = true,
     positionFor: (String?) -> Long? = { null },
     isBookmarked: (String?) -> Boolean = { false },
     onDownload: (Video) -> Unit,
@@ -94,6 +98,7 @@ fun VideosTab(
         portrait = portrait,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
+        parentScrollTop = parentScrollTop,
         modifier = modifier,
     ) { video ->
         VideoListItem(
@@ -101,6 +106,7 @@ fun VideosTab(
             position = positionFor(video.id),
             bookmarked = isBookmarked(video.id),
             showGame = showGame,
+            showChannel = showChannel,
             onDownload = onDownload,
             onBookmark = onBookmark,
             onChannelClick = onChannelClick,
@@ -118,7 +124,9 @@ fun ClipsTab(
     refreshTick: Int,
     scrollTick: Int,
     onAtTopChanged: ((Boolean) -> Unit)? = null,
+    parentScrollTop: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    showChannel: Boolean = true,
     onDownload: (Clip) -> Unit,
     onChannelClick: (Clip) -> Unit,
     onGameClick: (Clip) -> Unit,
@@ -134,11 +142,13 @@ fun ClipsTab(
         portrait = portrait,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
+        parentScrollTop = parentScrollTop,
         modifier = modifier,
     ) { clip ->
         ClipListItem(
             clip = clip,
             showGame = showGame,
+            showChannel = showChannel,
             onDownload = onDownload,
             onChannelClick = onChannelClick,
             onGameClick = onGameClick,
@@ -154,6 +164,7 @@ fun GamesTab(
     refreshTick: Int,
     scrollTick: Int,
     onAtTopChanged: ((Boolean) -> Unit)? = null,
+    parentScrollTop: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     followLabels: (Game) -> List<String> = { emptyList() },
     diskCache: Boolean = false,
@@ -171,6 +182,7 @@ fun GamesTab(
         portrait = portrait,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
+        parentScrollTop = parentScrollTop,
         modifier = modifier,
     ) { game ->
         GameListItem(
@@ -191,6 +203,7 @@ fun ChannelsTab(
     refreshTick: Int,
     scrollTick: Int,
     onAtTopChanged: ((Boolean) -> Unit)? = null,
+    parentScrollTop: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     detailsFor: (User) -> List<String> = { emptyList() },
     labelsFor: (User) -> List<String> = { emptyList() },
@@ -207,6 +220,7 @@ fun ChannelsTab(
         portrait = portrait,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
+        parentScrollTop = parentScrollTop,
         modifier = modifier,
     ) { user ->
         UserListItem(
