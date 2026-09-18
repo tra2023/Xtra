@@ -31,6 +31,7 @@ import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.ui.common.GamesTab
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
+import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.common.SortRow
 import com.github.andreyasadchy.xtra.ui.common.XtraTopBar
@@ -69,8 +70,10 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 val theme = rememberThemeId()
-                XtraTheme(themeId = theme) {
-                    GamesScreen()
+                ProvideXtraLocals(activity) {
+                    XtraTheme(themeId = theme) {
+                        GamesScreen()
+                    }
                 }
             }
         }

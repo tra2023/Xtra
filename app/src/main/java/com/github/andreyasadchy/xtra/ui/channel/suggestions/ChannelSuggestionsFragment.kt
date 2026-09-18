@@ -22,6 +22,7 @@ import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.channel.suggestions.ChannelSuggestionsViewModel.Companion.ChannelSuggestionsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
+import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.common.StreamsTab
 import com.github.andreyasadchy.xtra.ui.common.xtraBottomInset
@@ -50,8 +51,10 @@ class ChannelSuggestionsFragment : PagedListFragment(), Scrollable {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 val theme = rememberThemeId()
-                XtraTheme(themeId = theme) {
-                    SuggestionsScreen()
+                ProvideXtraLocals(activity) {
+                    XtraTheme(themeId = theme) {
+                        SuggestionsScreen()
+                    }
                 }
             }
         }

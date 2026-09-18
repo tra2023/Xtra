@@ -32,6 +32,7 @@ import com.github.andreyasadchy.xtra.model.ui.SavedFilter
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
+import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.common.SortRow
 import com.github.andreyasadchy.xtra.ui.common.StreamsSortDialog
@@ -77,8 +78,10 @@ class TopStreamsFragment : PagedListFragment(), Scrollable, StreamsSortDialog.On
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 val theme = rememberThemeId()
-                XtraTheme(themeId = theme) {
-                    TopStreamsScreen()
+                ProvideXtraLocals(activity) {
+                    XtraTheme(themeId = theme) {
+                        TopStreamsScreen()
+                    }
                 }
             }
         }

@@ -32,6 +32,7 @@ import com.github.andreyasadchy.xtra.ui.common.ClipsTab
 import com.github.andreyasadchy.xtra.ui.common.FragmentHost
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
+import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.common.Sortable
 import com.github.andreyasadchy.xtra.ui.common.VideosSortDialog
@@ -65,8 +66,10 @@ class ChannelClipsFragment : PagedListFragment(), Scrollable, Sortable, VideosSo
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 val theme = rememberThemeId()
-                XtraTheme(themeId = theme) {
-                    ClipsScreen()
+                ProvideXtraLocals(activity) {
+                    XtraTheme(themeId = theme) {
+                        ClipsScreen()
+                    }
                 }
             }
         }
