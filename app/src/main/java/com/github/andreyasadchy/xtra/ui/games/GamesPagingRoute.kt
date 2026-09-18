@@ -60,7 +60,7 @@ fun GamesPagingRoute(
         errorText = errors.firstOrNull()?.let { stringResource(R.string.error, it.error.message.orEmpty()) },
         emptyText = stringResource(R.string.nothing_here),
         retryText = stringResource(R.string.retry),
-        scrollTopText = stringResource(R.string.show_scrolltop),
+        scrollTopText = stringResource(R.string.scroll_top),
         state = state,
         columns = columns,
         onRefresh = { items.refresh() },

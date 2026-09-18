@@ -74,7 +74,7 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
             errorText = error?.let { getString(com.github.andreyasadchy.xtra.R.string.error, it.error.message.orEmpty()) },
             emptyText = getString(com.github.andreyasadchy.xtra.R.string.nothing_here),
             retryText = getString(com.github.andreyasadchy.xtra.R.string.retry),
-            scrollTopText = getString(com.github.andreyasadchy.xtra.R.string.show_scrolltop),
+            scrollTopText = getString(com.github.andreyasadchy.xtra.R.string.scroll_top),
             state = state, columns = columns,
             onRefresh = { items.refresh() }, onRetry = { items.retry() },
             onScrollTop = { (parentFragment as? Scrollable)?.scrollToTop() ?: pagingScrollTop() },
