@@ -55,7 +55,19 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
         val state = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
         val scope = androidx.compose.runtime.rememberCoroutineScope()
         androidx.compose.runtime.DisposableEffect(state) {
-            pagingScrollTop = { scope.launch { state.scrollToItem(0) } }
+            pagingScrollTop = {
+                scope.launch {
+                    try {
+                        if (state.layoutInfo.totalItemsCount > 0) {
+                            state.scrollToItem(0)
+                        }
+                    } catch (_: IndexOutOfBoundsException) {
+                        // Concurrent refresh cleared the list.
+                    } catch (_: IllegalArgumentException) {
+                        // Concurrent refresh made the index invalid.
+                    }
+                }
+            }
             onDispose { pagingScrollTop = {} }
         }
         androidx.compose.runtime.LaunchedEffect(refreshSignal) { if (refreshSignal > 0) items.refresh() }

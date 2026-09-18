@@ -45,12 +45,16 @@ fun PagingScaffold(
     itemKey: ((Int) -> Any)? = null,
     itemContent: @Composable (Int) -> Unit,
 ) {
-    val showScrollTop by remember(state, itemCount) {
+    val showScrollTop by remember(state, itemCount, refreshing) {
         derivedStateOf {
-            val info = state.layoutInfo
-            val visible = info.visibleItemsInfo.size
-            val range = (itemCount - visible).coerceAtLeast(1)
-            state.canScrollBackward && state.firstVisibleItemIndex.toFloat() / range > 0.03f
+            if (refreshing || itemCount == 0) {
+                false
+            } else {
+                val info = state.layoutInfo
+                val visible = info.visibleItemsInfo.size
+                val range = (itemCount - visible).coerceAtLeast(1)
+                state.canScrollBackward && state.firstVisibleItemIndex.toFloat() / range > 0.03f
+            }
         }
     }
     val content: @Composable () -> Unit = {

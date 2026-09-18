@@ -14,7 +14,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.itemKey
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
@@ -49,7 +48,19 @@ fun GamesPagingRoute(
     val refreshTick by refreshSignal.collectAsState()
     val scrollTick by scrollTopSignal.collectAsState()
     LaunchedEffect(refreshTick) { if (refreshTick > 0) items.refresh() }
-    LaunchedEffect(scrollTick) { if (scrollTick > 0) state.scrollToItem(0) }
+    LaunchedEffect(scrollTick) {
+        if (scrollTick > 0) {
+            try {
+                if (state.layoutInfo.totalItemsCount > 0) {
+                    state.scrollToItem(0)
+                }
+            } catch (_: IndexOutOfBoundsException) {
+                // List was cleared by a concurrent refresh, nothing to scroll to.
+            } catch (_: IllegalArgumentException) {
+                // Same race: index no longer valid after refresh.
+            }
+        }
+    }
     val errors = listOf(items.loadState.refresh, items.loadState.append, items.loadState.prepend).filterIsInstance<LoadState.Error>()
     val integrityError = errors.firstOrNull { it.error.message == C.FAILED_INTEGRITY_CHECK }
     LaunchedEffect(integrityError) { if (integrityError != null) onIntegrityFailed() }
@@ -65,9 +76,35 @@ fun GamesPagingRoute(
         columns = columns,
         onRefresh = { items.refresh() },
         onRetry = { items.retry() },
-        onScrollTop = { scope.launch { state.scrollToItem(0) } },
+        onScrollTop = {
+            scope.launch {
+                try {
+                    if (state.layoutInfo.totalItemsCount > 0) {
+                        state.scrollToItem(0)
+                    }
+                } catch (_: IndexOutOfBoundsException) {
+                    // Concurrent refresh cleared the list.
+                } catch (_: IllegalArgumentException) {
+                    // Concurrent refresh made the index invalid.
+                }
+            }
+        },
         enableScrollTop = preferences.getBoolean(C.UI_SCROLL_TOP, true),
-        itemKey = items.itemKey { it.id ?: it.name ?: it.hashCode().toString() },
+        itemKey = { index ->
+            // items.itemKey { ... } internally uses peek(index), which throws
+            // IndexOutOfBoundsException when a refresh shrinks the snapshot while
+            // LazyGrid is still resolving keys for the old layout (e.g. index 30
+            // of size 30 during scroll-to-top + pull-to-refresh). Guard it.
+            try {
+                if (index < items.itemCount) {
+                    items.peek(index)?.let { it.id ?: it.name ?: it.hashCode().toString() } ?: "placeholder:$index"
+                } else {
+                    "placeholder:$index"
+                }
+            } catch (_: IndexOutOfBoundsException) {
+                "placeholder:$index"
+            }
+        },
         modifier = modifier,
     ) { index ->
         items[index]?.let { game ->
