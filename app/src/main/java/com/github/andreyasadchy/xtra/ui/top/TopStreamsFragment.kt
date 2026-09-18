@@ -1,39 +1,47 @@
 package com.github.andreyasadchy.xtra.ui.top
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.isVisible
-import androidx.core.view.updateLayoutParams
-import androidx.core.view.updatePadding
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
-import androidx.navigation.ui.AppBarConfiguration
-import androidx.navigation.ui.setupWithNavController
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.FragmentGamesBinding
 import com.github.andreyasadchy.xtra.model.ui.GameSort
 import com.github.andreyasadchy.xtra.model.ui.SavedFilter
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
-import com.github.andreyasadchy.xtra.ui.common.StreamListItem
+import com.github.andreyasadchy.xtra.ui.common.SortRow
 import com.github.andreyasadchy.xtra.ui.common.StreamsSortDialog
 import com.github.andreyasadchy.xtra.ui.common.StreamsSortDialog.Companion.RECENT
 import com.github.andreyasadchy.xtra.ui.common.StreamsSortDialog.Companion.SORT_VIEWERS
 import com.github.andreyasadchy.xtra.ui.common.StreamsSortDialog.Companion.SORT_VIEWERS_ASC
+import com.github.andreyasadchy.xtra.ui.common.StreamsTab
+import com.github.andreyasadchy.xtra.ui.common.XtraTopBar
+import com.github.andreyasadchy.xtra.ui.common.streamsCompact
+import com.github.andreyasadchy.xtra.ui.common.xtraBottomInset
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentArgs
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
@@ -41,120 +49,112 @@ import com.github.andreyasadchy.xtra.ui.login.LoginActivity
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.search.SearchPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.settings.SettingsActivity
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsViewModel.Companion.TopStreamsViewModelFactory
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+/**
+ * Top streams as a full-Compose screen: app bar, sort row and the shared streams
+ * list from `:core:ui`.
+ */
 class TopStreamsFragment : PagedListFragment(), Scrollable, StreamsSortDialog.OnFilter {
 
-    private var _binding: FragmentGamesBinding? = null
-    private val binding get() = _binding!!
     private val args: GamePagerFragmentArgs by navArgs()
     private val viewModel: TopStreamsViewModel by viewModels { TopStreamsViewModelFactory }
-    // Compose owns list + load states now (PagedListFragment.PagingContent): signals drive refresh / scroll-top.
     private val composeRefreshSignal = MutableStateFlow(0)
     private val composeScrollTopSignal = MutableStateFlow(0)
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = FragmentGamesBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        with(binding) {
-            val activity = requireActivity() as MainActivity
-            val isLoggedIn = !TwitchApiHelper.getGQLHeaders(requireContext(), true)[C.HEADER_TOKEN].isNullOrBlank() ||
-                    !TwitchApiHelper.getHelixHeaders(requireContext())[C.HEADER_TOKEN].isNullOrBlank()
-            val navController = findNavController()
-            val appBarConfiguration = AppBarConfiguration(setOf(R.id.rootGamesFragment, R.id.rootTopFragment, R.id.followPagerFragment, R.id.followMediaFragment, R.id.savedPagerFragment, R.id.savedMediaFragment))
-            toolbar.setupWithNavController(navController, appBarConfiguration)
-            toolbar.menu.findItem(R.id.login).title = if (isLoggedIn) getString(R.string.log_out) else getString(R.string.log_in)
-            toolbar.setOnMenuItemClickListener { menuItem ->
-                when (menuItem.itemId) {
-                    R.id.search -> {
-                        findNavController().navigate(SearchPagerFragmentDirections.actionGlobalSearchPagerFragment())
-                        true
-                    }
-                    R.id.settings -> {
-                        activity.settingsResultLauncher?.launch(Intent(activity, SettingsActivity::class.java))
-                        true
-                    }
-                    R.id.login -> {
-                        if (isLoggedIn) {
-                            activity.getAlertDialogBuilder().apply {
-                                setTitle(getString(R.string.logout_title))
-                                requireContext().tokenPrefs().getString(C.USERNAME, null)?.let { setMessage(getString(R.string.logout_msg, it)) }
-                                setNegativeButton(getString(R.string.no), null)
-                                setPositiveButton(getString(R.string.yes)) { _, _ -> activity.logoutResultLauncher?.launch(Intent(activity, LoginActivity::class.java)) }
-                            }.show()
-                        } else {
-                            activity.loginResultLauncher?.launch(Intent(activity, LoginActivity::class.java))
-                        }
-                        true
-                    }
-                    else -> false
+        return ComposeView(requireContext()).apply {
+            id = R.id.swipeRefresh
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val theme = rememberThemeId()
+                XtraTheme(themeId = theme) {
+                    TopStreamsScreen()
                 }
-            }
-            // Pinned AppBar (no scroll flags) with a Compose list: no scroll target
-            // to wire lift to. Only the opt-out flat style remains.
-            if (!requireContext().prefs().getBoolean(C.UI_THEME_APPBAR_LIFT, true)) {
-                appBar.setLiftable(false)
-                appBar.background = null
-            }
-            ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
-                val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-                toolbar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                    topMargin = insets.top
-                }
-                if (activity.findViewById<LinearLayout>(R.id.navBarContainer)?.isVisible == false) {
-                    val systemBars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-                    recyclerViewLayout.recyclerView.updatePadding(bottom = systemBars.bottom)
-                }
-                WindowInsetsCompat.CONSUMED
             }
         }
-        // Compose owns list + load states (PagedListFragment.PagingContent via paging-compose).
-        // Views survivors: toolbar, sort bar. The hidden RecyclerView container keeps
-        // its overlays off; refresh gesture + scroll-top live in Compose now.
-        binding.recyclerViewLayout.recyclerView.isVisible = false
-        binding.recyclerViewLayout.progressBar.isVisible = false
-        binding.recyclerViewLayout.nothingHere.isVisible = false
-        binding.recyclerViewLayout.scrollTop.isVisible = false
-        binding.recyclerViewLayout.swipeRefresh.isEnabled = false
-        val compact = requireContext().prefs().getString(C.COMPACT_STREAMS, "disabled") == "all"
+    }
+
+    @Composable
+    private fun TopStreamsScreen() {
+        val activity = requireActivity() as MainActivity
+        val isLoggedIn = !TwitchApiHelper.getGQLHeaders(requireContext(), true)[C.HEADER_TOKEN].isNullOrBlank() ||
+                !TwitchApiHelper.getHelixHeaders(requireContext())[C.HEADER_TOKEN].isNullOrBlank()
+        val liftOptOut = !requireContext().prefs().getBoolean(C.UI_THEME_APPBAR_LIFT, true)
+        val portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
+        val bottomInset = xtraBottomInset(activity)
         val enableScrollTop = !args.tags.isNullOrEmpty() || !args.languages.isNullOrEmpty()
-        val composeView = createPagingView()
-        (binding.recyclerViewLayout.root as ViewGroup).addView(
-            composeView, 0,
-            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
-        )
-        pagingContent = {
-            val refreshTick by composeRefreshSignal.collectAsState()
-            val scrollTick by composeScrollTopSignal.collectAsState()
-            PagingContent(
+        val refreshTick by composeRefreshSignal.collectAsState()
+        val scrollTick by composeScrollTopSignal.collectAsState()
+        val sortText by viewModel.sortText.collectAsState()
+        val filtersText by viewModel.filtersText.collectAsState()
+        Scaffold(
+            topBar = {
+                Column {
+                    XtraTopBar(
+                        title = stringResource(R.string.popular),
+                        isLoggedIn = isLoggedIn,
+                        liftOptOut = liftOptOut,
+                        onSearch = { findNavController().navigate(SearchPagerFragmentDirections.actionGlobalSearchPagerFragment()) },
+                        onSettings = { activity.settingsResultLauncher?.launch(Intent(activity, SettingsActivity::class.java)) },
+                        onLogin = { onLoginClick(isLoggedIn, activity) },
+                        up = { findNavController().navigateUp() },
+                    )
+                    SortRow(
+                        sortText = sortText,
+                        filtersText = filtersText,
+                        sortIcon = painterResource(R.drawable.baseline_sort_black_24),
+                        onClick = {
+                            StreamsSortDialog.newInstance(
+                                sort = viewModel.sort,
+                                tags = viewModel.tags,
+                                languages = viewModel.languages
+                            ).show(childFragmentManager, null)
+                        },
+                    )
+                }
+            },
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        ) { padding ->
+            StreamsTab(
                 flow = viewModel.flow,
-                refreshSignal = refreshTick,
-                retrySignal = 0,
-                scrollTopSignal = scrollTick,
+                compact = streamsCompact(followedContent = false),
+                showGame = true,
                 enableScrollTop = enableScrollTop,
-                keyForItem = { it.id ?: it.channelId ?: it.channelLogin ?: it.hashCode().toString() },
-            ) { stream ->
-                StreamListItem(
-                    stream = stream,
-                    compact = compact,
-                    onStreamClick = { (activity as? MainActivity)?.startStream(it) },
-                    onChannelClick = ::openChannel,
-                    onGameClick = ::openGame,
-                    onTagClick = ::addTag,
-                )
-            }
+                bottomInset = bottomInset,
+                portrait = portrait,
+                refreshTick = refreshTick,
+                scrollTick = scrollTick,
+                modifier = Modifier.padding(padding).fillMaxSize().nestedScroll(rememberNestedScrollInteropConnection()),
+                onStreamClick = { activity.startStream(it) },
+                onChannelClick = ::openChannel,
+                onGameClick = ::openGame,
+                onTagClick = ::addTag,
+                onIntegrityFailed = { activity.getNewIntegrityToken("refresh", childFragmentManager) },
+            )
+        }
+    }
+
+    private fun onLoginClick(isLoggedIn: Boolean, activity: MainActivity) {
+        if (isLoggedIn) {
+            activity.getAlertDialogBuilder().apply {
+                setTitle(getString(R.string.logout_title))
+                requireContext().tokenPrefs().getString(C.USERNAME, null)?.let { setMessage(getString(R.string.logout_msg, it)) }
+                setNegativeButton(getString(R.string.no), null)
+                setPositiveButton(getString(R.string.yes)) { _, _ -> activity.logoutResultLauncher?.launch(Intent(activity, LoginActivity::class.java)) }
+            }.show()
+        } else {
+            activity.loginResultLauncher?.launch(Intent(activity, LoginActivity::class.java))
         }
     }
 
@@ -178,64 +178,37 @@ class TopStreamsFragment : PagedListFragment(), Scrollable, StreamsSortDialog.On
                         }
                     )
                 )
-                viewModel.filtersText.value = if (viewModel.tags.isNotEmpty() || viewModel.languages.isNotEmpty()) {
-                    buildString {
-                        if (viewModel.tags.isNotEmpty()) {
-                            append(
-                                resources.getQuantityString(
-                                    R.plurals.tags,
-                                    viewModel.tags.size,
-                                    viewModel.tags.joinToString()
-                                )
-                            )
-                        }
-                        if (viewModel.languages.isNotEmpty()) {
-                            if (isNotEmpty()) {
-                                append(". ")
-                            }
-                            append(
-                                resources.getQuantityString(
-                                    R.plurals.languages,
-                                    viewModel.languages.size,
-                                    viewModel.languages.joinToString()
-                                )
-                            )
-                        }
-                    }
-                } else null
+                viewModel.filtersText.value = filtersText()
             }
-            // No adapter: PagingContent collects viewModel.flow and owns load states.
-        }
-        with(binding) {
-            sortBar.root.visibility = View.VISIBLE
-            sortBar.root.setOnClickListener {
-                StreamsSortDialog.newInstance(
-                    sort = viewModel.sort,
-                    tags = viewModel.tags,
-                    languages = viewModel.languages
-                ).show(childFragmentManager, null)
-            }
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.sortText.collectLatest {
-                        sortBar.sortText.text = it
-                    }
-                }
-            }
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.filtersText.collectLatest {
-                        if (it != null) {
-                            sortBar.filtersText.visibility = View.VISIBLE
-                            sortBar.filtersText.text = it
-                        } else {
-                            sortBar.filtersText.visibility = View.GONE
-                        }
-                    }
-                }
-            }
+            // No adapter: StreamsTab collects viewModel.flow and owns load states.
         }
     }
+
+    private fun filtersText(): CharSequence? = if (viewModel.tags.isNotEmpty() || viewModel.languages.isNotEmpty()) {
+        buildString {
+            if (viewModel.tags.isNotEmpty()) {
+                append(
+                    resources.getQuantityString(
+                        R.plurals.tags,
+                        viewModel.tags.size,
+                        viewModel.tags.joinToString()
+                    )
+                )
+            }
+            if (viewModel.languages.isNotEmpty()) {
+                if (isNotEmpty()) {
+                    append(". ")
+                }
+                append(
+                    resources.getQuantityString(
+                        R.plurals.languages,
+                        viewModel.languages.size,
+                        viewModel.languages.joinToString()
+                    )
+                )
+            }
+        }
+    } else null
 
     private fun openChannel(item: Stream) {
         findNavController().navigate(
@@ -270,31 +243,8 @@ class TopStreamsFragment : PagedListFragment(), Scrollable, StreamsSortDialog.On
     private fun addTag(tag: String) {
         viewLifecycleOwner.lifecycleScope.launch {
             // New filter emits a new PagingData via flatMapLatest; Compose reloads.
-            val tags = viewModel.tags.plus(tag).sortedArray()
-            viewModel.setFilter(viewModel.sort, tags, viewModel.languages)
-            viewModel.filtersText.value = buildString {
-                if (viewModel.tags.isNotEmpty()) {
-                    append(
-                        resources.getQuantityString(
-                            R.plurals.tags,
-                            viewModel.tags.size,
-                            viewModel.tags.joinToString()
-                        )
-                    )
-                }
-                if (viewModel.languages.isNotEmpty()) {
-                    if (isNotEmpty()) {
-                        append(". ")
-                    }
-                    append(
-                        resources.getQuantityString(
-                            R.plurals.languages,
-                            viewModel.languages.size,
-                            viewModel.languages.joinToString()
-                        )
-                    )
-                }
-            }
+            viewModel.setFilter(viewModel.sort, viewModel.tags.plus(tag).sortedArray(), viewModel.languages)
+            viewModel.filtersText.value = filtersText()
         }
     }
 
@@ -303,31 +253,7 @@ class TopStreamsFragment : PagedListFragment(), Scrollable, StreamsSortDialog.On
             if (changed) {
                 viewModel.setFilter(sort, tags, languages)
                 viewModel.sortText.value = getString(R.string.sort_by, sortText)
-                viewModel.filtersText.value = if (viewModel.tags.isNotEmpty() || viewModel.languages.isNotEmpty()) {
-                    buildString {
-                        if (viewModel.tags.isNotEmpty()) {
-                            append(
-                                resources.getQuantityString(
-                                    R.plurals.tags,
-                                    viewModel.tags.size,
-                                    viewModel.tags.joinToString()
-                                )
-                            )
-                        }
-                        if (viewModel.languages.isNotEmpty()) {
-                            if (isNotEmpty()) {
-                                append(". ")
-                            }
-                            append(
-                                resources.getQuantityString(
-                                    R.plurals.languages,
-                                    viewModel.languages.size,
-                                    viewModel.languages.joinToString()
-                                )
-                            )
-                        }
-                    }
-                } else null
+                viewModel.filtersText.value = filtersText()
             }
             if (saveFilters && (tags.isNotEmpty() || languages.isNotEmpty())) {
                 viewModel.saveFilters(
@@ -353,13 +279,11 @@ class TopStreamsFragment : PagedListFragment(), Scrollable, StreamsSortDialog.On
         }
     }
 
-    override fun deleteSavedSort() {}
+    override fun deleteSavedSort() {
+    }
 
     override fun scrollToTop() {
-        with(binding) {
-            appBar.setExpanded(true, true)
-            composeScrollTopSignal.value++
-        }
+        composeScrollTopSignal.value++
     }
 
     override fun onNetworkRestored() {
@@ -372,10 +296,5 @@ class TopStreamsFragment : PagedListFragment(), Scrollable, StreamsSortDialog.On
                 composeRefreshSignal.value++
             }
         }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 }

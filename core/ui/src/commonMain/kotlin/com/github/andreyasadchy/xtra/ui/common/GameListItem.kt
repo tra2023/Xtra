@@ -28,7 +28,7 @@ fun GameListItem(
         broadcasters = game.broadcasterCount
             .takeIf { settings.getBoolean(C.UI_BROADCASTERS_COUNT, true) }
             ?.let { strings.broadcasters(it) },
-        tags = game.tags.orEmpty().takeIf { settings.getBoolean(C.UI_TAGS, true) }.orEmpty(),
+        tags = game.tags.orEmpty().filter { it.name != null }.takeIf { settings.getBoolean(C.UI_TAGS, true) }.orEmpty(),
         tagLabel = { it.name.orEmpty() },
         tagEnabled = { it.id != null },
         onTagClick = onTagClick,

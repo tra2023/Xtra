@@ -7,17 +7,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,30 +23,23 @@ import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
@@ -79,9 +67,11 @@ import com.github.andreyasadchy.xtra.ui.common.StreamsTab
 import com.github.andreyasadchy.xtra.ui.common.TabDropdown
 import com.github.andreyasadchy.xtra.ui.common.VideosSortDialog
 import com.github.andreyasadchy.xtra.ui.common.VideosTab
+import com.github.andreyasadchy.xtra.ui.common.XtraTopBar
 import com.github.andreyasadchy.xtra.ui.common.positionFor
 import com.github.andreyasadchy.xtra.ui.common.rememberCollapseConnection
 import com.github.andreyasadchy.xtra.ui.common.streamsCompact
+import com.github.andreyasadchy.xtra.ui.common.xtraBottomInset
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
 import com.github.andreyasadchy.xtra.ui.game.GamePagerViewModel.Companion.GamePagerViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsViewModel
@@ -266,20 +256,20 @@ abstract class BaseGameFragment : PagedListFragment(), Scrollable, StreamsSortDi
                 viewModel.follow.value = null
             }
         }
-        var overflowExpanded by remember { mutableStateOf(false) }
         val liftOptOut = remember { !requireContext().prefs().getBoolean(C.UI_THEME_APPBAR_LIFT, true) }
-        val bottomInset = with(LocalDensity.current) { WindowInsets.systemBars.getBottom(this).toDp() }
+        val bottomInset = xtraBottomInset(activity)
         Scaffold(
             modifier = Modifier.nestedScroll(collapseConnection),
             topBar = {
                 Column {
-                    TopAppBar(
-                        title = { Text(args.gameName.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        navigationIcon = {
-                            IconButton(onClick = { findNavController().navigateUp() }) {
-                                Icon(painterResource(R.drawable.baseline_arrow_back_black_24), contentDescription = null)
-                            }
-                        },
+                    XtraTopBar(
+                        title = args.gameName.orEmpty(),
+                        isLoggedIn = isLoggedIn,
+                        liftOptOut = liftOptOut,
+                        onSearch = { findNavController().navigate(SearchPagerFragmentDirections.actionGlobalSearchPagerFragment()) },
+                        onSettings = { activity.settingsResultLauncher?.launch(Intent(activity, SettingsActivity::class.java)) },
+                        onLogin = { onLoginClick(isLoggedIn, activity) },
+                        up = { findNavController().navigateUp() },
                         actions = {
                             if (followSetting < 2) {
                                 IconButton(onClick = { onFollowClick() }) {
@@ -289,33 +279,6 @@ abstract class BaseGameFragment : PagedListFragment(), Scrollable, StreamsSortDi
                                     )
                                 }
                             }
-                            IconButton(onClick = { findNavController().navigate(SearchPagerFragmentDirections.actionGlobalSearchPagerFragment()) }) {
-                                Icon(painterResource(R.drawable.baseline_search_black_24), contentDescription = stringResource(R.string.search))
-                            }
-                            IconButton(onClick = { overflowExpanded = true }) {
-                                OverflowIcon()
-                            }
-                            DropdownMenu(expanded = overflowExpanded, onDismissRequest = { overflowExpanded = false }) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.settings)) },
-                                    onClick = {
-                                        overflowExpanded = false
-                                        activity.settingsResultLauncher?.launch(Intent(activity, SettingsActivity::class.java))
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(if (isLoggedIn) R.string.log_out else R.string.log_in)) },
-                                    onClick = {
-                                        overflowExpanded = false
-                                        onLoginClick(isLoggedIn, activity)
-                                    },
-                                )
-                            }
-                        },
-                        colors = if (liftOptOut) {
-                            TopAppBarDefaults.topAppBarColors(scrolledContainerColor = MaterialTheme.colorScheme.surface)
-                        } else {
-                            TopAppBarDefaults.topAppBarColors()
                         },
                     )
                     val game by viewModel.game.collectAsState()
@@ -466,16 +429,6 @@ abstract class BaseGameFragment : PagedListFragment(), Scrollable, StreamsSortDi
                         )
                     }
                 }
-            }
-        }
-    }
-
-    @Composable
-    private fun OverflowIcon() {
-        val color = MaterialTheme.colorScheme.onSurfaceVariant
-        Canvas(Modifier.size(24.dp)) {
-            for (position in 1..3) {
-                drawCircle(color = color, radius = 2.dp.toPx(), center = Offset(size.width / 2, size.height * position / 4))
             }
         }
     }
