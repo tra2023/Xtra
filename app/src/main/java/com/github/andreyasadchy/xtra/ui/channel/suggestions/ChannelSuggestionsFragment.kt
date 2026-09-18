@@ -4,36 +4,35 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.view.isVisible
-import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
-import androidx.paging.PagingDataAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.CommonRecyclerViewLayoutBinding
 import com.github.andreyasadchy.xtra.model.ui.Stream
+import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.channel.suggestions.ChannelSuggestionsViewModel.Companion.ChannelSuggestionsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
-import com.github.andreyasadchy.xtra.ui.common.StreamsCompactAdapter
+import com.github.andreyasadchy.xtra.ui.common.StreamListItem
+import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
+import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
+import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragmentDirections
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
+import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.prefs
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class ChannelSuggestionsFragment : PagedListFragment(), Scrollable {
 
     private var _binding: CommonRecyclerViewLayoutBinding? = null
     private val binding get() = _binding!!
     private val viewModel: ChannelSuggestionsViewModel by viewModels { ChannelSuggestionsViewModelFactory }
-    private lateinit var pagingAdapter: PagingDataAdapter<Stream, out RecyclerView.ViewHolder>
+    // Compose owns list + load states now (PagedListFragment.PagingContent): signals drive refresh / scroll-top.
+    private val composeRefreshSignal = MutableStateFlow(0)
+    private val composeScrollTopSignal = MutableStateFlow(0)
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = CommonRecyclerViewLayoutBinding.inflate(inflater, container, false)
@@ -42,47 +41,95 @@ class ChannelSuggestionsFragment : PagedListFragment(), Scrollable {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        pagingAdapter = StreamsCompactAdapter(this, {
-            findNavController().navigate(
-                TopStreamsFragmentDirections.actionGlobalTopFragment(
-                    tags = arrayOf(it)
+        // Compose owns list + load states. The hidden RecyclerView container keeps
+        // its overlays off; refresh gesture + scroll-top live in Compose now.
+        binding.recyclerView.isVisible = false
+        binding.progressBar.isVisible = false
+        binding.nothingHere.isVisible = false
+        binding.scrollTop.isVisible = false
+        binding.swipeRefresh.isEnabled = false
+        val composeView = createPagingView()
+        (binding.root as ViewGroup).addView(
+            composeView, 0,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+        pagingContent = {
+            val refreshTick by composeRefreshSignal.collectAsState()
+            val scrollTick by composeScrollTopSignal.collectAsState()
+            PagingContent(
+                flow = viewModel.flow,
+                refreshSignal = refreshTick,
+                retrySignal = 0,
+                scrollTopSignal = scrollTick,
+                keyForItem = { it.id ?: it.channelId ?: it.channelLogin ?: it.hashCode().toString() },
+            ) { stream ->
+                StreamListItem(
+                    stream = stream,
+                    compact = true,
+                    onStreamClick = { (activity as? MainActivity)?.startStream(it) },
+                    onChannelClick = ::openChannel,
+                    onGameClick = ::openGame,
+                    onTagClick = ::openTag,
                 )
-            )
-        })
-        setAdapter(binding.recyclerView, pagingAdapter)
-        ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
-            if (activity?.findViewById<LinearLayout>(R.id.navBarContainer)?.isVisible == false) {
-                val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-                binding.recyclerView.updatePadding(bottom = insets.bottom)
             }
-            WindowInsetsCompat.CONSUMED
         }
     }
 
     override fun initialize() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.flow.collectLatest { pagingData ->
-                    pagingAdapter.submitData(pagingData)
-                }
+        // No adapter: PagingContent collects viewModel.flow and owns load states.
+    }
+
+    private fun openChannel(item: Stream) {
+        findNavController().navigate(
+            ChannelPagerFragmentDirections.actionGlobalChannelPagerFragment(
+                channelId = item.channelId,
+                channelLogin = item.channelLogin,
+                channelName = item.channelName,
+                channelImage = item.channelImage,
+                streamId = item.id,
+            )
+        )
+    }
+
+    private fun openGame(item: Stream) {
+        findNavController().navigate(
+            if (requireContext().prefs().getBoolean(C.UI_GAME_PAGER, true)) {
+                GamePagerFragmentDirections.actionGlobalGamePagerFragment(
+                    gameId = item.gameId,
+                    gameSlug = item.gameSlug,
+                    gameName = item.gameName,
+                )
+            } else {
+                GameMediaFragmentDirections.actionGlobalGameMediaFragment(
+                    gameId = item.gameId,
+                    gameSlug = item.gameSlug,
+                    gameName = item.gameName,
+                )
             }
-        }
-        initializeAdapter(binding, pagingAdapter)
+        )
+    }
+
+    private fun openTag(tag: String) {
+        findNavController().navigate(
+            TopStreamsFragmentDirections.actionGlobalTopFragment(
+                tags = arrayOf(tag)
+            )
+        )
     }
 
     override fun scrollToTop() {
-        binding.recyclerView.scrollToPosition(0)
+        composeScrollTopSignal.value++
     }
 
     override fun onNetworkRestored() {
-        pagingAdapter.retry()
+        composeRefreshSignal.value++
     }
 
     override fun onIntegrityTokenLoaded(callback: String?) {
         (parentFragment as? IntegrityDialog.Listener)?.onIntegrityTokenLoaded("refresh")
         when (callback) {
             "refresh" -> {
-                pagingAdapter.refresh()
+                composeRefreshSignal.value++
             }
         }
     }
