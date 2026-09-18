@@ -22,6 +22,7 @@ import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.collections.RecentSearchCollectionRow
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.VideoListItem
+import com.github.andreyasadchy.xtra.ui.common.positionFor
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
@@ -94,7 +95,7 @@ class VideoSearchFragment : PagedListFragment(), Searchable {
                 ) { video ->
                     VideoListItem(
                         video = video,
-                        positions = positions,
+                        position = positions.positionFor(video.id),
                         bookmarked = video.id in bookmarkIds,
                         onDownload = ::showDownloadDialog,
                         onBookmark = ::saveBookmark,

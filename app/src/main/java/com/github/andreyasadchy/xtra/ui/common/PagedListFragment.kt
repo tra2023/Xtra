@@ -1,5 +1,6 @@
 package com.github.andreyasadchy.xtra.ui.common
 
+import android.content.res.Configuration
 import android.view.View
 import android.widget.LinearLayout
 import androidx.compose.runtime.Composable
@@ -7,9 +8,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.unit.Dp
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -31,8 +36,10 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
         setContent {
             val theme = rememberThemeId()
-            XtraTheme(themeId = theme) {
-                pagingContent?.invoke()
+            ProvideXtraLocals(activity) {
+                XtraTheme(themeId = theme) {
+                    pagingContent?.invoke()
+                }
             }
         }
         // NOTE: never set an inset listener on the ComposeView itself: it would
@@ -82,6 +89,7 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
             refreshSignal = refreshSignal,
             retrySignal = retrySignal,
             bottomInset = bottomInset ?: with(LocalDensity.current) { pagingBottomInset.toDp() },
+            portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
             scrollTopSignal = scrollTopSignal,
             enableScrollTop = enableScrollTop,
             enableRefresh = enableRefresh,
@@ -91,6 +99,7 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
             onScrollTop = onScrollTop,
             onIntegrityFailed = { (activity as? MainActivity)?.getNewIntegrityToken("refresh", childFragmentManager) },
             onAtTopChanged = onAtTopChanged,
+            modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
             itemContent = itemContent,
         )
     }

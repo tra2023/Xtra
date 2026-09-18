@@ -1,10 +1,15 @@
 package com.github.andreyasadchy.xtra.ui.game
 
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.unit.Dp
 import com.github.andreyasadchy.xtra.model.ui.Clip
 import com.github.andreyasadchy.xtra.model.ui.Stream
@@ -13,6 +18,7 @@ import com.github.andreyasadchy.xtra.ui.common.ClipListItem
 import com.github.andreyasadchy.xtra.ui.common.PagingGrid
 import com.github.andreyasadchy.xtra.ui.common.StreamListItem
 import com.github.andreyasadchy.xtra.ui.common.VideoListItem
+import com.github.andreyasadchy.xtra.ui.common.positionFor
 import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsViewModel
 import com.github.andreyasadchy.xtra.ui.game.streams.GameStreamsViewModel
 import com.github.andreyasadchy.xtra.ui.game.videos.GameVideosViewModel
@@ -47,8 +53,10 @@ fun GameStreamsTab(
         enableScrollTop = enableScrollTop,
         keyForItem = { it.id ?: it.channelId ?: it.channelLogin ?: it.hashCode().toString() },
         bottomInset = bottomInset,
+        portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
+        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
     ) { stream ->
         StreamListItem(
             stream = stream,
@@ -85,12 +93,14 @@ fun GameVideosTab(
         scrollTopSignal = scrollTick,
         keyForItem = { it.id ?: it.hashCode().toString() },
         bottomInset = bottomInset,
+        portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
+        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
     ) { video ->
         VideoListItem(
             video = video,
-            positions = positions,
+            position = positions.positionFor(video.id),
             bookmarked = video.id in bookmarkIds,
             showGame = false,
             onDownload = onDownload,
@@ -120,8 +130,10 @@ fun GameClipsTab(
         scrollTopSignal = scrollTick,
         keyForItem = { it.id ?: it.hashCode().toString() },
         bottomInset = bottomInset,
+        portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
+        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
     ) { clip ->
         ClipListItem(
             clip = clip,

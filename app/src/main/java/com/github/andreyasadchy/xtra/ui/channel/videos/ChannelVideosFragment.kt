@@ -29,6 +29,7 @@ import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.common.Sortable
 import com.github.andreyasadchy.xtra.ui.common.VideoListItem
 import com.github.andreyasadchy.xtra.ui.common.VideosSortDialog
+import com.github.andreyasadchy.xtra.ui.common.positionFor
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
@@ -83,7 +84,7 @@ class ChannelVideosFragment : PagedListFragment(), Scrollable, Sortable, VideosS
             ) { video ->
                 VideoListItem(
                     video = video,
-                    positions = positions,
+                    position = positions.positionFor(video.id),
                     bookmarked = video.id in bookmarkIds,
                     showChannel = false,
                     onDownload = ::showDownloadDialog,

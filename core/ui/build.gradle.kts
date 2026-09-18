@@ -20,6 +20,7 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            implementation(libs.paging.compose)
             implementation(libs.coil)
             implementation(libs.coil.compose)
             implementation(libs.coil.gif)

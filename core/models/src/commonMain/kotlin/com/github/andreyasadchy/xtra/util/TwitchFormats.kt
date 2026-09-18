@@ -115,6 +115,22 @@ object TwitchFormats {
         }
     }
 
+    /**
+     * `H:MM:SS` when the duration reaches an hour, otherwise `M:SS`.
+     * Matches `android.text.format.DateUtils.formatElapsedTime`.
+     */
+    fun formatElapsedTime(elapsedSeconds: Long): String {
+        val hours = elapsedSeconds / 3600
+        val minutes = (elapsedSeconds % 3600) / 60
+        val seconds = elapsedSeconds % 60
+        fun pad(value: Long) = value.toString().padStart(2, '0')
+        return if (hours > 0) {
+            "$hours:${pad(minutes)}:${pad(seconds)}"
+        } else {
+            "$minutes:${pad(seconds)}"
+        }
+    }
+
     @OptIn(ExperimentalTime::class)
     fun minutesLeft(hour: Int, minute: Int): Int {
         val timeZone = TimeZone.currentSystemDefault()

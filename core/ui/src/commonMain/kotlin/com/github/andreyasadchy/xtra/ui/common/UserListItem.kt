@@ -1,12 +1,10 @@
 package com.github.andreyasadchy.xtra.ui.common
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.ui.collections.ChannelCollectionRow
-import com.github.andreyasadchy.xtra.ui.collections.collectionName
+import com.github.andreyasadchy.xtra.ui.settings.LocalXtraSettings
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.prefs
 
 /**
  * Shared channel/user row for the Compose paging lists. Callers build the
@@ -19,11 +17,11 @@ fun UserListItem(
     labels: List<String>,
     onClick: (User) -> Unit,
 ) {
-    val context = LocalContext.current
+    val settings = LocalXtraSettings.current
     ChannelCollectionRow(
-        name = context.collectionName(user.name, user.login),
+        name = displayName(user.name, user.login, settings.getString(C.UI_NAME_DISPLAY, "0") ?: "0"),
         image = user.profileImage,
-        roundImage = context.prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true),
+        roundImage = settings.getBoolean(C.UI_ROUND_USER_IMAGE, true),
         details = details,
         labels = labels,
         onClick = { onClick(user) },
