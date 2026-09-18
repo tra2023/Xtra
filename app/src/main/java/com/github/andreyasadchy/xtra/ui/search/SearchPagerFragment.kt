@@ -461,6 +461,7 @@ class SearchPagerFragment : BaseNetworkFragment(), IntegrityDialog.Listener {
                 searches = recents,
                 onSelect = { applyQuery(it) },
                 onDelete = onDeleteRecent,
+                modifier = Modifier.fillMaxSize(),
             )
         } else {
             list()
