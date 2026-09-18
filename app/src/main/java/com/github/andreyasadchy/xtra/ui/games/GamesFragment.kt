@@ -11,11 +11,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
-import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -29,6 +27,7 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentGamesBinding
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
+import com.github.andreyasadchy.xtra.ui.collections.GameCollectionRow
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
@@ -41,7 +40,6 @@ import com.github.andreyasadchy.xtra.ui.settings.SettingsActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
-import com.github.andreyasadchy.xtra.util.getThemeFlags
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,7 +52,7 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
     private val binding get() = _binding!!
     private val args: GamesFragmentArgs by navArgs()
     private val viewModel: GamesViewModel by viewModels { GamesViewModelFactory }
-    // Compose owns list + load states now (GamesPagingRoute): signals drive refresh / scroll-top.
+    // Compose owns list + load states now (PagedListFragment.PagingContent): signals drive refresh / scroll-top.
     private val composeRefreshSignal = MutableStateFlow(0)
     private val composeScrollTopSignal = MutableStateFlow(0)
 
@@ -128,7 +126,7 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
                 WindowInsetsCompat.CONSUMED
             }
         }
-        // Compose owns list + load states (GamesPagingRoute via paging-compose).
+        // Compose owns list + load states (PagedListFragment.PagingContent via paging-compose).
         // Views survivors: toolbar, sort bar. The hidden RecyclerView container keeps
         // its overlays off; refresh gesture + scroll-top live in Compose now.
         binding.recyclerViewLayout.recyclerView.isVisible = false
@@ -136,42 +134,47 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
         binding.recyclerViewLayout.nothingHere.isVisible = false
         binding.recyclerViewLayout.scrollTop.isVisible = false
         binding.recyclerViewLayout.swipeRefresh.isEnabled = false
-        val composeView = ComposeView(requireContext()).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-        }
+        val composeView = createPagingView()
         (binding.recyclerViewLayout.root as ViewGroup).addView(
             composeView, 0,
             ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
-        composeView.setContent {
-            val (darkTheme, amoled, blue) = requireContext().getThemeFlags()
-            XtraTheme(darkTheme = darkTheme, amoled = amoled, blue = blue) {
-                GamesPagingRoute(
-                    flow = viewModel.flow,
-                    refreshSignal = composeRefreshSignal,
-                    scrollTopSignal = composeScrollTopSignal,
-                    onGameClick = ::openGame,
-                    onTagClick = ::addTag,
-                    showTags = requireContext().prefs().getBoolean(C.UI_TAGS, true),
-                    viewersLabel = { count ->
-                        resources.getQuantityString(
+        pagingContent = {
+            val refreshTick by composeRefreshSignal.collectAsState()
+            val scrollTick by composeScrollTopSignal.collectAsState()
+            val context = LocalContext.current
+            val showTags = context.prefs().getBoolean(C.UI_TAGS, true)
+            val showBroadcasters = context.prefs().getBoolean(C.UI_BROADCASTERS_COUNT, true)
+            val truncate = context.prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true)
+            PagingContent(
+                flow = viewModel.flow,
+                refreshSignal = refreshTick,
+                retrySignal = 0,
+                scrollTopSignal = scrollTick,
+                keyForItem = { it.id ?: it.name ?: it.hashCode().toString() },
+            ) { game ->
+                GameCollectionRow(
+                    name = game.name,
+                    image = game.boxArt,
+                    viewers = game.viewerCount?.let { count ->
+                        context.resources.getQuantityString(
                             R.plurals.viewers,
                             count,
-                            TwitchApiHelper.formatCount(count, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true)),
+                            TwitchApiHelper.formatCount(count, truncate),
                         )
                     },
-                    showBroadcasters = requireContext().prefs().getBoolean(C.UI_BROADCASTERS_COUNT, true),
-                    broadcastersLabel = { count ->
-                        resources.getQuantityString(
+                    broadcasters = game.broadcasterCount?.takeIf { showBroadcasters }?.let { count ->
+                        context.resources.getQuantityString(
                             R.plurals.broadcasters,
                             count,
-                            TwitchApiHelper.formatCount(count, requireContext().prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true)),
+                            TwitchApiHelper.formatCount(count, truncate),
                         )
                     },
-                    onIntegrityFailed = {
-                        (requireActivity() as? MainActivity)?.getNewIntegrityToken("refresh", childFragmentManager)
-                    },
-                    modifier = Modifier.fillMaxSize(),
+                    tags = if (showTags) game.tags.orEmpty().filter { it.name != null } else emptyList(),
+                    tagLabel = { it.name.orEmpty() },
+                    tagEnabled = { it.id != null },
+                    onTagClick = ::addTag,
+                    onClick = { openGame(game) },
                 )
             }
         }
@@ -213,7 +216,7 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
                     }
                 } else null
             }
-            // No adapter: GamesPagingRoute collects viewModel.flow and owns load states.
+            // No adapter: PagingContent collects viewModel.flow and owns load states.
         }
         with(binding) {
             sortBar.root.visibility = View.VISIBLE

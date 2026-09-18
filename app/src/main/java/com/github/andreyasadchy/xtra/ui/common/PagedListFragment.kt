@@ -69,8 +69,11 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
         flow: Flow<PagingData<T>>,
         refreshSignal: Int,
         retrySignal: Int,
+        scrollTopSignal: Int = 0,
         enableScrollTop: Boolean = true,
         enableRefresh: Boolean = true,
+        itemKey: ((Int) -> Any)? = null,
+        keyForItem: ((T) -> Any?)? = null,
         itemContent: @Composable (T) -> Unit,
     ) {
         val items = flow.collectAsLazyPagingItems()
@@ -94,6 +97,7 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
         }
         LaunchedEffect(refreshSignal) { if (refreshSignal > 0) items.refresh() }
         LaunchedEffect(retrySignal) { if (retrySignal > 0) items.retry() }
+        LaunchedEffect(scrollTopSignal) { if (scrollTopSignal > 0) pagingScrollTop() }
         val error = listOf(items.loadState.refresh, items.loadState.append, items.loadState.prepend).filterIsInstance<LoadState.Error>().firstOrNull()
         LaunchedEffect(error) {
             if (error?.error?.message == C.FAILED_INTEGRITY_CHECK) (activity as? MainActivity)?.getNewIntegrityToken("refresh", childFragmentManager)
@@ -116,6 +120,21 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
             enableRefresh = enableRefresh,
             contentPadding = PaddingValues(bottom = with(LocalDensity.current) { pagingBottomInset.toDp() }),
             modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
+            itemKey = itemKey ?: { index ->
+                // items.itemKey { ... } uses peek(index) internally, which throws
+                // IndexOutOfBoundsException when a refresh shrinks the snapshot while
+                // the grid still resolves keys for the old layout. Guard it.
+                try {
+                    if (index < items.itemCount) {
+                        val item = items.peek(index)
+                        if (item != null) keyForItem?.invoke(item) ?: item.hashCode().toString() else "placeholder:$index"
+                    } else {
+                        "placeholder:$index"
+                    }
+                } catch (_: IndexOutOfBoundsException) {
+                    "placeholder:$index"
+                }
+            },
         ) { index -> items[index]?.let { itemContent(it) } }
     }
 
