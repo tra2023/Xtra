@@ -1,6 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
-import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -33,6 +32,7 @@ import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.getThemeId
 import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -88,14 +88,7 @@ class ImageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener
         }.build()
         val imageName = args.getString(IMAGE_NAME)
         imageSource = sourceLabel(viewModel.emoteCard.value)
-        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-            when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
-                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0")
-                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2")
-            }
-        } else {
-            prefs.getString(C.THEME, "0")
-        }
+        val theme = requireContext().getThemeId()
         val padding = requireContext().obtainStyledAttributes(intArrayOf(R.attr.dialogPadding)).let {
             val value = it.getDimension(0, 8f * resources.displayMetrics.density) / resources.displayMetrics.density
             it.recycle()
@@ -104,7 +97,7 @@ class ImageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener
         return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                XtraTheme(themeId = theme) {
                     ImageClickedDialogContent(
                         model = request,
                         imageName = imageName,

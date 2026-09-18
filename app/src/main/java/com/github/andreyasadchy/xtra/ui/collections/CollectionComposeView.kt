@@ -1,7 +1,6 @@
 package com.github.andreyasadchy.xtra.ui.collections
 
 import android.content.Context
-import android.content.res.Configuration
 import android.view.ViewGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -18,6 +17,7 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.getThemeId
 import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.shape.ShapeAppearanceModel
 
@@ -56,14 +56,8 @@ fun Context.collectionFollowLabels(account: Boolean, local: Boolean): List<Strin
 
 @Composable
 private fun CollectionTheme(context: Context, content: @Composable () -> Unit) {
-    val prefs = context.prefs()
-    val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-        when (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
-            Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0")
-            else -> prefs.getString(C.UI_THEME_DARK_OFF, "2")
-        }
-    } else prefs.getString(C.THEME, "0")
-    XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+    val theme = context.getThemeId()
+    XtraTheme(themeId = theme) {
         val colors = MaterialTheme.colorScheme
         val typography = MaterialTheme.typography
         val density = context.resources.displayMetrics.density

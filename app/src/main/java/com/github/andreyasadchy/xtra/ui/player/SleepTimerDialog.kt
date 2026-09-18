@@ -6,7 +6,6 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.compose.runtime.getValue
@@ -22,6 +21,7 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
+import com.github.andreyasadchy.xtra.util.getThemeId
 import com.github.andreyasadchy.xtra.util.prefs
 
 class SleepTimerDialog : DialogFragment() {
@@ -62,20 +62,13 @@ class SleepTimerDialog : DialogFragment() {
             lockScreen = adminActive && (savedInstanceState?.getBoolean(KEY_LOCK) ?: prefs.getBoolean(C.SLEEP_TIMER_LOCK, false)),
         )
         val builder = context.getAlertDialogBuilder()
-        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-            when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
-                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0")
-                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2")
-            }
-        } else {
-            prefs.getString(C.THEME, "0")
-        }
+        val theme = context.getThemeId()
         val view = ComposeView(builder.context).apply {
             setViewTreeLifecycleOwner(this@SleepTimerDialog)
             setViewTreeSavedStateRegistryOwner(this@SleepTimerDialog)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@SleepTimerDialog.lifecycle))
             setContent {
-                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                XtraTheme(themeId = theme) {
                     SleepTimerDialogContent(
                         state = state,
                         title = getString(R.string.sleep_timer),

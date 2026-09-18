@@ -1,7 +1,6 @@
 package com.github.andreyasadchy.xtra.ui.common
 
 import android.content.Intent
-import android.content.res.Configuration
 import android.text.format.DateUtils
 import android.view.ViewGroup
 import androidx.compose.runtime.getValue
@@ -10,7 +9,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.Fragment
@@ -34,6 +32,7 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import kotlin.time.Instant
 
 class VideosAdapter(
@@ -105,16 +104,7 @@ class VideosAdapter(
                     if (video != null) {
                         val context = view.context
                         val prefs = context.prefs()
-                        val configuration = LocalConfiguration.current
-                        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-                            if (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) {
-                                prefs.getString(C.UI_THEME_DARK_ON, "0")
-                            } else {
-                                prefs.getString(C.UI_THEME_DARK_OFF, "2")
-                            }
-                        } else {
-                            prefs.getString(C.THEME, "0")
-                        }
+                        val theme = rememberThemeId()
                         val material3 = prefs.getBoolean(C.UI_THEME_MATERIAL3, true)
                         val position = video.id?.toLongOrNull()?.let { id -> positions?.find { it.id == id }?.position }
                         val durationSeconds = video.durationSeconds
@@ -153,7 +143,7 @@ class VideosAdapter(
                                 add(MediaRowAction(context.getString(R.string.resume), open))
                             }
                         }
-                        XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                        XtraTheme(themeId = theme) {
                             MediaRow(
                                 data = MediaRowData(
                                     thumbnail = video.thumbnail,

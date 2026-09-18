@@ -16,6 +16,7 @@ import com.github.andreyasadchy.xtra.databinding.CommonRecyclerViewLayoutBinding
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -29,10 +30,8 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
         id = com.github.andreyasadchy.xtra.R.id.swipeRefresh
         setViewCompositionStrategy(androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
         setContent {
-            val night = androidx.compose.ui.platform.LocalConfiguration.current.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
-            val preferences = requireContext().prefs()
-            val theme = if (preferences.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) preferences.getString(if (night) C.UI_THEME_DARK_ON else C.UI_THEME_DARK_OFF, if (night) "0" else "2") else preferences.getString(C.THEME, "0")
-            com.github.andreyasadchy.xtra.ui.theme.XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+            val theme = rememberThemeId()
+            com.github.andreyasadchy.xtra.ui.theme.XtraTheme(themeId = theme) {
                 pagingContent?.invoke()
             }
         }

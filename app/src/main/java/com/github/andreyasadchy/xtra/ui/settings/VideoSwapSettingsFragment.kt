@@ -1,6 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.settings
 
-import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -15,7 +14,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
@@ -33,6 +31,7 @@ import com.github.andreyasadchy.xtra.ui.settings.VideoSwapSettingsViewModel.Comp
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.google.android.material.appbar.AppBarLayout
 import kotlinx.coroutines.launch
 
@@ -55,16 +54,7 @@ class VideoSwapSettingsFragment : Fragment() {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                val configuration = LocalConfiguration.current
-                val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-                    if (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) {
-                        prefs.getString(C.UI_THEME_DARK_ON, "0") ?: "0"
-                    } else {
-                        prefs.getString(C.UI_THEME_DARK_OFF, "2") ?: "2"
-                    }
-                } else {
-                    prefs.getString(C.THEME, "0") ?: "0"
-                }
+                val theme = rememberThemeId()
                 val listState = rememberLazyListState()
                 LaunchedEffect(listState) {
                     snapshotFlow { listState.canScrollBackward }.collect { scrolled ->
@@ -75,7 +65,7 @@ class VideoSwapSettingsFragment : Fragment() {
                         }
                     }
                 }
-                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                XtraTheme(themeId = theme) {
                     VideoSwapSettingsScreen(
                         state = uiState,
                         labels = VideoSwapLabels(

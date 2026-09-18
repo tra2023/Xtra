@@ -5,7 +5,6 @@ import android.app.Activity
 import android.app.Dialog
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -17,7 +16,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.app.ActivityCompat
 import androidx.core.content.edit
@@ -41,6 +39,7 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -202,11 +201,9 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
             setContent {
                 val state by viewModel.form.collectAsState()
                 val qualities by viewModel.qualities.collectAsState()
-                val prefs = requireContext().prefs()
-                val night = LocalConfiguration.current.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-                val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) prefs.getString(if (night) C.UI_THEME_DARK_ON else C.UI_THEME_DARK_OFF, if (night) "0" else "2") else prefs.getString(C.THEME, "0")
+                val theme = rememberThemeId()
                 val qualityNames = qualityNames(qualities.orEmpty())
-                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                XtraTheme(themeId = theme) {
                     DownloadForm(
                         state = state,
                         labels = DownloadFormLabels(

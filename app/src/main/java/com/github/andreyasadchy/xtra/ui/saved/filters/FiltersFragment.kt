@@ -52,6 +52,7 @@ import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragmentDirections
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.google.android.material.appbar.AppBarLayout
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
@@ -115,15 +116,7 @@ class FiltersFragment : PagedListFragment(), Scrollable {
             setContent {
                 val configuration = LocalConfiguration.current
                 val prefs = requireContext().prefs()
-                val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-                    if (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) {
-                        prefs.getString(C.UI_THEME_DARK_ON, "0") ?: "0"
-                    } else {
-                        prefs.getString(C.UI_THEME_DARK_OFF, "2") ?: "2"
-                    }
-                } else {
-                    prefs.getString(C.THEME, "0") ?: "0"
-                }
+                val theme = rememberThemeId()
                 val columns = if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
                     prefs.getString(C.PORTRAIT_COLUMN_COUNT, "1")?.toIntOrNull() ?: 1
                 } else {
@@ -143,7 +136,7 @@ class FiltersFragment : PagedListFragment(), Scrollable {
                 val version = pageVersion
                 val snapshot = remember(version) { differ.snapshot() }
                 val material3 = prefs.getBoolean(C.UI_THEME_MATERIAL3, true)
-                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                XtraTheme(themeId = theme) {
                     FiltersScreen(
                         itemCount = snapshot.size,
                         itemKey = { index -> snapshot[index]?.id ?: "placeholder:$index" },

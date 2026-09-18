@@ -1,6 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.common
 
-import android.content.res.Configuration
 import android.text.format.DateUtils
 import android.view.ViewGroup
 import androidx.compose.runtime.getValue
@@ -28,6 +27,7 @@ import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.getThemeId
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -104,9 +104,7 @@ internal class StreamCardHost(
             binding?.let { bound ->
                 key(bound.stream) {
                     XtraTheme(
-                        darkTheme = bound.theme != "2" && bound.theme != "5",
-                        amoled = bound.theme == "1" || bound.theme == "6",
-                        blue = bound.theme == "3",
+                        themeId = bound.theme,
                     ) {
                         StreamCard(
                             state = bound.card,
@@ -149,14 +147,7 @@ internal class StreamCardHost(
                 ?.let { DateUtils.formatElapsedTime(it.inWholeSeconds) }
                 ?.let { if (compact) it else context.getString(R.string.uptime, it) }
         } else null
-        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-            when (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
-                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0") ?: "0"
-                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2") ?: "2"
-            }
-        } else {
-            prefs.getString(C.THEME, "0") ?: "0"
-        }
+        val theme = context.getThemeId()
         binding = Binding(
             stream = item,
             card = streamCardState(

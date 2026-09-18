@@ -75,6 +75,7 @@ import com.github.andreyasadchy.xtra.ui.saved.downloads.DownloadsViewModel.Compa
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.io.File
@@ -154,9 +155,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
             setContent {
                 val configuration = LocalConfiguration.current
                 val prefs = requireContext().prefs()
-                val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-                    prefs.getString(if (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) C.UI_THEME_DARK_ON else C.UI_THEME_DARK_OFF, if (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES) "0" else "2")
-                } else prefs.getString(C.THEME, "0")
+                val theme = rememberThemeId()
                 val columns = prefs.getString(if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) C.PORTRAIT_COLUMN_COUNT else C.LANDSCAPE_COLUMN_COUNT, if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) "1" else "2")?.toIntOrNull() ?: 1
                 val state = rememberLazyGridState()
                 DisposableEffect(state) {
@@ -169,7 +168,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
                 val adapter = actions
                 val material3 = prefs.getBoolean(C.UI_THEME_MATERIAL3, true)
                 fun find(id: Int) = differ.snapshot().items.find { it.id == id }
-                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                XtraTheme(themeId = theme) {
                     DownloadsList(
                         itemCount = snapshot.size,
                         itemKey = { snapshot[it]?.id ?: "placeholder:$it" },
@@ -425,10 +424,8 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
             setViewTreeSavedStateRegistryOwner(this@DownloadsFragment)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                val prefs = requireContext().prefs()
-                val night = LocalConfiguration.current.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-                val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) prefs.getString(if (night) C.UI_THEME_DARK_ON else C.UI_THEME_DARK_OFF, if (night) "0" else "2") else prefs.getString(C.THEME, "0")
-                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") { content() }
+                val theme = rememberThemeId()
+                XtraTheme(themeId = theme) { content() }
             }
         }
         val dialog = builder.setView(composeView)

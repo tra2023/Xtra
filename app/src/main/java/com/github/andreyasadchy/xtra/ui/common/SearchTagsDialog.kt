@@ -2,7 +2,6 @@ package com.github.andreyasadchy.xtra.ui.common
 
 import android.app.Dialog
 import android.content.Context
-import android.content.res.Configuration
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.compose.runtime.collectAsState
@@ -28,9 +27,8 @@ import com.github.andreyasadchy.xtra.ui.common.SearchTagsViewModel.Companion.Sea
 import com.github.andreyasadchy.xtra.ui.search.TagSearchContent
 import com.github.andreyasadchy.xtra.ui.search.TagSearchLoadState
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
-import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
-import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.getThemeId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -75,15 +73,7 @@ class SearchTagsDialog : DialogFragment() {
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val builder = requireContext().getAlertDialogBuilder()
-        val prefs = requireContext().prefs()
-        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-            when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
-                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0")
-                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2")
-            }
-        } else {
-            prefs.getString(C.THEME, "0")
-        }
+        val theme = requireContext().getThemeId()
         val view = ComposeView(builder.context).apply {
             id = R.id.searchView
             setViewTreeLifecycleOwner(this@SearchTagsDialog)
@@ -95,7 +85,7 @@ class SearchTagsDialog : DialogFragment() {
                 }
                 val lazyTags = pagingFlow.collectAsLazyPagingItems()
                 val appliedQuery by viewModel.query.collectAsState()
-                XtraTheme(darkTheme = theme != "2" && theme != "5", amoled = theme == "1" || theme == "6", blue = theme == "3") {
+                XtraTheme(themeId = theme) {
                     TagSearchContent(
                         query = query,
                         appliedQuery = appliedQuery,

@@ -22,12 +22,36 @@ private val BlueContainerHigh = Color(0xFF032978)
 private val BlueContainerHighest = Color(0xFF163584)
 
 /**
+ * Flags driving [XtraTheme]. Destructurable, so
+ * `val (darkTheme, amoled, blue) = themeFlags(id)` keeps working
+ * as a drop-in replacement for the old `Triple<Boolean, Boolean, Boolean>`.
+ */
+data class XtraThemeFlags(
+    val darkTheme: Boolean,
+    val amoled: Boolean,
+    val blue: Boolean,
+)
+
+/**
+ * Single source of truth mapping a stored Views theme id onto Compose flags.
+ *
+ * Ids (see `themeValues` in `app/.../res/values/arrays.xml`):
+ * 0 = Dark, 1 = Amoled, 2 = Light, 3 = Blue,
+ * 4 = Dynamic dark, 5 = Dynamic light, 6 = Dynamic amoled.
+ */
+fun themeFlags(themeId: String?): XtraThemeFlags = XtraThemeFlags(
+    darkTheme = themeId != "2" && themeId != "5",
+    amoled = themeId == "1" || themeId == "6",
+    blue = themeId == "3",
+)
+
+/**
  * Shared Xtra theme for Android and JVM desktop.
  *
  * Covers the static Views themes (Dark default, Amoled, Light, Blue). Dynamic
  * color (theme ids 4/5/6, `DynamicColors.applyToActivityIfAvailable`) and the
  * reduced-padding / compact-text / corner variants stay Views-only for now —
- * callers map those ids onto [darkTheme]/[amoled]/[blue] (see GamesFragment).
+ * callers map those ids via [themeFlags].
  */
 @Composable
 fun XtraTheme(
@@ -60,4 +84,22 @@ fun XtraTheme(
         else -> darkColorScheme(primary = PrimaryBlue)
     }
     MaterialTheme(colorScheme = colorScheme, content = content)
+}
+
+/**
+ * Convenience overload: pass the stored theme id directly instead of
+ * manually mapping `darkTheme = theme != "2" && ...` at every call site.
+ */
+@Composable
+fun XtraTheme(
+    themeId: String?,
+    content: @Composable () -> Unit,
+) {
+    val flags = themeFlags(themeId)
+    XtraTheme(
+        darkTheme = flags.darkTheme,
+        amoled = flags.amoled,
+        blue = flags.blue,
+        content = content,
+    )
 }

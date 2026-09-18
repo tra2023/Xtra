@@ -1,7 +1,6 @@
 package com.github.andreyasadchy.xtra.ui.games
 
 import android.content.Context
-import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -17,8 +16,7 @@ import com.github.andreyasadchy.xtra.ui.sort.SortDialogAction
 import com.github.andreyasadchy.xtra.ui.sort.SortDialogContent
 import com.github.andreyasadchy.xtra.ui.sort.SortTagSelection
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
-import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.getThemeFlags
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
@@ -66,7 +64,7 @@ class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelec
                 originalTags
             }
         )
-        val (darkTheme, amoled, blue) = themeFlags()
+        val (darkTheme, amoled, blue) = requireContext().getThemeFlags()
         val padding = requireContext().obtainStyledAttributes(intArrayOf(R.attr.dialogPadding)).let {
             val value = it.getDimension(0, 8f * resources.displayMetrics.density) / resources.displayMetrics.density
             it.recycle()
@@ -120,16 +118,4 @@ class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelec
         }
     }
 
-    private fun themeFlags(): Triple<Boolean, Boolean, Boolean> {
-        val prefs = requireContext().prefs()
-        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-            when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
-                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0") ?: "0"
-                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2") ?: "2"
-            }
-        } else {
-            prefs.getString(C.THEME, "0") ?: "0"
-        }
-        return Triple(theme != "2" && theme != "5", theme == "1" || theme == "6", theme == "3")
-    }
 }

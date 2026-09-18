@@ -1,7 +1,6 @@
 package com.github.andreyasadchy.xtra.ui.games
 
 import android.content.Intent
-import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -42,6 +41,7 @@ import com.github.andreyasadchy.xtra.ui.settings.SettingsActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
+import com.github.andreyasadchy.xtra.util.getThemeFlags
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -144,7 +144,7 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
             ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
         composeView.setContent {
-            val (darkTheme, amoled, blue) = themeFlags()
+            val (darkTheme, amoled, blue) = requireContext().getThemeFlags()
             XtraTheme(darkTheme = darkTheme, amoled = amoled, blue = blue) {
                 GamesPagingRoute(
                     flow = viewModel.flow,
@@ -175,26 +175,6 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
                 )
             }
         }
-    }
-
-    /**
-     * Maps the Views theme id (see `Activity.applyTheme`) onto Compose flags.
-     * Dynamic-color variants (4/5/6) fall back to their static base for now.
-     */
-    private fun themeFlags(): Triple<Boolean, Boolean, Boolean> {
-        val prefs = requireContext().prefs()
-        val theme = if (prefs.getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
-            when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
-                Configuration.UI_MODE_NIGHT_YES -> prefs.getString(C.UI_THEME_DARK_ON, "0") ?: "0"
-                else -> prefs.getString(C.UI_THEME_DARK_OFF, "2") ?: "2"
-            }
-        } else {
-            prefs.getString(C.THEME, "0") ?: "0"
-        }
-        val darkTheme = theme != "2" && theme != "5"
-        val amoled = theme == "1" || theme == "6"
-        val blue = theme == "3"
-        return Triple(darkTheme, amoled, blue)
     }
 
     private fun openGame(game: Game) {
