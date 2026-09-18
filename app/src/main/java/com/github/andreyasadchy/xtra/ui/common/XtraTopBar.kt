@@ -27,10 +27,10 @@ import com.github.andreyasadchy.xtra.R
 
 /**
  * The app bar shared by the full-Compose screens: up affordance, title, an
- * optional extra-actions slot, search, and an overflow holding settings and
- * log in/out. Replaces the View toolbars these screens used to inflate from
- * `@menu/top_menu`. [liftOptOut] is the `UI_THEME_APPBAR_LIFT` opt-out, which
- * flattens the scrolled container colour.
+ * optional extra-actions slot, search, and an overflow holding settings,
+ * log in/out and any [extraOverflow] entries. Replaces the View toolbars these
+ * screens used to inflate from `@menu/top_menu`. [liftOptOut] is the
+ * `UI_THEME_APPBAR_LIFT` opt-out, which flattens the scrolled container colour.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +43,7 @@ fun XtraTopBar(
     onLogin: () -> Unit,
     up: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
+    extraOverflow: List<Pair<String, () -> Unit>> = emptyList(),
 ) {
     var overflowExpanded by remember { mutableStateOf(false) }
     TopAppBar(
@@ -77,6 +78,15 @@ fun XtraTopBar(
                         onLogin()
                     },
                 )
+                extraOverflow.forEach { (label, action) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            overflowExpanded = false
+                            action()
+                        },
+                    )
+                }
             }
         },
         colors = if (liftOptOut) {

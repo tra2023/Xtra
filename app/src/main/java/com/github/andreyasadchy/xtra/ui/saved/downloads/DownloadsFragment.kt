@@ -149,7 +149,6 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
         )
         pagingDiffer = differ
         return ComposeView(requireContext()).apply {
-            id = R.id.swipeRefresh
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {

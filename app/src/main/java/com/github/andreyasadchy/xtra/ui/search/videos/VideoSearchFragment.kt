@@ -18,7 +18,6 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
-import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Video
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
@@ -51,7 +50,6 @@ class VideoSearchFragment : PagedListFragment(), Searchable {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return ComposeView(requireContext()).apply {
-            id = R.id.swipeRefresh
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
