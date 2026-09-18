@@ -137,7 +137,7 @@ fun <T> GameCollectionRow(
         Row(
             modifier = Modifier.fillMaxWidth().padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
             if (image != null) {
                 CollectionImage(image, 49.dp, 65.dp, diskCache = diskCache)
@@ -166,7 +166,7 @@ fun ChannelCollectionRow(
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
             if (image != null) CollectionImage(image, 50.dp, round = roundImage)
             Column(Modifier.weight(1f)) {
