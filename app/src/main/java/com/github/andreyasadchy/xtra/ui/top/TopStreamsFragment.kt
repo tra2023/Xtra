@@ -21,7 +21,6 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupWithNavController
-import androidx.recyclerview.widget.RecyclerView
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentGamesBinding
 import com.github.andreyasadchy.xtra.model.ui.GameSort
@@ -103,20 +102,9 @@ class TopStreamsFragment : PagedListFragment(), Scrollable, StreamsSortDialog.On
                     else -> false
                 }
             }
-            if (requireContext().prefs().getBoolean(C.UI_THEME_APPBAR_LIFT, true)) {
-                recyclerViewLayout.recyclerView.let {
-                    appBar.setLiftOnScrollTargetView(it)
-                    it.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                            super.onScrolled(recyclerView, dx, dy)
-                            appBar.isLifted = recyclerView.canScrollVertically(-1)
-                        }
-                    })
-                    it.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                        appBar.isLifted = it.canScrollVertically(-1)
-                    }
-                }
-            } else {
+            // Pinned AppBar (no scroll flags) with a Compose list: no scroll target
+            // to wire lift to. Only the opt-out flat style remains.
+            if (!requireContext().prefs().getBoolean(C.UI_THEME_APPBAR_LIFT, true)) {
                 appBar.setLiftable(false)
                 appBar.background = null
             }

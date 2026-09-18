@@ -11,12 +11,13 @@
         android:layout_height="wrap_content"
         app:liftOnScrollTargetViewId="@id/recyclerView">
 
+        <!-- Pinned (no scroll flags): the Compose list keeps its fling instead of
+             handing it to the AppBar on every collapse/expand. -->
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:minHeight="?attr/actionBarSize"
-            app:layout_scrollFlags="scroll|enterAlways"
             app:menu="@menu/top_menu" />
 
         <include

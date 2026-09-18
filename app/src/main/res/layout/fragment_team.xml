@@ -6,6 +6,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Pinned header: static banner, the Compose list keeps its fling and
+         scroll velocity instead of sharing it with AppBar motion. -->
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBar"
         android:layout_width="match_parent"
@@ -14,8 +16,7 @@
         <com.google.android.material.appbar.CollapsingToolbarLayout
             android:id="@+id/collapsingToolbar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:layout_scrollFlags="scroll|enterAlways|enterAlwaysCollapsed">
+            android:layout_height="wrap_content">
 
             <LinearLayout
                 android:id="@+id/toolbarContainer"

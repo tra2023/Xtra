@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -51,10 +52,25 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
                 pagingContent?.invoke()
             }
         }
-        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            pagingBottomInset = if (activity?.findViewById<LinearLayout>(R.id.navBarContainer)?.isVisible == false) insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom else 0
-            WindowInsetsCompat.CONSUMED
-        }
+        // NOTE: never set an inset listener on the ComposeView itself: it would
+        // replace Compose's internal listener that feeds WindowInsets into the
+        // composition (statusBars padding etc. would silently stop working).
+        // Listen on the parent once attached instead, without consuming.
+        addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {
+                (v.parent as? View)?.let { parent ->
+                    ViewCompat.setOnApplyWindowInsetsListener(parent) { _, insets ->
+                        pagingBottomInset = if (activity?.findViewById<LinearLayout>(R.id.navBarContainer)?.isVisible == false) insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom else 0
+                        insets
+                    }
+                    ViewCompat.requestApplyInsets(parent)
+                }
+            }
+
+            override fun onViewDetachedFromWindow(v: View) {
+                v.removeOnAttachStateChangeListener(this)
+            }
+        })
     }
 
     @Composable
@@ -98,6 +114,25 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
         val configuration = LocalConfiguration.current
         val portrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
         val columns = requireContext().prefs().getString(if (portrait) C.PORTRAIT_COLUMN_COUNT else C.LANDSCAPE_COLUMN_COUNT, if (portrait) "1" else "2")?.toIntOrNull() ?: 1
+        // Stable key lambda: a new instance every recomposition would make the
+        // grid drop and re-resolve all item keys on unrelated state changes.
+        val resolvedItemKey: (Int) -> Any = remember(items, itemKey, keyForItem) {
+            itemKey ?: { index ->
+                // items.itemKey { ... } uses peek(index) internally, which throws
+                // IndexOutOfBoundsException when a refresh shrinks the snapshot while
+                // the grid still resolves keys for the old layout. Guard it.
+                try {
+                    if (index < items.itemCount) {
+                        val item = items.peek(index)
+                        if (item != null) keyForItem?.invoke(item) ?: item.hashCode().toString() else "placeholder:$index"
+                    } else {
+                        "placeholder:$index"
+                    }
+                } catch (_: IndexOutOfBoundsException) {
+                    "placeholder:$index"
+                }
+            }
+        }
         PagingScaffold(
             itemCount = items.itemCount,
             refreshing = items.loadState.refresh is LoadState.Loading,
@@ -113,21 +148,7 @@ abstract class PagedListFragment : BaseNetworkFragment(), IntegrityDialog.Listen
             enableRefresh = enableRefresh,
             contentPadding = PaddingValues(bottom = with(LocalDensity.current) { pagingBottomInset.toDp() }),
             modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
-            itemKey = itemKey ?: { index ->
-                // items.itemKey { ... } uses peek(index) internally, which throws
-                // IndexOutOfBoundsException when a refresh shrinks the snapshot while
-                // the grid still resolves keys for the old layout. Guard it.
-                try {
-                    if (index < items.itemCount) {
-                        val item = items.peek(index)
-                        if (item != null) keyForItem?.invoke(item) ?: item.hashCode().toString() else "placeholder:$index"
-                    } else {
-                        "placeholder:$index"
-                    }
-                } catch (_: IndexOutOfBoundsException) {
-                    "placeholder:$index"
-                }
-            },
+            itemKey = resolvedItemKey,
         ) { index -> items[index]?.let { itemContent(it) } }
     }
 

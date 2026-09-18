@@ -3,11 +3,16 @@ package com.github.andreyasadchy.xtra.ui.paging
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -17,6 +22,7 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -24,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PagingScaffold(
     itemCount: Int,
@@ -59,14 +66,19 @@ fun PagingScaffold(
     }
     val content: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize()) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns.coerceAtLeast(1)),
-                state = state,
-                contentPadding = contentPadding,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                items(itemCount, key = itemKey) { index ->
-                    Box(Modifier.fillMaxWidth().heightIn(min = 1.dp)) { itemContent(index) }
+            // No stretch rubber-band at the list ends: it fights the collapsing
+            // header and pull-to-refresh for the same edge gestures and reads
+            // as wobble. The list just stops instead.
+            CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns.coerceAtLeast(1)),
+                    state = state,
+                    contentPadding = contentPadding,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    items(itemCount, key = itemKey) { index ->
+                        Box(Modifier.fillMaxWidth().heightIn(min = 1.dp)) { itemContent(index) }
+                    }
                 }
             }
             if (itemCount == 0) {
@@ -90,7 +102,12 @@ fun PagingScaffold(
                 Button(onClick = onRetry, modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)) { Text(retryText) }
             }
             if (enableScrollTop && showScrollTop) {
-                SmallFloatingActionButton(onClick = onScrollTop, modifier = Modifier.align(Alignment.TopCenter).padding(top = 7.dp)) {
+                SmallFloatingActionButton(
+                    onClick = onScrollTop,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .padding(top = 7.dp),
+                ) {
                     Text(scrollTopText, Modifier.padding(horizontal = 8.dp))
                 }
             }
