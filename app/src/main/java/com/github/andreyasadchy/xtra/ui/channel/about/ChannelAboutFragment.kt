@@ -2,27 +2,37 @@ package com.github.andreyasadchy.xtra.ui.channel.about
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.graphics.Typeface
 import android.os.Bundle
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.method.LinkMovementMethod
-import android.text.style.ClickableSpan
-import android.text.style.StyleSpan
-import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
-import androidx.core.content.res.use
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.isVisible
-import androidx.core.view.updatePadding
-import androidx.core.widget.TextViewCompat
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -30,36 +40,48 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.FragmentAboutBinding
+import com.github.andreyasadchy.xtra.model.ui.ChannelPanel
+import com.github.andreyasadchy.xtra.ui.XtraAsyncImage
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentArgs
 import com.github.andreyasadchy.xtra.ui.channel.about.ChannelAboutViewModel.Companion.ChannelAboutViewModelFactory
 import com.github.andreyasadchy.xtra.ui.common.BaseNetworkFragment
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
+import com.github.andreyasadchy.xtra.ui.common.MarkdownText
+import com.github.andreyasadchy.xtra.ui.common.xtraBottomInset
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.team.TeamFragmentDirections
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
-import kotlinx.coroutines.flow.collectLatest
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import kotlinx.coroutines.launch
 
+/**
+ * Channel "About" tab as Compose: one scrolling column holding the description,
+ * social links, team line, old username and the channel panels (whose
+ * descriptions are Markdown). The panels used to be a RecyclerView nested in a
+ * `NestedScrollView`; a single [LazyColumn] replaces both.
+ */
 class ChannelAboutFragment : BaseNetworkFragment(), IntegrityDialog.Listener {
 
-    private var _binding: FragmentAboutBinding? = null
-    private val binding get() = _binding!!
     private val args: ChannelPagerFragmentArgs by navArgs()
     private val viewModel: ChannelAboutViewModel by viewModels { ChannelAboutViewModelFactory }
-    private var panelAdapter: ChannelPanelAdapter? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = FragmentAboutBinding.inflate(inflater, container, false)
-        return binding.root
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val theme = rememberThemeId()
+                XtraTheme(themeId = theme) {
+                    AboutScreen()
+                }
+            }
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        panelAdapter = ChannelPanelAdapter(this@ChannelAboutFragment)
-        binding.recyclerView.adapter = panelAdapter
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.integrity.collect {
@@ -67,128 +89,157 @@ class ChannelAboutFragment : BaseNetworkFragment(), IntegrityDialog.Listener {
                 }
             }
         }
-        ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
-            if (activity?.findViewById<LinearLayout>(R.id.navBarContainer)?.isVisible == false) {
-                val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-                binding.recyclerView.updatePadding(bottom = insets.bottom)
+    }
+
+    @Composable
+    private fun AboutScreen() {
+        val activity = requireActivity() as MainActivity
+        val description by viewModel.description.collectAsState()
+        val socialMedias by viewModel.socialMedias.collectAsState()
+        val team by viewModel.team.collectAsState()
+        val originalName by viewModel.originalName.collectAsState()
+        val panels by viewModel.panels.collectAsState()
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 12.dp, bottom = xtraBottomInset(activity)),
+        ) {
+            description?.takeIf { it.isNotBlank() }?.let { text ->
+                item { AboutText(text) }
             }
-            WindowInsetsCompat.CONSUMED
+            socialMedias?.takeIf { it.isNotEmpty() }?.let { list ->
+                item { SocialMediaList(list) }
+            }
+            team?.let { (name, displayName) ->
+                displayName?.takeIf { it.isNotBlank() }?.let {
+                    item { TeamLine(name, it) }
+                }
+            }
+            originalName?.takeIf { it.isNotBlank() }?.let { name ->
+                item { AboutText(stringResource(R.string.old_username, name), bottom = 5.dp) }
+            }
+            items(panels.orEmpty()) { panel ->
+                ChannelPanelItem(panel)
+            }
+        }
+    }
+
+    @Composable
+    private fun AboutText(text: String, bottom: Dp = 12.dp) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = bottom),
+        )
+    }
+
+    /** Each entry is `title (host)`, whole line clickable when it has a URL. */
+    @Composable
+    private fun SocialMediaList(links: List<Pair<String?, String?>>) {
+        Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp)) {
+            links.forEach { (title, url) ->
+                if (!title.isNullOrBlank()) {
+                    val host = url?.toUri()?.host?.removePrefix("www.")
+                    Text(
+                        text = buildAnnotatedString {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(title) }
+                            if (host != null) {
+                                append(" ($host)")
+                            }
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 5.dp)
+                            .then(if (url != null) Modifier.clickable { openUrl(url) } else Modifier),
+                    )
+                }
+            }
+        }
+    }
+
+    /** `Team: Name` with only the name clickable, as the old ClickableSpan did. */
+    @Composable
+    private fun TeamLine(name: String?, displayName: String) {
+        val full = stringResource(R.string.team, displayName)
+        val index = full.indexOf(displayName)
+        val style = MaterialTheme.typography.bodyMedium
+        val color = MaterialTheme.colorScheme.onSurfaceVariant
+        if (index < 0) {
+            AboutText(full, bottom = 5.dp)
+        } else {
+            Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 5.dp)) {
+                Text(
+                    text = buildAnnotatedString {
+                        append(full.substring(0, index))
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(displayName) }
+                        append(full.substring(index + displayName.length))
+                    },
+                    style = style,
+                    color = color,
+                    modifier = Modifier.then(
+                        if (name != null) {
+                            Modifier.clickable {
+                                findNavController().navigate(TeamFragmentDirections.actionGlobalTeamFragment(teamName = name))
+                            }
+                        } else Modifier
+                    ),
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun ChannelPanelItem(panel: ChannelPanel) {
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+            panel.title?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                )
+            }
+            panel.imageUrl?.let { image ->
+                XtraAsyncImage(
+                    model = image,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .fillMaxWidth(0.75f)
+                        .padding(bottom = 12.dp)
+                        .then(if (panel.linkUrl != null) Modifier.clickable { openUrl(panel.linkUrl) } else Modifier),
+                )
+            }
+            panel.description?.let {
+                MarkdownText(
+                    markdown = it,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+
+    private fun openUrl(url: String?) {
+        if (url == null) return
+        try {
+            startActivity(
+                Intent(Intent.ACTION_VIEW, url.toUri()).apply {
+                    addCategory(Intent.CATEGORY_BROWSABLE)
+                }
+            )
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(requireContext(), R.string.no_browser_found, Toast.LENGTH_LONG).show()
         }
     }
 
     override fun initialize() {
-        with(binding) {
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.description.collectLatest {
-                        if (!it.isNullOrBlank()) {
-                            description.visibility = View.VISIBLE
-                            description.text = it
-                        }
-                    }
-                }
-            }
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.socialMedias.collectLatest { result ->
-                        if (result != null) {
-                            socialMediaList.visibility = View.VISIBLE
-                            socialMediaList.removeAllViews()
-                            result.forEach {
-                                val title = it.first
-                                val url = it.second
-                                if (!title.isNullOrBlank()) {
-                                    socialMediaList.addView(
-                                        TextView(requireContext()).apply {
-                                            val host = url?.toUri()?.host?.removePrefix("www.")
-                                            val string = if (host != null) {
-                                                "$title ($host)"
-                                            } else {
-                                                title
-                                            }
-                                            val spannableString = SpannableString(string)
-                                            spannableString.setSpan(StyleSpan(Typeface.BOLD), 0, title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                                            if (url != null) {
-                                                spannableString.setSpan(object : ClickableSpan() {
-                                                    override fun onClick(widget: View) {
-                                                        try {
-                                                            val intent = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
-                                                                addCategory(Intent.CATEGORY_BROWSABLE)
-                                                            }
-                                                            startActivity(intent)
-                                                        } catch (e: ActivityNotFoundException) {
-                                                            Toast.makeText(requireContext(), R.string.no_browser_found, Toast.LENGTH_LONG).show()
-                                                        }
-                                                    }
-                                                }, 0, string.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                                                movementMethod = LinkMovementMethod.getInstance()
-                                            }
-                                            text = spannableString
-                                            layoutParams = LinearLayout.LayoutParams(
-                                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                                ViewGroup.LayoutParams.WRAP_CONTENT
-                                            )
-                                            context.obtainStyledAttributes(intArrayOf(com.google.android.material.R.attr.textAppearanceBodyMedium)).use {
-                                                TextViewCompat.setTextAppearance(this, it.getResourceId(0, 0))
-                                            }
-                                            val padding = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 5f, resources.displayMetrics).toInt()
-                                            setPadding(0, 0, 0, padding)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.team.collectLatest { result ->
-                        if (result != null) {
-                            val name = result.first
-                            val displayName = result.second
-                            if (!displayName.isNullOrBlank()) {
-                                team.visibility = View.VISIBLE
-                                val string = getString(R.string.team, displayName)
-                                val index = string.indexOf(displayName)
-                                val spannableString = SpannableString(string)
-                                spannableString.setSpan(StyleSpan(Typeface.BOLD), index, index + displayName.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                                if (name != null) {
-                                    spannableString.setSpan(object : ClickableSpan() {
-                                        override fun onClick(widget: View) {
-                                            findNavController().navigate(
-                                                TeamFragmentDirections.actionGlobalTeamFragment(
-                                                    teamName = name,
-                                                )
-                                            )
-                                        }
-                                    }, index, index + displayName.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                                    team.movementMethod = LinkMovementMethod.getInstance()
-                                }
-                                team.text = spannableString
-                            }
-                        }
-                    }
-                }
-            }
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.originalName.collectLatest {
-                        if (!it.isNullOrBlank()) {
-                            originalName.visibility = View.VISIBLE
-                            originalName.text = getString(R.string.old_username, it)
-                        }
-                    }
-                }
-            }
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.panels.collectLatest { result ->
-                        panelAdapter?.submitList(result)
-                    }
-                }
-            }
-        }
+        loadAbout()
+    }
+
+    private fun loadAbout() {
         viewModel.loadAbout(
             channelId = args.channelId,
             channelLogin = args.channelLogin,
@@ -198,30 +249,15 @@ class ChannelAboutFragment : BaseNetworkFragment(), IntegrityDialog.Listener {
     }
 
     override fun onNetworkRestored() {
-        viewModel.loadAbout(
-            channelId = args.channelId,
-            channelLogin = args.channelLogin,
-            gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
-            enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
-        )
+        loadAbout()
     }
 
     override fun onIntegrityTokenLoaded(callback: String?) {
         (parentFragment as? IntegrityDialog.Listener)?.onIntegrityTokenLoaded("refresh")
         when (callback) {
             "refresh" -> {
-                viewModel.loadAbout(
-                    channelId = args.channelId,
-                    channelLogin = args.channelLogin,
-                    gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
-                    enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
-                )
+                loadAbout()
             }
         }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 }
