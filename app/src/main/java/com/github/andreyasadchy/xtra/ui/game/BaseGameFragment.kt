@@ -8,13 +8,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -44,10 +40,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
@@ -73,15 +67,21 @@ import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.model.ui.Video
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
+import com.github.andreyasadchy.xtra.ui.common.ClipsTab
 import com.github.andreyasadchy.xtra.ui.common.CollapsingBanner
 import com.github.andreyasadchy.xtra.ui.common.CollapsingHeaderState
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
+import com.github.andreyasadchy.xtra.ui.common.SortRow
 import com.github.andreyasadchy.xtra.ui.common.StreamsSortDialog
+import com.github.andreyasadchy.xtra.ui.common.StreamsTab
+import com.github.andreyasadchy.xtra.ui.common.TabDropdown
 import com.github.andreyasadchy.xtra.ui.common.VideosSortDialog
+import com.github.andreyasadchy.xtra.ui.common.VideosTab
 import com.github.andreyasadchy.xtra.ui.common.positionFor
 import com.github.andreyasadchy.xtra.ui.common.rememberCollapseConnection
+import com.github.andreyasadchy.xtra.ui.common.streamsCompact
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
 import com.github.andreyasadchy.xtra.ui.game.GamePagerViewModel.Companion.GamePagerViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsViewModel
@@ -358,7 +358,7 @@ abstract class BaseGameFragment : PagedListFragment(), Scrollable, StreamsSortDi
                             }
                         }
                     } else {
-                        GameTabDropdown(
+                        TabDropdown(
                             titles = tabTitles,
                             selectedIndex = currentTabIndex,
                             onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
@@ -375,7 +375,7 @@ abstract class BaseGameFragment : PagedListFragment(), Scrollable, StreamsSortDi
                         "1" -> streamsSort to streamsFilters
                         else -> clipsSort to clipsFilters
                     }
-                    GameSortRow(
+                    SortRow(
                         sortText = sortText,
                         filtersText = filtersText,
                         sortIcon = painterResource(R.drawable.baseline_sort_black_24),
@@ -408,8 +408,9 @@ abstract class BaseGameFragment : PagedListFragment(), Scrollable, StreamsSortDi
                         val positions by videosViewModel.positions.collectAsState(initial = null)
                         val bookmarks by videosViewModel.bookmarks.collectAsState(initial = emptyList())
                         val bookmarkIds = remember(bookmarks) { bookmarks.map { it.videoId }.toSet() }
-                        GameVideosTab(
+                        VideosTab(
                             flow = videosViewModel.flow,
+                            showGame = false,
                             bottomInset = bottomInset,
                             portrait = portrait,
                             refreshTick = refreshTick,
@@ -428,9 +429,10 @@ abstract class BaseGameFragment : PagedListFragment(), Scrollable, StreamsSortDi
                     "1" -> {
                         val refreshTick by streamsRefresh.collectAsState()
                         val scrollTick by streamsScrollTop.collectAsState()
-                        GameStreamsTab(
+                        StreamsTab(
                             flow = streamsViewModel.flow,
-                            compact = streamsCompact(),
+                            compact = streamsCompact(followedContent = false),
+                            showGame = false,
                             enableScrollTop = args.gameId != null || args.gameName != null || !args.tags.isNullOrEmpty(),
                             bottomInset = bottomInset,
                             portrait = portrait,
@@ -448,8 +450,9 @@ abstract class BaseGameFragment : PagedListFragment(), Scrollable, StreamsSortDi
                     else -> {
                         val refreshTick by clipsRefresh.collectAsState()
                         val scrollTick by clipsScrollTop.collectAsState()
-                        GameClipsTab(
+                        ClipsTab(
                             flow = clipsViewModel.flow,
+                            showGame = false,
                             bottomInset = bottomInset,
                             portrait = portrait,
                             refreshTick = refreshTick,
@@ -478,53 +481,9 @@ abstract class BaseGameFragment : PagedListFragment(), Scrollable, StreamsSortDi
     }
 
     /**
-     * Dropdown tab chooser for the screens that opted out of the tab row. The
-     * list itself still lives in the pager; only [onSelect] changes the page.
+     * Dropdown tab chooser is [com.github.andreyasadchy.xtra.ui.common.TabDropdown];
+     * only the pager stays here.
      */
-    @Composable
-    private fun GameTabDropdown(
-        titles: List<String>,
-        selectedIndex: Int,
-        onSelect: (Int) -> Unit,
-    ) {
-        var expanded by remember { mutableStateOf(false) }
-        Box(Modifier.fillMaxWidth()) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = true }
-                    .padding(horizontal = 10.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = titles.getOrNull(selectedIndex) ?: titles.firstOrNull().orEmpty(),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f),
-                )
-                val color = MaterialTheme.colorScheme.onSurfaceVariant
-                Canvas(Modifier.size(12.dp)) {
-                    val caret = Path().apply {
-                        moveTo(0f, size.height * 0.3f)
-                        lineTo(size.width, size.height * 0.3f)
-                        lineTo(size.width / 2f, size.height * 0.8f)
-                        close()
-                    }
-                    drawPath(caret, color)
-                }
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                titles.forEachIndexed { index, title ->
-                    DropdownMenuItem(
-                        text = { Text(title) },
-                        onClick = {
-                            expanded = false
-                            onSelect(index)
-                        },
-                    )
-                }
-            }
-        }
-    }
 
 
     private fun onFollowClick() {

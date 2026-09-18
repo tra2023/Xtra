@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.ui.channel.clips.ChannelClipsFragment
 import com.github.andreyasadchy.xtra.ui.channel.videos.ChannelVideosFragment
-import com.github.andreyasadchy.xtra.ui.following.videos.FollowedVideosFragment
 import com.github.andreyasadchy.xtra.ui.sort.SortDialogAction
 import com.github.andreyasadchy.xtra.ui.sort.SortDialogContent
 import com.github.andreyasadchy.xtra.ui.sort.SortOption
@@ -116,7 +115,7 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
         val isClips = explicitTab?.let { it == "clips" } ?: (owner is ChannelClipsFragment)
         val showSortAndType = !isClips
         val showLanguages = explicitContext?.let { it == "game" }
-            ?: (owner !is ChannelClipsFragment && owner !is ChannelVideosFragment && owner !is FollowedVideosFragment)
+            ?: (owner !is ChannelClipsFragment && owner !is ChannelVideosFragment)
         val showPeriod = when {
             explicitTab != null -> when {
                 explicitTab == "clips" -> true
@@ -124,14 +123,13 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
                 explicitContext == "channel" || explicitContext == "followed" -> false
                 else -> true
             }
-            owner is ChannelVideosFragment || owner is FollowedVideosFragment -> false
+            owner is ChannelVideosFragment -> false
             else -> true
         }
         val showSaveSort = if (args.containsKey(HAS_ID)) {
             args.getBoolean(HAS_ID)
         } else when (owner) {
             is ChannelClipsFragment, is ChannelVideosFragment -> !owner.arguments?.getString(C.CHANNEL_ID).isNullOrBlank()
-            is FollowedVideosFragment -> false
             else -> true
         }
         val saveSortLabel = getString(
