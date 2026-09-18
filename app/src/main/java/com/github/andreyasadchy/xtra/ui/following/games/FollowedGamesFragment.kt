@@ -10,13 +10,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
-import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.CommonRecyclerViewLayoutBinding
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
-import com.github.andreyasadchy.xtra.ui.collections.GameCollectionRow
-import com.github.andreyasadchy.xtra.ui.collections.collectionCount
 import com.github.andreyasadchy.xtra.ui.collections.collectionFollowLabels
+import com.github.andreyasadchy.xtra.ui.common.GameListItem
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.following.games.FollowedGamesViewModel.Companion.FollowedGamesViewModelFactory
@@ -67,21 +65,12 @@ class FollowedGamesFragment : PagedListFragment(), Scrollable {
                 enableScrollTop = false,
                 keyForItem = { it.id ?: it.name ?: it.hashCode().toString() },
             ) { game ->
-                GameCollectionRow(
-                    name = game.name,
-                    image = game.boxArt,
-                    viewers = context.collectionCount(game.viewerCount, R.plurals.viewers),
-                    broadcasters = context.collectionCount(
-                        game.broadcasterCount.takeIf { context.prefs().getBoolean(C.UI_BROADCASTERS_COUNT, true) },
-                        R.plurals.broadcasters,
-                    ),
-                    tags = game.tags.orEmpty().takeIf { context.prefs().getBoolean(C.UI_TAGS, true) }.orEmpty(),
-                    tagLabel = { it.name.orEmpty() },
-                    tagEnabled = { it.id != null },
+                GameListItem(
+                    game = game,
                     onTagClick = ::openTag,
+                    onClick = ::openGame,
                     followLabels = context.collectionFollowLabels(game.accountFollow, game.localFollow),
                     diskCache = false,
-                    onClick = { openGame(game) },
                 )
             }
         }

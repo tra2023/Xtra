@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
+import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -17,12 +18,13 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupWithNavController
-import androidx.paging.PagingDataAdapter
-import androidx.recyclerview.widget.RecyclerView
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -33,9 +35,14 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentTeamBinding
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.model.ui.Team
+import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
+import com.github.andreyasadchy.xtra.ui.collections.TeamMemberCollectionRow
+import com.github.andreyasadchy.xtra.ui.collections.collectionName
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
+import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
+import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.login.LoginActivity
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.search.SearchPagerFragmentDirections
@@ -52,8 +59,11 @@ import com.google.android.material.color.MaterialColors
 import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
 import io.noties.markwon.linkify.LinkifyPlugin
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
 
@@ -61,7 +71,9 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
     private val binding get() = _binding!!
     private val args: TeamFragmentArgs by navArgs()
     private val viewModel: TeamViewModel by viewModels { TeamViewModelFactory }
-    private lateinit var pagingAdapter: PagingDataAdapter<Stream, out RecyclerView.ViewHolder>
+    // Compose owns member list + load states now (PagedListFragment.PagingContent): signals drive refresh / scroll-top.
+    private val composeRefreshSignal = MutableStateFlow(0)
+    private val composeScrollTopSignal = MutableStateFlow(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -139,14 +151,65 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
                 WindowInsetsCompat.CONSUMED
             }
         }
-        pagingAdapter = TeamMembersAdapter(this) {
-            findNavController().navigate(
-                TopStreamsFragmentDirections.actionGlobalTopFragment(
-                    tags = arrayOf(it)
+        // Compose owns member list + load states. The hidden RecyclerView container keeps
+        // its overlays off; refresh gesture + scroll-top live in Compose now.
+        binding.recyclerViewLayout.recyclerView.isVisible = false
+        binding.recyclerViewLayout.progressBar.isVisible = false
+        binding.recyclerViewLayout.nothingHere.isVisible = false
+        binding.recyclerViewLayout.scrollTop.isVisible = false
+        binding.recyclerViewLayout.swipeRefresh.isEnabled = false
+        val composeView = createPagingView()
+        (binding.recyclerViewLayout.root as ViewGroup).addView(
+            composeView, 0,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+        pagingContent = {
+            val refreshTick by composeRefreshSignal.collectAsState()
+            val scrollTick by composeScrollTopSignal.collectAsState()
+            val context = LocalContext.current
+            PagingContent(
+                flow = viewModel.flow,
+                refreshSignal = refreshTick,
+                retrySignal = 0,
+                scrollTopSignal = scrollTick,
+                keyForItem = { it.channelId ?: it.id ?: it.hashCode().toString() },
+            ) { stream ->
+                val prefs = context.prefs()
+                val live = stream.viewerCount != null
+                val uptime = if (live && prefs.getBoolean(C.UI_UPTIME, true)) {
+                    stream.createdAt?.let {
+                        Instant.parseOrNull(it)?.takeIf { time -> time.toEpochMilliseconds() > 0 }?.let { createdAt ->
+                            (Clock.System.now() - createdAt).takeIf { duration -> duration.isPositive() }?.let { duration ->
+                                DateUtils.formatElapsedTime(duration.inWholeSeconds)
+                            }
+                        }
+                    }
+                } else null
+                TeamMemberCollectionRow(
+                    name = context.collectionName(stream.channelName, stream.channelLogin),
+                    image = stream.channelImage,
+                    roundImage = prefs.getBoolean(C.UI_ROUND_USER_IMAGE, true),
+                    title = stream.title?.trim()?.takeIf { live && it.isNotBlank() },
+                    game = stream.gameName.takeIf { live },
+                    viewers = stream.viewerCount?.let {
+                        TwitchApiHelper.formatCount(it, prefs.getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true))
+                    },
+                    uptime = uptime,
+                    tags = stream.tags.orEmpty().takeIf { live && prefs.getBoolean(C.UI_TAGS, true) }.orEmpty(),
+                    onClick = {
+                        if (live) {
+                            (activity as? MainActivity)?.startStream(stream)
+                        } else {
+                            openChannel(stream)
+                        }
+                        Unit
+                    },
+                    onChannelClick = { openChannel(stream) },
+                    onGameClick = { openGame(stream) },
+                    onTagClick = ::openTag,
                 )
-            )
+            }
         }
-        setAdapter(binding.recyclerViewLayout.recyclerView, pagingAdapter)
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.integrity.collect {
@@ -171,20 +234,7 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
                 }
             }
         }
-        viewLifecycleOwner.lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.flow.collectLatest { pagingData ->
-                    pagingAdapter.submitData(pagingData)
-                }
-            }
-        }
-        initializeAdapter(binding.recyclerViewLayout, pagingAdapter)
-        if (requireContext().prefs().getBoolean(C.UI_SCROLL_TOP, true)) {
-            binding.recyclerViewLayout.scrollTop.setOnClickListener {
-                scrollToTop()
-                it.visibility = View.GONE
-            }
-        }
+        // No adapter: PagingContent collects viewModel.flow and owns load states.
     }
 
     private fun updateTeamLayout(team: Team) {
@@ -284,10 +334,48 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
         }
     }
 
+    private fun openChannel(stream: Stream) {
+        findNavController().navigate(
+            ChannelPagerFragmentDirections.actionGlobalChannelPagerFragment(
+                channelId = stream.channelId,
+                channelLogin = stream.channelLogin,
+                channelName = stream.channelName,
+                channelImage = stream.channelImage,
+                streamId = stream.id,
+            )
+        )
+    }
+
+    private fun openGame(stream: Stream) {
+        findNavController().navigate(
+            if (requireContext().prefs().getBoolean(C.UI_GAME_PAGER, true)) {
+                GamePagerFragmentDirections.actionGlobalGamePagerFragment(
+                    gameId = stream.gameId,
+                    gameSlug = stream.gameSlug,
+                    gameName = stream.gameName,
+                )
+            } else {
+                GameMediaFragmentDirections.actionGlobalGameMediaFragment(
+                    gameId = stream.gameId,
+                    gameSlug = stream.gameSlug,
+                    gameName = stream.gameName,
+                )
+            }
+        )
+    }
+
+    private fun openTag(tag: String) {
+        findNavController().navigate(
+            TopStreamsFragmentDirections.actionGlobalTopFragment(
+                tags = arrayOf(tag)
+            )
+        )
+    }
+
     override fun scrollToTop() {
         with(binding) {
             appBar.setExpanded(true, true)
-            recyclerViewLayout.recyclerView.scrollToPosition(0)
+            composeScrollTopSignal.value++
         }
     }
 
@@ -297,7 +385,7 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
             gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
             enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
         )
-        pagingAdapter.retry()
+        composeRefreshSignal.value++
     }
 
     override fun onIntegrityTokenLoaded(callback: String?) {
@@ -308,7 +396,7 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
                     enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                 )
-                pagingAdapter.refresh()
+                composeRefreshSignal.value++
             }
         }
     }
