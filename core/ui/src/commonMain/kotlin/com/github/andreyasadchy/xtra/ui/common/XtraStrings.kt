@@ -17,9 +17,11 @@ data class XtraStrings(
     val nothingHere: String,
     val retry: String,
     val scrollTop: String,
+    val sort: String,
     val viewers: (Int) -> String,
     val views: (Int) -> String,
     val broadcasters: (Int) -> String,
+    val followers: (Int) -> String,
     val uptime: (String) -> String,
     val videoType: (String?) -> String?,
 )

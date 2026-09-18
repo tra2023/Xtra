@@ -14,23 +14,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.dp
-import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.ui.XtraAsyncImage
+import com.github.andreyasadchy.xtra.ui.common.LocalXtraStrings
+import com.github.andreyasadchy.xtra.ui.settings.LocalXtraSettings
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import com.github.andreyasadchy.xtra.util.prefs
 
 /**
  * Shared game banner content for the game pager screens: artwork, counts and
- * tags. The collapsing container lives with the caller (see
- * CollapsingBanner); this is just the content.
+ * tags. The collapsing container lives with the caller (see `CollapsingBanner`);
+ * this is just the content. Preferences come from [LocalXtraSettings] and the
+ * counts/plural labels from [LocalXtraStrings], so this works on any platform.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -40,14 +37,14 @@ fun GameBannerContent(
     fallbackArt: String?,
     onTagClick: (Tag) -> Unit,
 ) {
-    val context = LocalContext.current
+    val settings = LocalXtraSettings.current
+    val strings = LocalXtraStrings.current
     val name = game?.name ?: fallbackName
     val art = game?.boxArt ?: fallbackArt
     val viewerCount = game?.viewerCount
-    val broadcasterCount = game?.broadcasterCount?.takeIf { context.prefs().getBoolean(C.UI_BROADCASTERS_COUNT, true) }
+    val broadcasterCount = game?.broadcasterCount?.takeIf { settings.getBoolean(C.UI_BROADCASTERS_COUNT, true) }
     val followerCount = game?.followerCount
-    val tags = game?.tags.orEmpty().takeIf { context.prefs().getBoolean(C.UI_TAGS, true) }.orEmpty()
-    val truncate = context.prefs().getBoolean(C.UI_TRUNCATE_VIEW_COUNT, true)
+    val tags = game?.tags.orEmpty().takeIf { settings.getBoolean(C.UI_TAGS, true) }.orEmpty()
     Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (art != null) {
@@ -63,21 +60,21 @@ fun GameBannerContent(
                 }
                 if (viewerCount != null) {
                     Text(
-                        text = pluralStringResource(R.plurals.viewers, viewerCount, TwitchApiHelper.formatCount(viewerCount, truncate)),
+                        text = strings.viewers(viewerCount),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (broadcasterCount != null) {
                     Text(
-                        text = pluralStringResource(R.plurals.broadcasters, broadcasterCount, TwitchApiHelper.formatCount(broadcasterCount, truncate)),
+                        text = strings.broadcasters(broadcasterCount),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (followerCount != null) {
                     Text(
-                        text = pluralStringResource(R.plurals.followers, followerCount, TwitchApiHelper.formatCount(followerCount, truncate)),
+                        text = strings.followers(followerCount),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -102,15 +99,18 @@ fun GameBannerContent(
 }
 
 /**
- * Shared sort row for the game pager screens, mirroring sort_bar.xml: sort
- * and filter texts on the left, sort affordance on the right.
+ * Shared sort row for the game pager screens, mirroring `sort_bar.xml`: sort
+ * and filter texts on the left, sort affordance on the right. The icon is
+ * supplied by the caller so the shared module needs no platform resources.
  */
 @Composable
 fun GameSortRow(
     sortText: CharSequence?,
     filtersText: CharSequence?,
+    sortIcon: Painter,
     onClick: () -> Unit,
 ) {
+    val strings = LocalXtraStrings.current
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -123,9 +123,9 @@ fun GameSortRow(
                 Text(text = filtersText.toString(), style = MaterialTheme.typography.bodyMedium)
             }
         }
-        Icon(painterResource(R.drawable.baseline_sort_black_24), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(sortIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            text = stringResource(R.string.sort),
+            text = strings.sort,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(start = 5.dp),
         )

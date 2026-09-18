@@ -67,9 +67,11 @@ fun Context.xtraStrings(): XtraStrings {
         nothingHere = getString(R.string.nothing_here),
         retry = getString(R.string.retry),
         scrollTop = getString(R.string.scroll_top),
+        sort = getString(R.string.sort),
         viewers = { count -> resources.getQuantityString(R.plurals.viewers, count, TwitchFormats.formatCount(count, truncate)) },
         views = { count -> resources.getQuantityString(R.plurals.views, count, TwitchFormats.formatCount(count, truncate)) },
         broadcasters = { count -> resources.getQuantityString(R.plurals.broadcasters, count, TwitchFormats.formatCount(count, truncate)) },
+        followers = { count -> resources.getQuantityString(R.plurals.followers, count, TwitchFormats.formatCount(count, truncate)) },
         uptime = { getString(R.string.uptime, it) },
         videoType = { type -> TwitchApiHelper.getType(this, type) },
     )

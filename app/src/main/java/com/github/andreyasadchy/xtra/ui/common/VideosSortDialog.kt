@@ -17,8 +17,6 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.ui.channel.clips.ChannelClipsFragment
 import com.github.andreyasadchy.xtra.ui.channel.videos.ChannelVideosFragment
 import com.github.andreyasadchy.xtra.ui.following.videos.FollowedVideosFragment
-import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsFragment
-import com.github.andreyasadchy.xtra.ui.game.videos.GameVideosFragment
 import com.github.andreyasadchy.xtra.ui.sort.SortDialogAction
 import com.github.andreyasadchy.xtra.ui.sort.SortDialogContent
 import com.github.andreyasadchy.xtra.ui.sort.SortOption
@@ -60,10 +58,10 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
 
         /**
          * Explicit host description for Compose pager screens, which have no
-         * [GameVideosFragment]/[GameClipsFragment]/... host to sniff:
-         * [tab] is `"videos"` or `"clips"`, [context] is `"game"`,
-         * `"channel"` or `"followed"`, [hasId] tells whether a game/channel id
-         * is present. Null (default) keeps the legacy fragment sniffing.
+         * legacy fragment host to sniff: [tab] is `"videos"` or `"clips"`,
+         * [context] is `"game"`, `"channel"` or `"followed"`, [hasId] tells
+         * whether a game/channel id is present. Null (default) keeps the legacy
+         * fragment sniffing for the remaining View hosts.
          */
         fun newInstance(sort: String? = SORT_TIME, period: String? = PERIOD_WEEK, type: String? = VIDEO_TYPE_ALL, languages: Array<String>? = null, saved: Boolean = false, tab: String? = null, context: String? = null, hasId: Boolean? = null): VideosSortDialog {
             return VideosSortDialog().apply {
@@ -115,7 +113,7 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
         val owner = parentFragment
         val explicitTab = args.getString(TAB)
         val explicitContext = args.getString(CONTEXT)
-        val isClips = explicitTab?.let { it == "clips" } ?: (owner is ChannelClipsFragment || owner is GameClipsFragment)
+        val isClips = explicitTab?.let { it == "clips" } ?: (owner is ChannelClipsFragment)
         val showSortAndType = !isClips
         val showLanguages = explicitContext?.let { it == "game" }
             ?: (owner !is ChannelClipsFragment && owner !is ChannelVideosFragment && owner !is FollowedVideosFragment)
@@ -127,14 +125,12 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
                 else -> true
             }
             owner is ChannelVideosFragment || owner is FollowedVideosFragment -> false
-            owner is GameVideosFragment -> !TwitchApiHelper.getHelixHeaders(requireContext())[C.HEADER_TOKEN].isNullOrBlank()
             else -> true
         }
         val showSaveSort = if (args.containsKey(HAS_ID)) {
             args.getBoolean(HAS_ID)
         } else when (owner) {
             is ChannelClipsFragment, is ChannelVideosFragment -> !owner.arguments?.getString(C.CHANNEL_ID).isNullOrBlank()
-            is GameClipsFragment, is GameVideosFragment -> !owner.arguments?.getString(C.GAME_ID).isNullOrBlank()
             is FollowedVideosFragment -> false
             else -> true
         }

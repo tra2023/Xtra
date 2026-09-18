@@ -16,7 +16,6 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Tag
-import com.github.andreyasadchy.xtra.ui.game.streams.GameStreamsFragment
 import com.github.andreyasadchy.xtra.ui.sort.SortDialogAction
 import com.github.andreyasadchy.xtra.ui.sort.SortDialogContent
 import com.github.andreyasadchy.xtra.ui.sort.SortOption
@@ -24,7 +23,6 @@ import com.github.andreyasadchy.xtra.ui.sort.SortSelection
 import com.github.andreyasadchy.xtra.ui.sort.SortTagSelection
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragment
-import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getThemeFlags
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -85,7 +83,6 @@ class StreamsSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSel
         val showSaveSort = if (args.containsKey(SHOW_SAVE_SORT)) {
             args.getBoolean(SHOW_SAVE_SORT)
         } else when (parentFragment) {
-            is GameStreamsFragment -> !parentFragment?.arguments?.getString(C.GAME_ID).isNullOrBlank()
             is TopStreamsFragment -> false
             else -> true
         }

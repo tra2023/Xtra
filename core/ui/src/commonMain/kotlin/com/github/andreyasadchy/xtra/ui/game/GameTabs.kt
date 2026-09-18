@@ -1,16 +1,9 @@
 package com.github.andreyasadchy.xtra.ui.game
 
-import android.content.res.Configuration
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.unit.Dp
+import androidx.paging.PagingData
 import com.github.andreyasadchy.xtra.model.ui.Clip
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.model.ui.Video
@@ -18,27 +11,31 @@ import com.github.andreyasadchy.xtra.ui.common.ClipListItem
 import com.github.andreyasadchy.xtra.ui.common.PagingGrid
 import com.github.andreyasadchy.xtra.ui.common.StreamListItem
 import com.github.andreyasadchy.xtra.ui.common.VideoListItem
-import com.github.andreyasadchy.xtra.ui.common.positionFor
-import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsViewModel
-import com.github.andreyasadchy.xtra.ui.game.streams.GameStreamsViewModel
-import com.github.andreyasadchy.xtra.ui.game.videos.GameVideosViewModel
+import com.github.andreyasadchy.xtra.ui.settings.LocalXtraSettings
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.prefs
+import kotlinx.coroutines.flow.Flow
 
 /**
- * Shared game tab lists for the game pager screens. Hosts own the ViewModels,
+ * Shared game tab lists for the game screens. Hosts own the ViewModels,
  * signals, navigation and dialogs; rows and paging behavior live here exactly
  * once.
+ *
+ * Everything platform-specific is a parameter: [flow] instead of a ViewModel,
+ * [portrait] instead of `LocalConfiguration`, [modifier] so an Android host can
+ * attach `rememberNestedScrollInteropConnection`, and position/bookmark lookups
+ * as lambdas so this module stays free of the database types.
  */
 @Composable
 fun GameStreamsTab(
-    viewModel: GameStreamsViewModel,
+    flow: Flow<PagingData<Stream>>,
     compact: Boolean,
     enableScrollTop: Boolean,
     bottomInset: Dp,
+    portrait: Boolean,
     refreshTick: Int,
     scrollTick: Int,
     onAtTopChanged: ((Boolean) -> Unit)? = null,
+    modifier: Modifier = Modifier,
     onStreamClick: (Stream) -> Unit,
     onChannelClick: (Stream) -> Unit,
     onGameClick: (Stream) -> Unit,
@@ -46,17 +43,17 @@ fun GameStreamsTab(
     onIntegrityFailed: () -> Unit,
 ) {
     PagingGrid(
-        flow = viewModel.flow,
+        flow = flow,
         refreshSignal = refreshTick,
         retrySignal = 0,
         scrollTopSignal = scrollTick,
         enableScrollTop = enableScrollTop,
         keyForItem = { it.id ?: it.channelId ?: it.channelLogin ?: it.hashCode().toString() },
         bottomInset = bottomInset,
-        portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
+        portrait = portrait,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
-        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
+        modifier = modifier,
     ) { stream ->
         StreamListItem(
             stream = stream,
@@ -72,36 +69,37 @@ fun GameStreamsTab(
 
 @Composable
 fun GameVideosTab(
-    viewModel: GameVideosViewModel,
+    flow: Flow<PagingData<Video>>,
     bottomInset: Dp,
+    portrait: Boolean,
     refreshTick: Int,
     scrollTick: Int,
     onAtTopChanged: ((Boolean) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    positionFor: (String?) -> Long? = { null },
+    isBookmarked: (String?) -> Boolean = { false },
     onDownload: (Video) -> Unit,
     onBookmark: (Video) -> Unit,
     onChannelClick: (Video) -> Unit,
     onGameClick: (Video) -> Unit,
     onIntegrityFailed: () -> Unit,
 ) {
-    val positions by viewModel.positions.collectAsState(initial = null)
-    val bookmarks by viewModel.bookmarks.collectAsState(initial = emptyList())
-    val bookmarkIds = remember(bookmarks) { bookmarks.map { it.videoId }.toSet() }
     PagingGrid(
-        flow = viewModel.flow,
+        flow = flow,
         refreshSignal = refreshTick,
         retrySignal = 0,
         scrollTopSignal = scrollTick,
         keyForItem = { it.id ?: it.hashCode().toString() },
         bottomInset = bottomInset,
-        portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
+        portrait = portrait,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
-        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
+        modifier = modifier,
     ) { video ->
         VideoListItem(
             video = video,
-            position = positions.positionFor(video.id),
-            bookmarked = video.id in bookmarkIds,
+            position = positionFor(video.id),
+            bookmarked = isBookmarked(video.id),
             showGame = false,
             onDownload = onDownload,
             onBookmark = onBookmark,
@@ -113,27 +111,29 @@ fun GameVideosTab(
 
 @Composable
 fun GameClipsTab(
-    viewModel: GameClipsViewModel,
+    flow: Flow<PagingData<Clip>>,
     bottomInset: Dp,
+    portrait: Boolean,
     refreshTick: Int,
     scrollTick: Int,
     onAtTopChanged: ((Boolean) -> Unit)? = null,
+    modifier: Modifier = Modifier,
     onDownload: (Clip) -> Unit,
     onChannelClick: (Clip) -> Unit,
     onGameClick: (Clip) -> Unit,
     onIntegrityFailed: () -> Unit,
 ) {
     PagingGrid(
-        flow = viewModel.flow,
+        flow = flow,
         refreshSignal = refreshTick,
         retrySignal = 0,
         scrollTopSignal = scrollTick,
         keyForItem = { it.id ?: it.hashCode().toString() },
         bottomInset = bottomInset,
-        portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
+        portrait = portrait,
         onIntegrityFailed = onIntegrityFailed,
         onAtTopChanged = onAtTopChanged,
-        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
+        modifier = modifier,
     ) { clip ->
         ClipListItem(
             clip = clip,
@@ -145,6 +145,7 @@ fun GameClipsTab(
     }
 }
 
+/** Whether the stream rows render in the compact style, from platform settings. */
 @Composable
 fun streamsCompact(): Boolean =
-    LocalContext.current.prefs().getString(C.COMPACT_STREAMS, "disabled") == "all"
+    LocalXtraSettings.current.getString(C.COMPACT_STREAMS, "disabled") == "all"
