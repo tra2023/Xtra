@@ -33,7 +33,7 @@ class XtraApp : Application(), SingletonImageLoader.Factory {
             }
             components {
                 // Ktor + CIO works on Android and JVM desktop (Compose Multiplatform).
-                // The rest of the app still uses OkHttp for API/downloads — only images go via Ktor.
+                // ExoPlayer data sources continue to use OkHttp.
                 add(KtorNetworkFetcherFactory(
                     httpClient = { HttpClient(CIO) },
                     cacheStrategy = { CacheControlCacheStrategy() }

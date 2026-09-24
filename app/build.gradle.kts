@@ -100,8 +100,8 @@ dependencies {
     implementation(libs.coil)
     implementation(libs.coil.gif)
     implementation(libs.coil.compose)
-    // KMP-ready network fetcher (Android + JVM desktop via CIO).
-    // Rest of the app (API, downloads, ExoPlayer) still uses OkHttp — only images go via Ktor.
+    // KMP-ready network fetcher and API transport (Android + JVM desktop via CIO).
+    // ExoPlayer data sources continue to use OkHttp.
     implementation(libs.coil.network.ktor3)
     implementation(libs.coil.network.cache.control)
     implementation(libs.ktor.client.cio)

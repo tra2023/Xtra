@@ -9,6 +9,7 @@ import com.github.andreyasadchy.xtra.repository.ChannelSortRepository
 import com.github.andreyasadchy.xtra.repository.GameSortRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
+import com.github.andreyasadchy.xtra.repository.KtorXtraHttpClient
 import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.repository.LocalGameFollowsRepository
 import com.github.andreyasadchy.xtra.repository.NotificationsRepository
@@ -16,7 +17,8 @@ import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.repository.RecentSearchesRepository
 import com.github.andreyasadchy.xtra.repository.SavedFiltersRepository
-import com.github.andreyasadchy.xtra.util.AppXtraHttpClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -39,8 +41,12 @@ class XtraModule(application: Application) {
         getRoomDatabase(getDatabaseBuilder(application))
     }
 
+    val ktorHttpClient by lazy {
+        HttpClient(CIO)
+    }
+
     val xtraHttpClient by lazy {
-        AppXtraHttpClient(okHttpClient)
+        KtorXtraHttpClient(ktorHttpClient)
     }
 
     val authRepository by lazy {

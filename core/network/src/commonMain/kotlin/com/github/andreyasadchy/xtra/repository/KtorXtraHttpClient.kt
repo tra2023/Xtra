@@ -14,7 +14,7 @@ import io.ktor.http.HttpMethod
 /**
  * Multiplatform [XtraHttpClient] on Ktor + CIO for Android and JVM desktop.
  * Mirrors `app`'s OkHttp-based `AppXtraHttpClient` (same methods, timeouts,
- * header handling); the Android app keeps its OkHttp implementation for now.
+ * header handling).
  *
  * Prefer injecting a shared [HttpClient]; the default creates its own CIO engine.
  */
@@ -56,7 +56,7 @@ suspend fun HttpClient.downloadWithProgress(
     timeoutMs: Long? = null,
     onProgress: (bytesRead: Long, contentLength: Long?) -> Unit,
 ): ByteArray {
-    return get(url) {
+    val response = get(url) {
         headers {
             headers.forEach { (key, value) -> append(key, value) }
         }
@@ -66,5 +66,9 @@ suspend fun HttpClient.downloadWithProgress(
         onDownload { bytesSentTotal, contentLength ->
             onProgress(bytesSentTotal, contentLength)
         }
-    }.bodyAsBytes()
+    }
+    if (response.status.value !in 200..299) {
+        throw IllegalStateException("HTTP ${response.status.value} for $url")
+    }
+    return response.bodyAsBytes()
 }
