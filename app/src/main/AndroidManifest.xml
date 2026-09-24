@@ -63,10 +63,6 @@
             android:foregroundServiceType="mediaPlayback" />
 
         <service
-            android:name=".ui.player.MediaPlayerService"
-            android:foregroundServiceType="mediaPlayback" />
-
-        <service
             android:name=".ui.download.VideoDownloadService"
             android:foregroundServiceType="specialUse" />
 

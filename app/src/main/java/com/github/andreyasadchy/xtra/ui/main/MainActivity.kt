@@ -27,14 +27,11 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.annotation.OptIn
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
-import androidx.core.os.LocaleListCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -46,9 +43,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.withStarted
-import androidx.media3.common.MimeTypes
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.NavigationUI
@@ -77,7 +71,6 @@ import com.github.andreyasadchy.xtra.ui.games.GamesFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainViewModel.Companion.MainViewModelFactory
 import com.github.andreyasadchy.xtra.ui.player.BasePlaybackService
 import com.github.andreyasadchy.xtra.ui.player.ExoPlayerFragment
-import com.github.andreyasadchy.xtra.ui.player.MediaPlayerFragment
 import com.github.andreyasadchy.xtra.ui.player.PlayerFragment
 import com.github.andreyasadchy.xtra.ui.saved.SavedMediaFragment
 import com.github.andreyasadchy.xtra.ui.saved.SavedPagerFragment
@@ -448,10 +441,7 @@ class MainActivity : AppCompatActivity() {
                     val savedState = states.firstOrNull()
                     if (savedState != null) {
                         (playerFragment as? PlayerFragment)?.close()
-                        val fragment = when (prefs.getString(C.PLAYER, C.EXOPLAYER)) {
-                            C.MEDIA_PLAYER -> MediaPlayerFragment()
-                            else -> ExoPlayerFragment()
-                        }.apply {
+                        val fragment = ExoPlayerFragment().apply {
                             if (savedState.type == BasePlaybackService.OFFLINE_VIDEO) {
                                 arguments = Bundle().apply {
                                     putBoolean(PlayerFragment.KEY_OFFLINE, true)
@@ -785,9 +775,7 @@ class MainActivity : AppCompatActivity() {
                 if (playerFragment != null) {
                     (playerFragment as? PlayerFragment)?.maximize()
                 } else {
-                    if (prefs.getString(C.PLAYER, C.EXOPLAYER) != C.MEDIA_PLAYER) {
-                        viewModel.getPlaybackStates()
-                    }
+                    viewModel.getPlaybackStates()
                 }
             }
         }
@@ -825,10 +813,7 @@ class MainActivity : AppCompatActivity() {
             createdAt = stream.createdAt,
             viewerCount = stream.viewerCount,
         ))
-        val fragment = when (prefs.getString(C.PLAYER, C.EXOPLAYER)) {
-            C.MEDIA_PLAYER -> MediaPlayerFragment()
-            else -> ExoPlayerFragment()
-        }
+        val fragment = ExoPlayerFragment()
         startPlayer(fragment)
     }
 
@@ -858,10 +843,7 @@ class MainActivity : AppCompatActivity() {
                 viewModel.saveVideoPosition(id, offset ?: 0)
             }
         }
-        val fragment = when (prefs.getString(C.PLAYER, C.EXOPLAYER)) {
-            C.MEDIA_PLAYER -> MediaPlayerFragment()
-            else -> ExoPlayerFragment()
-        }
+        val fragment = ExoPlayerFragment()
         startPlayer(fragment)
     }
 
@@ -886,10 +868,7 @@ class MainActivity : AppCompatActivity() {
             videoCreatedAt = clip.videoCreatedAt,
             videoAnimatedPreviewURL = clip.videoAnimatedPreviewURL,
         ))
-        val fragment = when (prefs.getString(C.PLAYER, C.EXOPLAYER)) {
-            C.MEDIA_PLAYER -> MediaPlayerFragment()
-            else -> ExoPlayerFragment()
-        }
+        val fragment = ExoPlayerFragment()
         startPlayer(fragment)
     }
 
@@ -912,10 +891,7 @@ class MainActivity : AppCompatActivity() {
         if (offset != null && prefs.getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true)) {
             viewModel.saveOfflineVideoPosition(video.id, offset)
         }
-        val fragment = when (prefs.getString(C.PLAYER, C.EXOPLAYER)) {
-            C.MEDIA_PLAYER -> MediaPlayerFragment()
-            else -> ExoPlayerFragment()
-        }.apply {
+        val fragment = ExoPlayerFragment().apply {
             arguments = Bundle().apply {
                 putBoolean(PlayerFragment.KEY_OFFLINE, true)
             }
@@ -955,9 +931,7 @@ class MainActivity : AppCompatActivity() {
         if (playerFragment == null) {
             playerFragment = supportFragmentManager.findFragmentById(R.id.playerContainer) as? PlayerFragment
             if (playerFragment == null) {
-                if (prefs.getString(C.PLAYER, C.EXOPLAYER) != C.MEDIA_PLAYER) {
-                    viewModel.getPlaybackStates()
-                }
+                viewModel.getPlaybackStates()
             }
         } else {
             if (viewModel.isPlayerOpened && (playerFragment as? PlayerFragment)?.secondViewIsHidden() == true && prefs.getBoolean(C.PLAYER_PICTURE_IN_PICTURE, true)) {
