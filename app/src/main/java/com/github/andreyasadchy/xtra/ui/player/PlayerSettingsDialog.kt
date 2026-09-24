@@ -119,7 +119,7 @@ class PlayerSettingsDialog : BottomSheetDialogFragment() {
             entry("timer", R.string.sleep_timer) { player?.showSleepTimerDialog() }
         }
         if (landscape && prefs.getBoolean(C.PLAYER_MENU_ASPECT, false)) {
-            entry("ratio", R.string.aspect_ratio) { player?.setResizeMode() }
+            entry("ratio", R.string.aspect_ratio) { player.setResizeMode() }
         }
         if (prefs.getBoolean(C.PLAYER_MENU_VOLUME, false)) {
             entry("volume", R.string.volume) { player?.showVolumeDialog() }
@@ -146,7 +146,7 @@ class PlayerSettingsDialog : BottomSheetDialogFragment() {
         if (landscape && prefs.getBoolean(C.PLAYER_MENU_CHAT_TOGGLE, false)) {
             val opened = prefs.getBoolean(C.KEY_CHAT_OPENED, true)
             entry("chatToggle", if (opened) R.string.hide_chat else R.string.show_chat) {
-                if (opened) player?.hideChat() else player?.showChat()
+                if (opened) player.hideChat() else player.showChat()
             }
         }
         if ((stream || type == BasePlaybackService.VIDEO) && chatEnabled && prefs.getBoolean(C.PLAYER_MENU_RELOAD_EMOTES, true)) {
@@ -155,7 +155,7 @@ class PlayerSettingsDialog : BottomSheetDialogFragment() {
         if (stream && chatEnabled && prefs.getBoolean(C.PLAYER_MENU_CHAT_DISCONNECT, true)) {
             val active = player?.isActive() == true
             entry("chatConnection", if (active) R.string.disconnect_chat else R.string.connect_chat) {
-                if (active) player?.disconnect() else player?.reconnect()
+                if (active) player.disconnect() else player?.reconnect()
             }
         }
         if (stream && prefs.getBoolean(C.DEBUG_PLAYER_MENU_PLAYLIST_TAGS, false)) {

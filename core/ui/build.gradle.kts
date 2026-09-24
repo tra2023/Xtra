@@ -23,11 +23,13 @@ kotlin {
             implementation(libs.paging.compose)
             implementation(libs.coil)
             implementation(libs.coil.compose)
-            implementation(libs.coil.gif)
             implementation(libs.coil.network.cache.control)
             implementation(libs.coil.network.ktor3)
             implementation(libs.ktor.client.cio)
             implementation(libs.coroutines.core)
+        }
+        androidMain.dependencies {
+            implementation(libs.coil.gif)
         }
     }
 }
