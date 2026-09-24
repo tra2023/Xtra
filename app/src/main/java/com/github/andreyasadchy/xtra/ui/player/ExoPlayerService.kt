@@ -30,7 +30,6 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.AudioAttributes
-import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
@@ -53,14 +52,20 @@ import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.VideoQuality
-import com.github.andreyasadchy.xtra.model.ui.Video
-import com.github.andreyasadchy.xtra.model.ui.VideoSwap
+import com.github.andreyasadchy.xtra.player.PlaybackEngine
+import com.github.andreyasadchy.xtra.player.PlayerController
+import com.github.andreyasadchy.xtra.player.PlayerPrefs
+import com.github.andreyasadchy.xtra.player.SourceFormat
+import com.github.andreyasadchy.xtra.player.SourceRequest
+import com.github.andreyasadchy.xtra.repository.VideoSwapController
 import com.github.andreyasadchy.xtra.repository.getBytesOrNull
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.MediaButtonReceiver
+import com.github.andreyasadchy.xtra.util.SleepTimer
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.VideoQualityUtils
+import com.github.andreyasadchy.xtra.util.m3u8.AdDetector
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -72,12 +77,10 @@ import java.io.FileInputStream
 import java.util.Timer
 import kotlin.concurrent.schedule
 import kotlin.concurrent.scheduleAtFixedRate
-import kotlin.math.floor
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 @OptIn(UnstableApi::class)
-class ExoPlayerService : BasePlaybackService() {
+class ExoPlayerService : BasePlaybackService(), PlaybackEngine {
 
     var player: ExoPlayer? = null
     private var session: MediaSession? = null
@@ -88,23 +91,13 @@ class ExoPlayerService : BasePlaybackService() {
     private var showStreamNotificationSeekbar = true
 
     private var dynamicsProcessing: DynamicsProcessing? = null
-    private var sleepTimer: Timer? = null
-    private var sleepTimerEndTime = 0L
+    private lateinit var sleepTimer: SleepTimer
     private var savePositionTimer: Timer? = null
     private var stopServiceTimer: Timer? = null
 
-    private var videoSwapList: List<VideoSwap>? = null
-    private var currentVideoSwapItem = 0
-    private var videoSwapPreviousQuality: String? = null
-    private var useVideoSwap = false
-    private var playingAds = false
-    private var checkPlaylistJob: Job? = null
-    private var videoSwapActive = false
-    private var videoSwapLoading = false
-    private var stopVideoSwap = false
-    private var hidden = false
-    private var backupQualities: List<String>? = null
-    private var updateQualities = false
+    private lateinit var videoSwapController: VideoSwapController
+    private lateinit var playerController: PlayerController
+
     private var created = false
 
     interface Listener {
@@ -118,9 +111,103 @@ class ExoPlayerService : BasePlaybackService() {
 
     var serviceListener: Listener? = null
 
+    private val videoSwapHost = object : VideoSwapController.Host {
+        override fun restartPlayer() = this@ExoPlayerService.restartPlayer()
+
+        override fun setVideoHidden(hidden: Boolean) {
+            player?.let { player ->
+                if (quality?.name != VideoQuality.AUDIO_ONLY_QUALITY) {
+                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
+                        setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, hidden)
+                    }.build()
+                }
+                player.volume = if (hidden) 0f else prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
+            }
+        }
+
+        override fun onVideoSwapActive() {
+            serviceListener?.toast(R.string.video_swap_active, Toast.LENGTH_SHORT)
+        }
+
+        override fun onWaitingAds() {
+            serviceListener?.toast(R.string.waiting_ads, Toast.LENGTH_LONG)
+        }
+
+        override fun savedQuality(): String? = prefs().getString(C.PLAYER_QUALITY, "720p60")
+
+        override fun setSavedQuality(value: String?) {
+            prefs().edit { putString(C.PLAYER_QUALITY, value) }
+        }
+    }
+
+    private val dataSourceFactory by lazy {
+        DefaultDataSource.Factory(this, OkHttpDataSource.Factory(xtraModule.okHttpClient.value))
+    }
+
+    private val playerPrefs = object : PlayerPrefs {
+        override fun getBoolean(key: String, default: Boolean) = prefs().getBoolean(key, default)
+        override fun getInt(key: String, default: Int) = prefs().getInt(key, default)
+        override fun getFloat(key: String, default: Float) = prefs().getFloat(key, default)
+        override fun getString(key: String, default: String?) = prefs().getString(key, default)
+        override fun putString(key: String, value: String?) {
+            prefs().edit { putString(key, value) }
+        }
+    }
+
+    private val playerHost = object : PlayerController.Host {
+        override fun gqlHeaders(includeToken: Boolean): Map<String, String> = TwitchApiHelper.getGQLHeaders(this@ExoPlayerService, includeToken)
+
+        override fun helixHeaders(): Map<String, String> = TwitchApiHelper.getHelixHeaders(this@ExoPlayerService)
+
+        override fun isCellular(): Boolean {
+            val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+            return connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+        }
+
+        override fun isInteractive(): Boolean = (getSystemService(POWER_SERVICE) as PowerManager).isInteractive
+
+        override fun onStarted() {
+            serviceListener?.started()
+        }
+
+        override fun onLoaded() {
+            serviceListener?.loaded()
+        }
+
+        override fun onPlayerModeChanged() {
+            serviceListener?.changePlayerMode()
+        }
+
+        override fun onVideoInfoUpdated() {
+            updateMetadata()
+            updateNotification()
+            serviceListener?.updateVideoInfo()
+        }
+
+        override fun onIntegrityError(item: String) {
+            lifecycleScope.launch { integrity.emit(item) }
+        }
+
+        override fun stopService() {
+            stopSelf()
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         xtraModule = (application as XtraApp).xtraModule
+        sleepTimer = SleepTimer(lifecycleScope)
+        videoSwapController = VideoSwapController(xtraModule.playerRepository, lifecycleScope, videoSwapHost)
+        playerController = PlayerController(
+            session = this,
+            engine = this,
+            playerRepository = xtraModule.playerRepository,
+            offlineVideosRepository = xtraModule.offlineVideosRepository,
+            videoSwapController = videoSwapController,
+            prefs = playerPrefs,
+            host = playerHost,
+            scope = lifecycleScope,
+        )
     }
 
     private fun create(restorePauseState: Boolean) {
@@ -150,170 +237,54 @@ class ExoPlayerService : BasePlaybackService() {
                 }
 
                 override fun onTracksChanged(tracks: Tracks) {
-                    if (!tracks.isEmpty) {
-                        if (!loaded) {
-                            loaded = true
-                            serviceListener?.loaded()
-                            toggleSubtitles(prefs().getBoolean(C.PLAYER_SUBTITLES_ENABLED, false))
-                        }
-                        if (qualities?.find { it.name == VideoQuality.AUTO_QUALITY } != null && quality?.name != VideoQuality.AUDIO_ONLY_QUALITY && !hidden) {
-                            changeQuality(quality)
-                        }
-                    }
+                    playerController.onTracksChanged(!tracks.isEmpty)
                 }
 
                 override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                     updatePlaybackState()
                     updateMetadata()
                     updateNotification()
-                    if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED && !timeline.isEmpty && qualities?.find { it.name == VideoQuality.AUTO_QUALITY } != null) {
-                        updateQualities = quality?.name != VideoQuality.AUDIO_ONLY_QUALITY
-                    }
-                    if (qualities.isNullOrEmpty() || updateQualities) {
-                        val playlist = (player?.currentManifest as? HlsManifest)?.multivariantPlaylist
-                        val list = playlist?.variants?.mapNotNull { variant ->
+                    val manifest = player?.currentManifest as? HlsManifest
+                    val variants = manifest?.multivariantPlaylist?.let { playlist ->
+                        playlist.variants.mapNotNull { variant ->
                             val name = variant.stableVariantId?.takeIf { it.isNotBlank() }
                                 ?: playlist.videos.find { it.groupId == variant.videoGroupId }?.name?.takeIf { it.isNotBlank() }
                             if (name != null) {
                                 VideoQuality(name, variant.format.height, variant.format.frameRate, variant.format.bitrate, variant.format.codecs, variant.url.toString())
                             } else null
                         }
-                        if (!list.isNullOrEmpty()) {
-                            qualities = VideoQualityUtils.buildQualities(list, addAuto = true, addChatOnly = type == STREAM)
-                            setDefaultQuality()
-                            serviceListener?.changePlayerMode()
-                            if (quality?.name == VideoQuality.AUDIO_ONLY_QUALITY) {
-                                changeQuality(quality)
-                            }
-                        }
-                        if (reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE) {
-                            updateQualities = false
-                        }
                     }
-                    if (type == STREAM) {
-                        val useVideoSwap = useVideoSwap && !stopVideoSwap
-                        val hideAds = prefs().getBoolean(C.PLAYER_HIDE_ADS, false)
-                        if (useVideoSwap || hideAds) {
-                            val playlist = (player?.currentManifest as? HlsManifest)?.mediaPlaylist
-                            val ads = playlist?.segments?.lastOrNull()?.let { segment ->
-                                segment.title == "Amazon"
-                                        || segment.title == "Adform"
-                                        || segment.title == "DCM"
-                                        ||
-                                        (playlist.startTimeUs + segment.relativeStartTimeUs).let { segmentStartTime ->
-                                            playlist.interstitials.find { dateRange ->
-                                                (dateRange.id.startsWith("stitched-ad-")
-                                                        || dateRange.clientDefinedAttributes.find { it.name == "CLASS" }?.textValue == "twitch-stitched-ad"
-                                                        || dateRange.clientDefinedAttributes.find { it.name.startsWith("X-TV-TWITCH-AD-") } != null)
-                                                        &&
-                                                        dateRange.startDateUnixUs.let { startTime ->
-                                                            (dateRange.endDateUnixUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }
-                                                                ?: dateRange.durationUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }?.let { startTime + it }
-                                                                ?: dateRange.plannedDurationUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }?.let { startTime + it })?.let { endTime ->
-                                                                segmentStartTime in startTime..<endTime
-                                                            } == true
-                                                        }
-                                            } != null
-                                        }
-                            } == true
-                            val oldValue = playingAds
-                            playingAds = ads
-                            if (ads) {
-                                when {
-                                    videoSwapActive -> {
-                                        if (!videoSwapLoading) {
-                                            videoSwapLoading = true
-                                            currentVideoSwapItem += 1
-                                            val playlist = quality?.url
-                                            if (videoSwapList?.getOrNull(currentVideoSwapItem) != null && !playlist.isNullOrBlank()) {
-                                                checkPlaylistJob?.cancel()
-                                                checkPlaylistJob = lifecycleScope.launch {
-                                                    for (i in 0 until 60) {
-                                                        delay(2.seconds)
-                                                        if (!xtraModule.playerRepository.checkForAds(playlist)) {
-                                                            break
-                                                        }
-                                                    }
-                                                    videoSwapLoading = true
-                                                    videoSwapActive = false
-                                                    if (prefs().getString(C.PLAYER_QUALITY, "720p60") != videoSwapPreviousQuality) {
-                                                        prefs().edit { putString(C.PLAYER_QUALITY, videoSwapPreviousQuality) }
-                                                    }
-                                                    restartPlayer()
-                                                    checkPlaylistJob = null
-                                                }
-                                            } else {
-                                                videoSwapActive = false
-                                                stopVideoSwap = true
-                                                checkPlaylistJob?.cancel()
-                                                checkPlaylistJob = null
-                                            }
-                                            if (prefs().getString(C.PLAYER_QUALITY, "720p60") != videoSwapPreviousQuality) {
-                                                prefs().edit { putString(C.PLAYER_QUALITY, videoSwapPreviousQuality) }
-                                            }
-                                            restartPlayer()
-                                        }
-                                    }
-                                    else -> {
-                                        if (!oldValue) {
-                                            val playlist = quality?.url
-                                            when {
-                                                useVideoSwap && !playlist.isNullOrBlank() -> {
-                                                    if (!videoSwapLoading) {
-                                                        videoSwapLoading = true
-                                                        videoSwapActive = true
-                                                        serviceListener?.toast(R.string.video_swap_active, Toast.LENGTH_SHORT)
-                                                        checkPlaylistJob?.cancel()
-                                                        checkPlaylistJob = lifecycleScope.launch {
-                                                            for (i in 0 until 60) {
-                                                                delay(2.seconds)
-                                                                if (!xtraModule.playerRepository.checkForAds(playlist)) {
-                                                                    break
-                                                                }
-                                                            }
-                                                            videoSwapLoading = true
-                                                            videoSwapActive = false
-                                                            if (prefs().getString(C.PLAYER_QUALITY, "720p60") != videoSwapPreviousQuality) {
-                                                                prefs().edit { putString(C.PLAYER_QUALITY, videoSwapPreviousQuality) }
-                                                            }
-                                                            restartPlayer()
-                                                            checkPlaylistJob = null
-                                                        }
-                                                        videoSwapPreviousQuality = prefs().getString(C.PLAYER_QUALITY, "720p60")
-                                                        restartPlayer()
-                                                    }
-                                                }
-                                                hideAds && !hidden -> {
-                                                    hidden = true
-                                                    player?.let { player ->
-                                                        if (quality?.name != VideoQuality.AUDIO_ONLY_QUALITY) {
-                                                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
-                                                                setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
-                                                            }.build()
-                                                        }
-                                                        player.volume = 0f
-                                                    }
-                                                    serviceListener?.toast(R.string.waiting_ads, Toast.LENGTH_LONG)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                if (hidden) {
-                                    hidden = false
-                                    player?.let { player ->
-                                        if (quality?.name != VideoQuality.AUDIO_ONLY_QUALITY) {
-                                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
-                                                setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
-                                            }.build()
-                                        }
-                                        player.volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    val hideAds = prefs().getBoolean(C.PLAYER_HIDE_ADS, false)
+                    val isAd = if (type == STREAM && videoSwapController.shouldProcess(hideAds)) {
+                        val playlist = manifest?.mediaPlaylist
+                        playlist?.segments?.lastOrNull()?.let { segment ->
+                            AdDetector.isAd(
+                                segment = AdDetector.AdSegment(
+                                    title = segment.title,
+                                    startTimeMs = (playlist.startTimeUs + segment.relativeStartTimeUs) / 1000,
+                                ),
+                                ranges = playlist.interstitials.map { dateRange ->
+                                    AdDetector.AdRange(
+                                        id = dateRange.id,
+                                        rangeClass = dateRange.clientDefinedAttributes.find { it.name == "CLASS" }?.textValue,
+                                        ad = dateRange.clientDefinedAttributes.find { it.name.startsWith("X-TV-TWITCH-AD-") } != null,
+                                        startTimeMs = dateRange.startDateUnixUs / 1000,
+                                        endTimeMs = (dateRange.endDateUnixUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }
+                                            ?: dateRange.durationUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }?.let { dateRange.startDateUnixUs + it }
+                                            ?: dateRange.plannedDurationUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }?.let { dateRange.startDateUnixUs + it })?.let { it / 1000 },
+                                    )
+                                },
+                            )
+                        } ?: false
+                    } else null
+                    playerController.onTimelineChanged(
+                        variants = variants,
+                        playlistChanged = reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED,
+                        timelineEmpty = timeline.isEmpty,
+                        sourceUpdate = reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE,
+                        isAd = isAd,
+                        hideAds = hideAds,
+                    )
                 }
 
                 override fun onAvailableCommandsChanged(availableCommands: Player.Commands) {
@@ -346,7 +317,6 @@ class ExoPlayerService : BasePlaybackService() {
                             }
                         }
                         VIDEO -> {
-                            val responseCode = (error.cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
                             val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
                             val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
                             val isNetworkAvailable = networkCapabilities != null
@@ -510,7 +480,7 @@ class ExoPlayerService : BasePlaybackService() {
             session.setCallback(sessionCallback)
             try {
                 session.setMediaButtonBroadcastReceiver(ComponentName(this, MediaButtonReceiver::class.java))
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 // https://github.com/androidx/media/issues/1730
             }
             session.isActive = true
@@ -532,571 +502,142 @@ class ExoPlayerService : BasePlaybackService() {
     private fun start(restorePauseState: Boolean) {
         lifecycleScope.launch {
             restorePlaybackState()
-            when (type) {
-                STREAM -> {
-                    started = true
-                    serviceListener?.started()
-                    useVideoSwap = prefs().getBoolean(C.PLAYER_USE_VIDEO_SWAP, false)
-                    if (useVideoSwap) {
-                        videoSwapList = xtraModule.playerRepository.getVideoSwapItems().filter {
-                            it.enabled && !it.platform.isNullOrBlank() && !it.playerType.isNullOrBlank()
-                        }.sortedBy { it.position }
-                    }
-                    loadStream(restorePauseState)
-                }
-                VIDEO -> {
-                    started = true
-                    serviceListener?.started()
-                    if (videoId != null) {
-                        loadVideo(restorePauseState)
-                        if (title == null) {
-                            updateVideoInfo()
-                        }
-                    } else {
-                        qualities?.let { list ->
-                            qualities = VideoQualityUtils.buildQualities(list)
-                            setDefaultQuality()
-                            serviceListener?.changePlayerMode()
-                            val url = quality?.url
-                            if (url != null) {
-                                player?.let { player ->
-                                    player.setMediaSource(
-                                        HlsMediaSource.Factory(
-                                            DefaultDataSource.Factory(
-                                                this@ExoPlayerService,
-                                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value)
-                                            )
-                                        ).createMediaSource(
-                                            MediaItem.fromUri(url)
-                                        )
-                                    )
-                                    player.volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
-                                    player.setPlaybackSpeed(prefs().getFloat(C.PLAYER_SPEED, 1f))
-                                    player.prepare()
-                                    player.playWhenReady = !restorePauseState || !paused
-                                    player.seekTo(savedPosition ?: 0)
-                                }
-                            }
-                        }
-                    }
-                }
-                CLIP -> {
-                    started = true
-                    serviceListener?.started()
-                    loadClip(restorePauseState)
-                }
-                OFFLINE_VIDEO -> {
-                    offlineVideoId?.let { id ->
-                        val video = xtraModule.offlineVideosRepository.getById(id)
-                        if (video != null) {
-                            val playbackPosition = if (prefs().getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true)) {
-                                video.lastWatchPosition
-                            } else {
-                                null
-                            } ?: savedPosition ?: 0
-                            chatUrl = video.chatUrl
-                            started = true
-                            serviceListener?.started()
-                            if (qualities.isNullOrEmpty()) {
-                                qualities = listOf(
-                                    VideoQuality(VideoQuality.SOURCE_QUALITY, url = video.url),
-                                    VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY),
-                                )
-                                setDefaultQuality()
-                            }
-                            serviceListener?.changePlayerMode()
-                            val url = quality?.url ?: qualities?.firstOrNull()?.url
-                            if (url != null) {
-                                player?.let { player ->
-                                    if (quality?.name == VideoQuality.AUDIO_ONLY_QUALITY) {
-                                        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
-                                            setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
-                                        }.build()
-                                    }
-                                    player.setMediaItem(MediaItem.fromUri(url))
-                                    player.volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
-                                    player.setPlaybackSpeed(prefs().getFloat(C.PLAYER_SPEED, 1f))
-                                    player.prepare()
-                                    player.playWhenReady = true
-                                    player.seekTo(playbackPosition)
-                                }
-                            }
-                        }
-                    }
-                }
-                else -> stopSelf()
-            }
+            playerController.start(restorePauseState)
         }
     }
 
-    private suspend fun loadStream(restorePauseState: Boolean = false, restart: Boolean = false) {
-        channelLogin?.let { channelLogin ->
-            if (restart || qualities.isNullOrEmpty()) {
-                val videoSwap = if (videoSwapActive) {
-                    videoSwapList?.getOrNull(currentVideoSwapItem)
-                } else null
-                playlistUrl = getStreamPlaylistUrl(channelLogin, videoSwap = videoSwap)
-            }
-            videoSwapLoading = false
-            val url = playlistUrl
-            if (url != null) {
-                player?.let { player ->
-                    player.setMediaSource(
-                        HlsMediaSource.Factory(
-                            DefaultDataSource.Factory(
-                                this@ExoPlayerService,
-                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value)
-                            )
-                        ).apply {
-                            setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6))
-                        }.createMediaSource(
-                            MediaItem.Builder().apply {
-                                setUri(url.toUri())
-                                setMimeType(MimeTypes.APPLICATION_M3U8)
-                                setLiveConfiguration(MediaItem.LiveConfiguration.Builder().apply {
-                                    prefs().getString(C.PLAYER_LIVE_MIN_SPEED, "")?.toFloatOrNull()?.let { setMinPlaybackSpeed(it) }
-                                    prefs().getString(C.PLAYER_LIVE_MAX_SPEED, "")?.toFloatOrNull()?.let { setMaxPlaybackSpeed(it) }
-                                    prefs().getString(C.PLAYER_LIVE_TARGET_OFFSET, "2000")?.toLongOrNull()?.let { setTargetOffsetMs(it) }
-                                }.build())
-                            }.build()
-                        )
-                    )
-                    player.volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
-                    player.setPlaybackSpeed(1f)
-                    player.prepare()
-                    player.playWhenReady = !restorePauseState || !paused
-                }
-            }
-        }
-    }
+    fun retry(item: String) = playerController.retry(item)
 
-    private suspend fun getStreamPlaylistUrl(channelLogin: String, videoSwap: VideoSwap? = null): String? {
-        return try {
-            xtraModule.playerRepository.loadStreamPlaylistUrl(
-                gqlHeaders = TwitchApiHelper.getGQLHeaders(this, prefs().getBoolean(C.TOKEN_INCLUDE_TOKEN_STREAM, true)),
-                channelLogin = channelLogin,
-                platform = videoSwap?.platform ?: prefs().getString(C.TOKEN_PLATFORM, "web"),
-                playerType = videoSwap?.playerType ?: prefs().getString(C.TOKEN_PLAYER_TYPE, "site"),
-                supportedCodecs = prefs().getString(C.TOKEN_SUPPORTED_CODECS, "av1,h265,h264"),
-                enableIntegrity = prefs().getBoolean(C.ENABLE_INTEGRITY, false)
+    fun changeQuality(selectedQuality: VideoQuality?) = playerController.changeQuality(selectedQuality)
+
+    fun toggleSubtitles(enabled: Boolean) = playerController.toggleSubtitles(enabled)
+
+    fun restartPlayer() = playerController.restartPlayer()
+
+    fun startAudioOnly() = playerController.startAudioOnly()
+
+    fun stop(isInPIPMode: Boolean) = playerController.stop(isInPIPMode)
+
+    override fun setSource(request: SourceRequest) {
+        val player = player ?: return
+        when (request.format) {
+            SourceFormat.HLS -> player.setMediaSource(
+                HlsMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(request.url))
             )
-        } catch (e: Exception) {
-            if (e.message == C.FAILED_INTEGRITY_CHECK) {
-                integrity.emit("refreshStream")
-            }
-            null
-        }
-    }
-
-    private suspend fun loadVideo(restorePauseState: Boolean = false) {
-        videoId?.let { videoId ->
-            val playbackPosition = if (prefs().getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true)) {
-                videoId.toLongOrNull()?.let { xtraModule.playerRepository.getVideoPosition(it)?.position }
-            } else {
-                null
-            } ?: savedPosition ?: 0
-            if (qualities.isNullOrEmpty()) {
-                val result = try {
-                    xtraModule.playerRepository.loadVideoPlaylistUrl(
-                        gqlHeaders = TwitchApiHelper.getGQLHeaders(this@ExoPlayerService, prefs().getBoolean(C.TOKEN_INCLUDE_TOKEN_VIDEO, true)),
-                        videoId = videoId,
-                        supportedCodecs = prefs().getString(C.TOKEN_SUPPORTED_CODECS, "av1,h265,h264"),
-                        enableIntegrity = prefs().getBoolean(C.ENABLE_INTEGRITY, false),
-                    )
-                } catch (e: Exception) {
-                    if (e.message == C.FAILED_INTEGRITY_CHECK) {
-                        integrity.emit("refreshVideo")
-                    }
-                    null
-                }
-                if (result != null) {
-                    playlistUrl = result.first
-                    backupQualities = result.second
-                }
-            }
-            val url = if (skipAccessToken) {
-                quality?.url
-            } else {
-                playlistUrl
-            }
-            if (url != null) {
-                player?.let { player ->
-                    player.setMediaSource(
-                        HlsMediaSource.Factory(
-                            DefaultDataSource.Factory(
-                                this@ExoPlayerService,
-                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value)
-                            )
-                        ).createMediaSource(
-                            MediaItem.fromUri(url)
-                        )
-                    )
-                    player.volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
-                    player.setPlaybackSpeed(prefs().getFloat(C.PLAYER_SPEED, 1f))
-                    player.prepare()
-                    player.playWhenReady = !restorePauseState || !paused
-                    player.seekTo(playbackPosition)
-                }
-            }
-        }
-    }
-
-    private suspend fun updateVideoInfo() {
-        val video = try {
-            val response = xtraModule.graphQLRepository.loadQueryVideo(
-                headers = TwitchApiHelper.getGQLHeaders(this),
-                id = videoId
+            SourceFormat.HLS_LIVE -> player.setMediaSource(
+                HlsMediaSource.Factory(dataSourceFactory).apply {
+                    setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6))
+                }.createMediaSource(
+                    MediaItem.Builder().apply {
+                        setUri(request.url.toUri())
+                        setMimeType(MimeTypes.APPLICATION_M3U8)
+                        setLiveConfiguration(MediaItem.LiveConfiguration.Builder().apply {
+                            prefs().getString(C.PLAYER_LIVE_MIN_SPEED, "")?.toFloatOrNull()?.let { setMinPlaybackSpeed(it) }
+                            prefs().getString(C.PLAYER_LIVE_MAX_SPEED, "")?.toFloatOrNull()?.let { setMaxPlaybackSpeed(it) }
+                            prefs().getString(C.PLAYER_LIVE_TARGET_OFFSET, "2000")?.toLongOrNull()?.let { setTargetOffsetMs(it) }
+                        }.build())
+                    }.build()
+                )
             )
-            if (prefs().getBoolean(C.ENABLE_INTEGRITY, false)) {
-                response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
-                    integrity.emit("refresh")
-                    return
-                }
-            }
-            response.data!!.let { item ->
-                item.video?.let {
-                    Video(
-                        id = videoId,
-                        channelId = it.owner?.id,
-                        channelLogin = it.owner?.login,
-                        channelName = it.owner?.displayName,
-                        channelImageURL = it.owner?.profileImageURL,
-                        gameId = it.game?.id,
-                        gameSlug = it.game?.slug,
-                        gameName = it.game?.displayName,
-                        title = it.title,
-                        thumbnailURL = it.previewThumbnailURL,
-                        createdAt = it.createdAt?.toString(),
-                        durationSeconds = it.lengthSeconds,
-                        type = it.broadcastType?.toString(),
-                        animatedPreviewURL = it.animatedPreviewURL,
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            val helixHeaders = TwitchApiHelper.getHelixHeaders(this)
-            if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                try {
-                    xtraModule.helixRepository.getVideos(
-                        headers = helixHeaders,
-                        ids = videoId?.let { listOf(it) }
-                    ).data.firstOrNull()?.let {
-                        Video(
-                            id = it.id,
-                            channelId = it.channelId,
-                            channelLogin = it.channelLogin,
-                            channelName = it.channelName,
-                            title = it.title,
-                            thumbnailURL = it.thumbnailURL,
-                            createdAt = it.createdAt,
-                            viewCount = it.viewCount,
-                            durationSeconds = it.duration?.let { duration -> TwitchApiHelper.getDuration(duration) },
-                        )
-                    }
-                } catch (e: Exception) {
-                    null
-                }
-            } else null
+            SourceFormat.PROGRESSIVE -> player.setMediaSource(
+                ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(request.url))
+            )
+            SourceFormat.AUTO -> player.setMediaItem(MediaItem.fromUri(request.url))
         }
-        if (video != null) {
-            channelId = video.channelId
-            channelLogin = video.channelLogin
-            channelName = video.channelName
-            channelImage = video.channelImage
-            gameId = video.gameId
-            gameSlug = video.gameSlug
-            gameName = video.gameName
-            title = video.title
-            thumbnail = video.thumbnail
-            createdAt = video.createdAt
-            durationSeconds = video.durationSeconds
-            videoType = video.type
-            videoAnimatedPreviewURL = video.animatedPreviewURL
-            updateMetadata()
-            updateNotification()
-            serviceListener?.updateVideoInfo()
+        if (request.audioOnly) {
+            setVideoEnabled(false)
+        }
+        player.volume = request.volume
+        player.setPlaybackSpeed(request.speed)
+        player.prepare()
+        player.playWhenReady = request.playWhenReady
+        request.position?.let { player.seekTo(it) }
+    }
+
+    override fun replaceUri(url: String, position: Long?) {
+        val player = player ?: return
+        val mediaItem = player.currentMediaItem ?: return
+        player.setMediaItem(mediaItem.buildUpon().setUri(url).build())
+        player.prepare()
+        if (position != null) {
+            player.seekTo(position)
         }
     }
 
-    private suspend fun loadClip(restorePauseState: Boolean = false) {
-        clipId?.let { clipId ->
-            if (qualities.isNullOrEmpty()) {
-                val list = try {
-                    xtraModule.playerRepository.loadClipQualities(
-                        gqlHeaders = TwitchApiHelper.getGQLHeaders(this@ExoPlayerService),
-                        clipId = clipId,
-                        enableIntegrity = prefs().getBoolean(C.ENABLE_INTEGRITY, false)
-                    )
-                } catch (e: Exception) {
-                    if (e.message == C.FAILED_INTEGRITY_CHECK) {
-                        integrity.emit("refreshClip")
-                    }
-                    null
-                }
-                if (list != null) {
-                    val supportedCodecs = prefs().getString(C.TOKEN_SUPPORTED_CODECS, "av1,h265,h264")?.split(',') ?: emptyList()
-                    qualities = VideoQualityUtils.buildClipQualities(list, supportedCodecs)
-                    setDefaultQuality()
-                }
-            }
-            serviceListener?.changePlayerMode()
-            val url = quality?.url ?: qualities?.firstOrNull()?.url
-            if (url != null) {
-                player?.let { player ->
-                    if (quality?.name == VideoQuality.AUDIO_ONLY_QUALITY) {
-                        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
-                            setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
-                        }.build()
-                    }
-                    player.setMediaSource(
-                        ProgressiveMediaSource.Factory(
-                            DefaultDataSource.Factory(
-                                this@ExoPlayerService,
-                                OkHttpDataSource.Factory(xtraModule.okHttpClient.value)
-                            )
-                        ).createMediaSource(
-                            MediaItem.fromUri(url)
-                        )
-                    )
-                    player.volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
-                    player.setPlaybackSpeed(prefs().getFloat(C.PLAYER_SPEED, 1f))
-                    player.prepare()
-                    player.playWhenReady = !restorePauseState || !paused
-                    player.seekTo(savedPosition ?: 0)
-                }
-            }
-        }
+    override fun prepare() {
+        player?.prepare()
     }
 
-    fun retry(item: String) {
-        when (item) {
-            "refreshStream" -> {
-                lifecycleScope.launch {
-                    loadStream()
-                }
-            }
-            "refreshVideo" -> {
-                lifecycleScope.launch {
-                    loadVideo()
-                }
-            }
-            "refreshClip" -> {
-                lifecycleScope.launch {
-                    loadClip()
-                }
-            }
-        }
+    override fun stop() {
+        player?.stop()
     }
 
-    fun changeQuality(selectedQuality: VideoQuality?) {
-        previousQuality = quality
-        quality = selectedQuality
-        quality?.let { quality ->
-            player?.let { player ->
-                player.currentMediaItem?.let { mediaItem ->
-                    when (quality.name) {
-                        VideoQuality.AUTO_QUALITY -> {
-                            if (restorePlaylist) {
-                                restorePlaylist = false
-                                playlistUrl?.let { uri ->
-                                    if (mediaItem.localConfiguration?.uri != uri.toUri()) {
-                                        val position = player.currentPosition
-                                        player.setMediaItem(mediaItem.buildUpon().setUri(uri).build())
-                                        player.prepare()
-                                        player.seekTo(position)
-                                    }
-                                }
-                            } else {
-                                player.prepare()
-                            }
-                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
-                                setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
-                                clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_VIDEO)
-                            }.build()
-                        }
-                        VideoQuality.AUDIO_ONLY_QUALITY -> {
-                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
-                                setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
-                            }.build()
-                            quality.url?.let {
-                                val position = player.currentPosition
-                                if (qualities?.find { it.name == VideoQuality.AUTO_QUALITY } != null) {
-                                    restorePlaylist = true
-                                }
-                                player.setMediaItem(mediaItem.buildUpon().setUri(it).build())
-                                player.prepare()
-                                player.seekTo(position)
-                            }
-                        }
-                        VideoQuality.CHAT_ONLY_QUALITY -> {
-                            player.stop()
-                        }
-                        else -> {
-                            if (qualities?.find { it.name == VideoQuality.AUTO_QUALITY } != null) {
-                                if (restorePlaylist) {
-                                    restorePlaylist = false
-                                    playlistUrl?.let { uri ->
-                                        val position = player.currentPosition
-                                        player.setMediaItem(mediaItem.buildUpon().setUri(uri).build())
-                                        player.prepare()
-                                        player.seekTo(position)
-                                    }
-                                } else {
-                                    player.prepare()
-                                }
-                                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
-                                    setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
-                                    if (!player.currentTracks.isEmpty) {
-                                        player.currentTracks.groups.find { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO }?.let { trackGroup ->
-                                            if (trackGroup.mediaTrackGroup.length > 0) {
-                                                val qualityResolution = quality.resolution
-                                                val qualityBitrate = quality.bitrate
-                                                if (qualityResolution != null) {
-                                                    val formats = mutableListOf<Pair<Int, Format>>()
-                                                    for (i in 0 until trackGroup.mediaTrackGroup.length) {
-                                                        formats.add(i to trackGroup.mediaTrackGroup.getFormat(i))
-                                                    }
-                                                    val list = formats
-                                                        .sortedWith(
-                                                            compareByDescending<Pair<Int, Format>> { it.second.bitrate }
-                                                                .thenByDescending { it.second.frameRate }
-                                                                .thenByDescending { it.second.height }
-                                                        )
-                                                    list.find {
-                                                        (qualityResolution == it.second.height
-                                                                && (quality.frameRate?.let { fps -> floor(fps) } ?: 30f) >= floor(it.second.frameRate)
-                                                                && (qualityBitrate == null || qualityBitrate >= it.second.bitrate))
-                                                                || qualityResolution > it.second.height
-                                                                || it == list.last()
-                                                    }?.first?.let { index ->
-                                                        setOverrideForType(TrackSelectionOverride(trackGroup.mediaTrackGroup, index))
-                                                    }
-                                                } else {
-                                                    setOverrideForType(TrackSelectionOverride(trackGroup.mediaTrackGroup, 0))
-                                                }
-                                            }
-                                        }
-                                    }
-                                }.build()
-                            } else {
-                                player.currentMediaItem?.let {
-                                    if (it.localConfiguration?.uri?.toString() != quality.url) {
-                                        val position = player.currentPosition
-                                        player.setMediaItem(it.buildUpon().setUri(quality.url).build())
-                                        player.prepare()
-                                        player.seekTo(position)
-                                    }
-                                }
-                                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
-                                    setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
-                                }.build()
-                            }
-                        }
-                    }
-                    val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                    val cellular = networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
-                    if ((!cellular && prefs().getString(C.PLAYER_DEFAULT_QUALITY, "saved") == "saved") || (cellular && prefs().getString(C.PLAYER_DEFAULT_CELLULAR_QUALITY, "saved") == "saved")) {
-                        prefs().edit { putString(C.PLAYER_QUALITY, quality.name) }
-                    }
-                }
-            }
-        }
+    override fun pause() {
+        player?.pause()
     }
 
-    fun toggleSubtitles(enabled: Boolean) {
+    override fun setVolume(volume: Float) {
+        player?.volume = volume
+    }
+
+    override fun setVideoEnabled(enabled: Boolean) {
         player?.let { player ->
-            if (enabled) {
-                player.currentTracks.groups.find { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT }?.let {
-                    player.trackSelectionParameters = player.trackSelectionParameters
-                        .buildUpon()
-                        .setOverrideForType(TrackSelectionOverride(it.mediaTrackGroup, 0))
-                        .build()
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
+                setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, !enabled)
+            }.build()
+        }
+    }
+
+    override fun resetVideoTracks() {
+        player?.let { player ->
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
+                setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
+                clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_VIDEO)
+            }.build()
+        }
+    }
+
+    override fun selectQuality(quality: VideoQuality) {
+        val player = player ?: return
+        if (player.currentTracks.isEmpty) {
+            return
+        }
+        player.currentTracks.groups.find { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO }?.let { trackGroup ->
+            if (trackGroup.mediaTrackGroup.length > 0) {
+                val tracks = (0 until trackGroup.mediaTrackGroup.length).map { index ->
+                    val format = trackGroup.mediaTrackGroup.getFormat(index)
+                    VideoQualityUtils.TrackInfo(index, format.height, format.frameRate, format.bitrate)
                 }
-            } else {
-                player.trackSelectionParameters = player.trackSelectionParameters
-                    .buildUpon()
-                    .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
+                val index = VideoQualityUtils.selectTrackIndex(quality, tracks)
+                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
+                    setOverrideForType(TrackSelectionOverride(trackGroup.mediaTrackGroup, index))
+                }.build()
+            }
+        }
+    }
+
+    override fun setSubtitlesEnabled(enabled: Boolean) {
+        val player = player ?: return
+        if (enabled) {
+            player.currentTracks.groups.find { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT }?.let {
+                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                    .setOverrideForType(TrackSelectionOverride(it.mediaTrackGroup, 0))
                     .build()
             }
+        } else {
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
+                .build()
         }
     }
 
-    fun restartPlayer() {
-        if (quality?.name != VideoQuality.CHAT_ONLY_QUALITY) {
-            lifecycleScope.launch {
-                loadStream(restart = true)
-            }
-        }
-    }
+    override val playWhenReady: Boolean get() = player?.playWhenReady == true
 
-    fun startAudioOnly() {
-        player?.let { player ->
-            if (quality?.name != VideoQuality.AUDIO_ONLY_QUALITY) {
-                restoreQuality = true
-                previousQuality = quality
-                quality = qualities?.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY }
-                quality?.let { quality ->
-                    player.currentMediaItem?.let { mediaItem ->
-                        if (prefs().getBoolean(C.PLAYER_DISABLE_BACKGROUND_VIDEO, true)) {
-                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
-                                setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
-                            }.build()
-                        }
-                        if (prefs().getBoolean(C.PLAYER_USE_BACKGROUND_AUDIO_TRACK, false)) {
-                            quality.url?.let { url ->
-                                val position = player.currentPosition
-                                if (qualities?.find { it.name == VideoQuality.AUTO_QUALITY } != null) {
-                                    restorePlaylist = true
-                                }
-                                player.setMediaItem(mediaItem.buildUpon().setUri(url).build())
-                                player.prepare()
-                                player.seekTo(position)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    override val currentPosition: Long get() = player?.currentPosition ?: 0L
 
-    fun stop(isInPIPMode: Boolean) {
-        player?.let { player ->
-            val isInteractive = (getSystemService(POWER_SERVICE) as PowerManager).isInteractive
-            if ((!isInPIPMode && isInteractive && prefs().getBoolean(C.PLAYER_BACKGROUND_AUDIO, true))
-                || (!isInPIPMode && !isInteractive && prefs().getBoolean(C.PLAYER_BACKGROUND_AUDIO_LOCKED, true))
-                || (isInPIPMode && isInteractive && prefs().getBoolean(C.PLAYER_BACKGROUND_AUDIO_PIP_CLOSED, false))
-                || (isInPIPMode && !isInteractive && prefs().getBoolean(C.PLAYER_BACKGROUND_AUDIO_PIP_LOCKED, true))) {
-                if (player.playWhenReady && quality?.name != VideoQuality.AUDIO_ONLY_QUALITY) {
-                    restoreQuality = true
-                    previousQuality = quality
-                    quality = qualities?.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY }
-                    quality?.let { quality ->
-                        player.currentMediaItem?.let { mediaItem ->
-                            if (prefs().getBoolean(C.PLAYER_DISABLE_BACKGROUND_VIDEO, true)) {
-                                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().apply {
-                                    setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
-                                }.build()
-                            }
-                            if (prefs().getBoolean(C.PLAYER_USE_BACKGROUND_AUDIO_TRACK, false)) {
-                                quality.url?.let { url ->
-                                    val position = player.currentPosition
-                                    if (qualities?.find { it.name == VideoQuality.AUTO_QUALITY } != null) {
-                                        restorePlaylist = true
-                                    }
-                                    player.setMediaItem(mediaItem.buildUpon().setUri(url).build())
-                                    player.prepare()
-                                    player.seekTo(position)
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                player.pause()
-            }
-        }
-    }
+    override val hasVideoTracks: Boolean get() = player?.currentTracks?.isEmpty == false
+
+    override val currentUri: String? get() = player?.currentMediaItem?.localConfiguration?.uri?.toString()
 
     private fun updatePlaybackState() {
         player?.let { player ->
@@ -1148,7 +689,7 @@ class ExoPlayerService : BasePlaybackService() {
                                 or PlaybackState.ACTION_REWIND
                                 or PlaybackState.ACTION_FAST_FORWARD
                                 or PlaybackState.ACTION_SET_RATING
-                                or PlaybackState.ACTION_PLAY_PAUSE).let {
+                                or PlaybackState.ACTION_PLAY_PAUSE).let { it ->
                             if (showSeekbar) {
                                 it or PlaybackState.ACTION_SEEK_TO
                             } else {
@@ -1171,7 +712,6 @@ class ExoPlayerService : BasePlaybackService() {
             if (url == artworkUri && cachedBitmap != null) {
                 cachedBitmap
             } else {
-                val artworkUri = url
                 bitmapLoadJob?.cancel()
                 bitmapLoadJob = lifecycleScope.launch(Dispatchers.IO) {
                     try {
@@ -1192,7 +732,7 @@ class ExoPlayerService : BasePlaybackService() {
                                 }
                             }
                         }
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
 
                     }
                 }
@@ -1231,7 +771,6 @@ class ExoPlayerService : BasePlaybackService() {
             if (url == artworkUri && cachedBitmap != null) {
                 cachedBitmap
             } else {
-                val artworkUri = url
                 bitmapLoadJob?.cancel()
                 bitmapLoadJob = lifecycleScope.launch(Dispatchers.IO) {
                     try {
@@ -1252,7 +791,7 @@ class ExoPlayerService : BasePlaybackService() {
                                 }
                             }
                         }
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
 
                     }
                 }
@@ -1361,23 +900,12 @@ class ExoPlayerService : BasePlaybackService() {
     }
 
     fun setSleepTimer(duration: Long): Long {
-        val endTime = sleepTimerEndTime
-        sleepTimer?.cancel()
-        sleepTimerEndTime = 0L
-        if (duration > 0L) {
-            sleepTimer = Timer().apply {
-                schedule(duration) {
-                    Handler(Looper.getMainLooper()).post {
-                        savePosition()
-                        player?.clearMediaItems()
-                        player?.playWhenReady = false
-                        stopSelf()
-                    }
-                }
-            }
-            sleepTimerEndTime = System.currentTimeMillis() + duration
+        return sleepTimer.set(duration) {
+            savePosition()
+            player?.clearMediaItems()
+            player?.playWhenReady = false
+            stopSelf()
         }
-        return endTime
     }
 
     fun setStopServiceTimer(start: Boolean) {

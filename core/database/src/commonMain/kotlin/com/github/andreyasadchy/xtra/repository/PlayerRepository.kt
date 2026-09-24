@@ -21,8 +21,11 @@ import com.github.andreyasadchy.xtra.model.misc.FFZResponse
 import com.github.andreyasadchy.xtra.model.misc.RecentMessagesResponse
 import com.github.andreyasadchy.xtra.model.misc.STVChannelResponse
 import com.github.andreyasadchy.xtra.model.misc.STVEmoteSetResponse
+import com.github.andreyasadchy.xtra.model.ui.Video
 import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.TwitchImageUrls
+import com.github.andreyasadchy.xtra.util.m3u8.AdDetector
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -289,30 +292,91 @@ class PlayerRepository(
         }
     }
 
+    suspend fun loadVideoInfo(gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, videoId: String?, enableIntegrity: Boolean): Video? = withContext(Dispatchers.IO) {
+        val video = try {
+            val response = graphQLRepository.loadQueryVideo(
+                headers = gqlHeaders,
+                id = videoId
+            )
+            if (enableIntegrity) {
+                response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
+                    throw Exception(it.message)
+                }
+            }
+            response.data!!.let { item ->
+                item.video?.let {
+                    Video(
+                        id = videoId,
+                        channelId = it.owner?.id,
+                        channelLogin = it.owner?.login,
+                        channelName = it.owner?.displayName,
+                        channelImageURL = it.owner?.profileImageURL,
+                        gameId = it.game?.id,
+                        gameSlug = it.game?.slug,
+                        gameName = it.game?.displayName,
+                        title = it.title,
+                        thumbnailURL = it.previewThumbnailURL,
+                        createdAt = it.createdAt?.toString(),
+                        durationSeconds = it.lengthSeconds,
+                        type = it.broadcastType?.toString(),
+                        animatedPreviewURL = it.animatedPreviewURL,
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            if (e.message == C.FAILED_INTEGRITY_CHECK) {
+                throw e
+            }
+            if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
+                try {
+                    helixRepository.getVideos(
+                        headers = helixHeaders,
+                        ids = videoId?.let { listOf(it) }
+                    ).data.firstOrNull()?.let {
+                        Video(
+                            id = it.id,
+                            channelId = it.channelId,
+                            channelLogin = it.channelLogin,
+                            channelName = it.channelName,
+                            title = it.title,
+                            thumbnailURL = it.thumbnailURL,
+                            createdAt = it.createdAt,
+                            viewCount = it.viewCount,
+                            durationSeconds = it.duration?.let { duration -> TwitchImageUrls.getDuration(duration) },
+                        )
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+            } else null
+        }
+        video
+    }
+
     suspend fun checkForAds(url: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val playlist = PlaylistUtils.parseMediaPlaylist(httpGet(url))
-            playlist.segments.lastOrNull()?.let { segment ->
-                segment.title == "Amazon"
-                        || segment.title == "Adform"
-                        || segment.title == "DCM"
-                        ||
-                        segment.programDateTime?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }?.let { segmentStartTime ->
-                            playlist.dateRanges.find { dateRange ->
-                                (dateRange.id.startsWith("stitched-ad-")
-                                        || dateRange.rangeClass == "twitch-stitched-ad"
-                                        || dateRange.ad)
-                                        &&
-                                        dateRange.startDate.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }?.let { startTime ->
-                                            (dateRange.endDate?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }
-                                                ?: dateRange.duration?.let { startTime + (it * 1000f).toLong() }
-                                                ?: dateRange.plannedDuration?.let { startTime + (it * 1000f).toLong() })?.let { endTime ->
-                                                segmentStartTime in startTime..<endTime
-                                            } == true
-                                        } == true
-                            } != null
-                        } == true
-            } == true
+            val segment = playlist.segments.lastOrNull() ?: return@withContext false
+            AdDetector.isAd(
+                segment = AdDetector.AdSegment(
+                    title = segment.title,
+                    startTimeMs = segment.programDateTime?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } },
+                ),
+                ranges = playlist.dateRanges.map { dateRange ->
+                    val startTime = Instant.parseOrNull(dateRange.startDate)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }
+                    AdDetector.AdRange(
+                        id = dateRange.id,
+                        rangeClass = dateRange.rangeClass,
+                        ad = dateRange.ad,
+                        startTimeMs = startTime,
+                        endTimeMs = startTime?.let { start ->
+                            dateRange.endDate?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }
+                                ?: dateRange.duration?.let { start + (it * 1000f).toLong() }
+                                ?: dateRange.plannedDuration?.let { start + (it * 1000f).toLong() }
+                        },
+                    )
+                },
+            )
         } catch (e: Exception) {
             false
         }

@@ -62,6 +62,35 @@ object VideoQualityUtils {
             add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY))
         }
 
+    /**
+     * Picks the index (within the video track group) that best matches [quality].
+     * Returns 0 when the quality has no resolution or no track matches, mirroring
+     * the previous inline selection in the playback service.
+     */
+    fun selectTrackIndex(quality: VideoQuality, tracks: List<TrackInfo>): Int {
+        val qualityResolution = quality.resolution ?: return 0
+        val qualityBitrate = quality.bitrate
+        val sorted = tracks.sortedWith(
+            compareByDescending<TrackInfo> { it.bitrate }
+                .thenByDescending { it.frameRate }
+                .thenByDescending { it.height }
+        )
+        return sorted.find {
+            (qualityResolution == it.height
+                    && (quality.frameRate?.let { fps -> floor(fps) } ?: 30f) >= floor(it.frameRate)
+                    && (qualityBitrate == null || qualityBitrate >= it.bitrate))
+                    || qualityResolution > it.height
+                    || it == sorted.last()
+        }?.index ?: 0
+    }
+
+    data class TrackInfo(
+        val index: Int,
+        val height: Int,
+        val frameRate: Float,
+        val bitrate: Int,
+    )
+
     fun findQuality(qualities: List<VideoQuality>?, targetQualityString: String?): VideoQuality? {
         val targetQuality = targetQualityString?.split("p")
         return targetQuality?.getOrNull(0)?.takeWhile { it.isDigit() }?.toIntOrNull()?.let { targetResolution ->
