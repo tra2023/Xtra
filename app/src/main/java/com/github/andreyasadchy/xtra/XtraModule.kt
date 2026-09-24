@@ -14,6 +14,7 @@ import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.repository.LocalGameFollowsRepository
 import com.github.andreyasadchy.xtra.repository.NotificationsRepository
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
+import com.github.andreyasadchy.xtra.repository.PlaybackPositionSaver
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.repository.RecentSearchesRepository
 import com.github.andreyasadchy.xtra.repository.SavedFiltersRepository
@@ -91,6 +92,10 @@ class XtraModule(application: Application) {
 
     val playerRepository by lazy {
         PlayerRepository(xtraHttpClient, json, "Xtra/" + BuildConfig.VERSION_NAME, database.recentEmotes(), database.videoSwap(), database.videoPositions(), database.playbackStates(), graphQLRepository, helixRepository)
+    }
+
+    val playbackPositionSaver by lazy {
+        PlaybackPositionSaver(playerRepository, offlineVideosRepository)
     }
 
     val recentSearchesRepository by lazy {

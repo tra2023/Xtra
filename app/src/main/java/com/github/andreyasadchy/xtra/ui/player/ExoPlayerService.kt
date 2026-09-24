@@ -52,17 +52,15 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.XtraApp
-import com.github.andreyasadchy.xtra.model.VideoPosition
 import com.github.andreyasadchy.xtra.model.VideoQuality
 import com.github.andreyasadchy.xtra.model.ui.Video
 import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.repository.getBytesOrNull
-import com.github.andreyasadchy.xtra.repository.getString
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.MediaButtonReceiver
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.VideoQualityUtils
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -77,7 +75,6 @@ import kotlin.concurrent.scheduleAtFixedRate
 import kotlin.math.floor
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Instant
 
 @OptIn(UnstableApi::class)
 class ExoPlayerService : BasePlaybackService() {
@@ -93,7 +90,6 @@ class ExoPlayerService : BasePlaybackService() {
     private var dynamicsProcessing: DynamicsProcessing? = null
     private var sleepTimer: Timer? = null
     private var sleepTimerEndTime = 0L
-    private var lastSavedPosition: Long? = null
     private var savePositionTimer: Timer? = null
     private var stopServiceTimer: Timer? = null
 
@@ -130,6 +126,7 @@ class ExoPlayerService : BasePlaybackService() {
     private fun create(restorePauseState: Boolean) {
         if (!created) {
             created = true
+            xtraModule.playbackPositionSaver.reset()
             showStreamNotificationSeekbar = prefs().getBoolean(C.PLAYER_SHOW_STREAM_NOTIFICATION_SEEKBAR, true)
             val playerListener = object : Player.Listener {
                 override fun onAudioSessionIdChanged(audioSessionId: Int) {
@@ -182,25 +179,7 @@ class ExoPlayerService : BasePlaybackService() {
                             } else null
                         }
                         if (!list.isNullOrEmpty()) {
-                            qualities = list
-                                .sortedWith(
-                                    compareByDescending<VideoQuality> { it.bitrate }
-                                        .thenByDescending { it.frameRate }
-                                        .thenByDescending { it.resolution }
-                                )
-                                .toMutableList().apply {
-                                    add(0, VideoQuality(VideoQuality.AUTO_QUALITY))
-                                    find { it.name.equals("source", true) }?.let { source ->
-                                        remove(source)
-                                        add(1, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
-                                    }
-                                    val audio = find { it.name?.startsWith("audio", true) == true }
-                                    audio?.let { remove(it) }
-                                    add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio?.resolution, audio?.frameRate, audio?.bitrate, audio?.codecs, audio?.url))
-                                    if (type == STREAM) {
-                                        add(VideoQuality(VideoQuality.CHAT_ONLY_QUALITY))
-                                    }
-                                }
+                            qualities = VideoQualityUtils.buildQualities(list, addAuto = true, addChatOnly = type == STREAM)
                             setDefaultQuality()
                             serviceListener?.changePlayerMode()
                             if (quality?.name == VideoQuality.AUDIO_ONLY_QUALITY) {
@@ -251,7 +230,7 @@ class ExoPlayerService : BasePlaybackService() {
                                                 checkPlaylistJob = lifecycleScope.launch {
                                                     for (i in 0 until 60) {
                                                         delay(2.seconds)
-                                                        if (!checkPlaylist(playlist)) {
+                                                        if (!xtraModule.playerRepository.checkForAds(playlist)) {
                                                             break
                                                         }
                                                     }
@@ -288,7 +267,7 @@ class ExoPlayerService : BasePlaybackService() {
                                                         checkPlaylistJob = lifecycleScope.launch {
                                                             for (i in 0 until 60) {
                                                                 delay(2.seconds)
-                                                                if (!checkPlaylist(playlist)) {
+                                                                if (!xtraModule.playerRepository.checkForAds(playlist)) {
                                                                     break
                                                                 }
                                                             }
@@ -575,21 +554,7 @@ class ExoPlayerService : BasePlaybackService() {
                         }
                     } else {
                         qualities?.let { list ->
-                            qualities = list
-                                .sortedWith(
-                                    compareByDescending<VideoQuality> { it.bitrate }
-                                        .thenByDescending { it.frameRate }
-                                        .thenByDescending { it.resolution }
-                                )
-                                .toMutableList().apply {
-                                    find { it.name.equals("source", true) }?.let { source ->
-                                        remove(source)
-                                        add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
-                                    }
-                                    val audio = find { it.name?.startsWith("audio", true) == true }
-                                    audio?.let { remove(it) }
-                                    add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio?.resolution, audio?.frameRate, audio?.bitrate, audio?.codecs, audio?.url))
-                                }
+                            qualities = VideoQualityUtils.buildQualities(list)
                             setDefaultQuality()
                             serviceListener?.changePlayerMode()
                             val url = quality?.url
@@ -870,20 +835,7 @@ class ExoPlayerService : BasePlaybackService() {
                 }
                 if (list != null) {
                     val supportedCodecs = prefs().getString(C.TOKEN_SUPPORTED_CODECS, "av1,h265,h264")?.split(',') ?: emptyList()
-                    val filtered = list.filterNot {
-                        it.codecs?.substringBefore('.').let { codec ->
-                            (codec == "av01" && !supportedCodecs.contains("av1")) || ((codec == "hev1" || codec == "hvc1") && !supportedCodecs.contains("h265"))
-                        }
-                    }
-                    qualities = filtered
-                        .sortedWith(
-                            compareByDescending<VideoQuality> { it.bitrate }
-                                .thenByDescending { it.frameRate }
-                                .thenByDescending { it.resolution }
-                        )
-                        .toMutableList().apply {
-                            add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY))
-                        }
+                    qualities = VideoQualityUtils.buildClipQualities(list, supportedCodecs)
                     setDefaultQuality()
                 }
             }
@@ -1067,35 +1019,6 @@ class ExoPlayerService : BasePlaybackService() {
                     .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
                     .build()
             }
-        }
-    }
-
-    suspend fun checkPlaylist(url: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val playlist = PlaylistUtils.parseMediaPlaylist(xtraModule.xtraHttpClient.getString(url))
-            playlist.segments.lastOrNull()?.let { segment ->
-                segment.title == "Amazon"
-                        || segment.title == "Adform"
-                        || segment.title == "DCM"
-                        ||
-                        segment.programDateTime?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }?.let { segmentStartTime ->
-                            playlist.dateRanges.find { dateRange ->
-                                (dateRange.id.startsWith("stitched-ad-")
-                                        || dateRange.rangeClass == "twitch-stitched-ad"
-                                        || dateRange.ad)
-                                        &&
-                                        dateRange.startDate.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }?.let { startTime ->
-                                            (dateRange.endDate?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }
-                                                ?: dateRange.duration?.let { startTime + (it * 1000f).toLong() }
-                                                ?: dateRange.plannedDuration?.let { startTime + (it * 1000f).toLong() })?.let { endTime ->
-                                                segmentStartTime in startTime..<endTime
-                                            } == true
-                                        } == true
-                            } != null
-                        } == true
-            } == true
-        } catch (e: Exception) {
-            false
         }
     }
 
@@ -1516,21 +1439,8 @@ class ExoPlayerService : BasePlaybackService() {
         player?.let { player ->
             if (!player.currentTracks.isEmpty) {
                 if (prefs().getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true)) {
-                    when (type) {
-                        VIDEO -> {
-                            videoId?.toLongOrNull()?.let {
-                                runBlocking {
-                                    xtraModule.playerRepository.saveVideoPosition(VideoPosition(it, player.currentPosition))
-                                }
-                            }
-                        }
-                        OFFLINE_VIDEO -> {
-                            offlineVideoId?.let {
-                                runBlocking {
-                                    xtraModule.offlineVideosRepository.updatePosition(it, player.currentPosition)
-                                }
-                            }
-                        }
+                    runBlocking {
+                        xtraModule.playbackPositionSaver.save(type, videoId, offlineVideoId, player.currentPosition)
                     }
                 }
                 runBlocking {
@@ -1544,27 +1454,16 @@ class ExoPlayerService : BasePlaybackService() {
         player?.let { player ->
             if (!player.currentTracks.isEmpty) {
                 val currentPosition = player.currentPosition
-                val savedPosition = lastSavedPosition
-                if (savedPosition == null || currentPosition - savedPosition !in 0..2000) {
-                    lastSavedPosition = currentPosition
-                    if (prefs().getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true)) {
-                        when (type) {
-                            VIDEO -> {
-                                videoId?.toLongOrNull()?.let {
-                                    runBlocking {
-                                        xtraModule.playerRepository.saveVideoPosition(VideoPosition(it, currentPosition))
-                                    }
-                                }
-                            }
-                            OFFLINE_VIDEO -> {
-                                offlineVideoId?.let {
-                                    runBlocking {
-                                        xtraModule.offlineVideosRepository.updatePosition(it, currentPosition)
-                                    }
-                                }
-                            }
-                        }
-                    }
+                val changed = runBlocking {
+                    xtraModule.playbackPositionSaver.saveIfChanged(
+                        type = type,
+                        videoId = videoId,
+                        offlineVideoId = offlineVideoId,
+                        position = currentPosition,
+                        persistPosition = prefs().getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true),
+                    )
+                }
+                if (changed) {
                     runBlocking {
                         savePlaybackState(currentPosition, !player.playWhenReady)
                     }

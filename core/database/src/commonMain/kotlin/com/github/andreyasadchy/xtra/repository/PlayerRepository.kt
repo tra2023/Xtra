@@ -23,6 +23,7 @@ import com.github.andreyasadchy.xtra.model.misc.STVChannelResponse
 import com.github.andreyasadchy.xtra.model.misc.STVEmoteSetResponse
 import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -39,6 +40,7 @@ import kotlinx.serialization.json.putJsonObject
 import kotlin.io.encoding.Base64
 import kotlin.math.roundToInt
 import kotlin.random.Random
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class PlayerRepository(
@@ -284,6 +286,35 @@ class PlayerRepository(
                     } else null
                 }
             }
+        }
+    }
+
+    suspend fun checkForAds(url: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val playlist = PlaylistUtils.parseMediaPlaylist(httpGet(url))
+            playlist.segments.lastOrNull()?.let { segment ->
+                segment.title == "Amazon"
+                        || segment.title == "Adform"
+                        || segment.title == "DCM"
+                        ||
+                        segment.programDateTime?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }?.let { segmentStartTime ->
+                            playlist.dateRanges.find { dateRange ->
+                                (dateRange.id.startsWith("stitched-ad-")
+                                        || dateRange.rangeClass == "twitch-stitched-ad"
+                                        || dateRange.ad)
+                                        &&
+                                        dateRange.startDate.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }?.let { startTime ->
+                                            (dateRange.endDate?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }
+                                                ?: dateRange.duration?.let { startTime + (it * 1000f).toLong() }
+                                                ?: dateRange.plannedDuration?.let { startTime + (it * 1000f).toLong() })?.let { endTime ->
+                                                segmentStartTime in startTime..<endTime
+                                            } == true
+                                        } == true
+                            } != null
+                        } == true
+            } == true
+        } catch (e: Exception) {
+            false
         }
     }
 

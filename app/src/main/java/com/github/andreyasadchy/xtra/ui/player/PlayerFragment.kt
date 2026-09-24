@@ -72,6 +72,7 @@ import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.player.PlayerViewModel.Companion.PlayerViewModelFactory
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.VideoQualityUtils
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.isKeyboardShown
 import com.github.andreyasadchy.xtra.util.prefs
@@ -2098,11 +2099,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             mutableListOf<VideoQuality>().apply {
                 playbackService?.qualities?.filter { !it.url.isNullOrBlank() }?.let { addAll(it) }
                 addAll(unavailableQualities)
-                sortWith(
-                    compareByDescending<VideoQuality> { it.bitrate }
-                        .thenByDescending { it.frameRate }
-                        .thenByDescending { it.resolution }
-                )
+                VideoQualityUtils.sortQualitiesInPlace(this)
                 val audio = find { it.name?.startsWith("audio", true) == true }
                 audio?.let {
                     remove(it)

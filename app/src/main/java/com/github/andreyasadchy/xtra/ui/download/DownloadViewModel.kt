@@ -14,6 +14,7 @@ import com.github.andreyasadchy.xtra.repository.XtraHttpClient
 import com.github.andreyasadchy.xtra.repository.getStringOrNull
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.VideoQualityUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,22 +79,7 @@ class DownloadViewModel(
                                 VideoQuality(it, url = "")
                             }
                         }
-                        _qualities.value = list
-                            .sortedWith(
-                                compareByDescending<VideoQuality> { it.bitrate }
-                                    .thenByDescending { it.frameRate }
-                                    .thenByDescending { it.resolution }
-                            )
-                            .toMutableList().apply {
-                                find { it.name.equals("source", true) }?.let { source ->
-                                    remove(source)
-                                    add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
-                                }
-                                find { it.name?.startsWith("audio", true) == true }?.let { audio ->
-                                    remove(audio)
-                                    add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio.resolution, audio.frameRate, audio.bitrate, audio.codecs, audio.url))
-                                }
-                            }
+                        _qualities.value = VideoQualityUtils.buildQualities(list, alwaysAddAudioOnly = false)
                     } catch (e: Exception) {
                         if (e.message == C.FAILED_INTEGRITY_CHECK) {
                             integrity.emit("stream")
@@ -210,22 +196,7 @@ class DownloadViewModel(
                                     VideoQuality(variantId, resolutions.getOrNull(index)?.substringAfter('x')?.toIntOrNull(), frameRates.getOrNull(index), bitrates.getOrNull(index), codecs.getOrNull(index), url)
                                 }
                             }
-                            _qualities.value = list
-                                .sortedWith(
-                                    compareByDescending<VideoQuality> { it.bitrate }
-                                        .thenByDescending { it.frameRate }
-                                        .thenByDescending { it.resolution }
-                                )
-                                .toMutableList().apply {
-                                    find { it.name.equals("source", true) }?.let { source ->
-                                        remove(source)
-                                        add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
-                                    }
-                                    find { it.name?.startsWith("audio", true) == true }?.let { audio ->
-                                        remove(audio)
-                                        add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio.resolution, audio.frameRate, audio.bitrate, audio.codecs, audio.url))
-                                    }
-                                }
+                            _qualities.value = VideoQualityUtils.buildQualities(list, alwaysAddAudioOnly = false)
                         } else {
                             if (!animatedPreviewUrl.isNullOrBlank()) {
                                 val list = (backupQualities ?: TwitchApiHelper.defaultQualityList).map { quality ->
@@ -249,22 +220,7 @@ class DownloadViewModel(
                                     }
                                     VideoQuality(name, resolution, frameRate.toFloat(), url = url)
                                 }
-                                _qualities.value = list
-                                    .sortedWith(
-                                        compareByDescending<VideoQuality> { it.bitrate }
-                                            .thenByDescending { it.frameRate }
-                                            .thenByDescending { it.resolution }
-                                    )
-                                    .toMutableList().apply {
-                                        find { it.name.equals("source", true) }?.let { source ->
-                                            remove(source)
-                                            add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
-                                        }
-                                        find { it.name?.startsWith("audio", true) == true }?.let { audio ->
-                                            remove(audio)
-                                            add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio.resolution, audio.frameRate, audio.bitrate, audio.codecs, audio.url))
-                                        }
-                                    }
+                                _qualities.value = VideoQualityUtils.buildQualities(list, alwaysAddAudioOnly = false)
                             } else {
                                 throw IllegalAccessException()
                             }
@@ -291,12 +247,7 @@ class DownloadViewModel(
                     try {
                         val list = playerRepository.loadClipQualities(gqlHeaders, clipId, enableIntegrity)
                         if (list != null) {
-                            _qualities.value = list
-                                .sortedWith(
-                                    compareByDescending<VideoQuality> { it.bitrate }
-                                        .thenByDescending { it.frameRate }
-                                        .thenByDescending { it.resolution }
-                                )
+                            _qualities.value = VideoQualityUtils.sortQualities(list)
                         }
                     } catch (e: Exception) {
                         if (e.message == C.FAILED_INTEGRITY_CHECK) {

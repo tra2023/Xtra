@@ -5,15 +5,16 @@ import android.net.NetworkCapabilities
 import androidx.lifecycle.LifecycleService
 import com.github.andreyasadchy.xtra.XtraModule
 import com.github.andreyasadchy.xtra.model.PlaybackState
+import com.github.andreyasadchy.xtra.model.PlaybackType
 import com.github.andreyasadchy.xtra.model.VideoQuality
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.VideoQualityUtils
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
-import kotlin.math.floor
 
 abstract class BasePlaybackService : LifecycleService() {
 
@@ -143,49 +144,19 @@ abstract class BasePlaybackService : LifecycleService() {
         val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
         val cellular = networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
-        val defaultQuality = if (cellular) {
-            prefs().getString(C.PLAYER_DEFAULT_CELLULAR_QUALITY, "saved")
-        } else {
-            prefs().getString(C.PLAYER_DEFAULT_QUALITY, "saved")
-        }?.substringBefore(" ")
-        quality = when (defaultQuality) {
-            "saved" -> {
-                val savedQuality = prefs().getString(C.PLAYER_QUALITY, "720p60")?.substringBefore(" ")
-                when (savedQuality) {
-                    VideoQuality.AUTO_QUALITY -> qualities?.find { it.name == VideoQuality.AUTO_QUALITY }
-                    VideoQuality.AUDIO_ONLY_QUALITY -> qualities?.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY }
-                    VideoQuality.CHAT_ONLY_QUALITY -> qualities?.find { it.name == VideoQuality.CHAT_ONLY_QUALITY }
-                    else -> findQuality(savedQuality)
-                }
-            }
-            VideoQuality.AUTO_QUALITY -> qualities?.find { it.name == VideoQuality.AUTO_QUALITY }
-            "Source" -> qualities?.find { it.name != VideoQuality.AUTO_QUALITY }
-            VideoQuality.AUDIO_ONLY_QUALITY -> qualities?.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY }
-            VideoQuality.CHAT_ONLY_QUALITY -> qualities?.find { it.name == VideoQuality.CHAT_ONLY_QUALITY }
-            else -> findQuality(defaultQuality)
-        } ?: qualities?.firstOrNull()
-    }
-
-    private fun findQuality(targetQualityString: String?): VideoQuality? {
-        val targetQuality = targetQualityString?.split("p")
-        return targetQuality?.getOrNull(0)?.takeWhile { it.isDigit() }?.toIntOrNull()?.let { targetResolution ->
-            val targetFps = targetQuality.getOrNull(1)?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 30
-            val last = qualities?.lastOrNull { it.name != VideoQuality.AUDIO_ONLY_QUALITY && it.name != VideoQuality.CHAT_ONLY_QUALITY }
-            qualities?.find { quality ->
-                val qualityResolution = quality.resolution
-                qualityResolution != null
-                        && ((targetResolution == qualityResolution
-                        && targetFps >= (quality.frameRate?.let { fps -> floor(fps) } ?: 30f))
-                        || targetResolution > qualityResolution
-                        || quality == last)
-            }
-        }
+        quality = VideoQualityUtils.selectDefaultQuality(
+            qualities = qualities,
+            cellular = cellular,
+            defaultCellularQuality = prefs().getString(C.PLAYER_DEFAULT_CELLULAR_QUALITY, "saved"),
+            defaultQuality = prefs().getString(C.PLAYER_DEFAULT_QUALITY, "saved"),
+            savedQuality = prefs().getString(C.PLAYER_QUALITY, "720p60"),
+        )
     }
 
     companion object {
-        const val STREAM = "stream"
-        const val VIDEO = "video"
-        const val CLIP = "clip"
-        const val OFFLINE_VIDEO = "offlineVideo"
+        const val STREAM = PlaybackType.STREAM
+        const val VIDEO = PlaybackType.VIDEO
+        const val CLIP = PlaybackType.CLIP
+        const val OFFLINE_VIDEO = PlaybackType.OFFLINE_VIDEO
     }
 }

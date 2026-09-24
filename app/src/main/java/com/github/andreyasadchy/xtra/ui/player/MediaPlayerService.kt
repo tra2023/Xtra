@@ -38,12 +38,13 @@ import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.VideoPosition
 import com.github.andreyasadchy.xtra.model.VideoQuality
 import com.github.andreyasadchy.xtra.model.ui.Video
-import com.github.andreyasadchy.xtra.ui.main.MainActivity
-import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.repository.XtraHttpRequest
 import com.github.andreyasadchy.xtra.repository.getBytesOrNull
+import com.github.andreyasadchy.xtra.ui.main.MainActivity
+import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.MediaButtonReceiver
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.VideoQualityUtils
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -338,21 +339,7 @@ class MediaPlayerService : BasePlaybackService() {
                         }
                     } else {
                         qualities?.let { list ->
-                            qualities = list
-                                .sortedWith(
-                                    compareByDescending<VideoQuality> { it.bitrate }
-                                        .thenByDescending { it.frameRate }
-                                        .thenByDescending { it.resolution }
-                                )
-                                .toMutableList().apply {
-                                    find { it.name.equals("source", true) }?.let { source ->
-                                        remove(source)
-                                        add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
-                                    }
-                                    val audio = find { it.name?.startsWith("audio", true) == true }
-                                    audio?.let { remove(it) }
-                                    add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio?.resolution, audio?.frameRate, audio?.bitrate, audio?.codecs, audio?.url))
-                                }
+                            qualities = VideoQualityUtils.buildQualities(list)
                             setDefaultQuality()
                             serviceListener?.changePlayerMode()
                             val url = quality?.url
@@ -477,22 +464,7 @@ class MediaPlayerService : BasePlaybackService() {
                                 VideoQuality(variantId, resolutions.getOrNull(index)?.substringAfter('x')?.toIntOrNull(), frameRates.getOrNull(index), bitrates.getOrNull(index), codecs.getOrNull(index), url)
                             }
                         }
-                        qualities = list
-                            .sortedWith(
-                                compareByDescending<VideoQuality> { it.bitrate }
-                                    .thenByDescending { it.frameRate }
-                                    .thenByDescending { it.resolution }
-                            )
-                            .toMutableList().apply {
-                                find { it.name.equals("source", true) }?.let { source ->
-                                    remove(source)
-                                    add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
-                                }
-                                val audio = find { it.name?.startsWith("audio", true) == true }
-                                audio?.let { remove(it) }
-                                add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio?.resolution, audio?.frameRate, audio?.bitrate, audio?.codecs, audio?.url))
-                                add(VideoQuality(VideoQuality.CHAT_ONLY_QUALITY))
-                            }
+                        qualities = VideoQualityUtils.buildQualities(list, addChatOnly = true)
                         setDefaultQuality()
                         serviceListener?.changePlayerMode()
                         quality?.url?.let { url ->
@@ -608,21 +580,7 @@ class MediaPlayerService : BasePlaybackService() {
                                             }
                                             VideoQuality(name, resolution, frameRate.toFloat(), url = url)
                                         }
-                                        qualities = list
-                                            .sortedWith(
-                                                compareByDescending<VideoQuality> { it.bitrate }
-                                                    .thenByDescending { it.frameRate }
-                                                    .thenByDescending { it.resolution }
-                                            )
-                                            .toMutableList().apply {
-                                                find { it.name.equals("source", true) }?.let { source ->
-                                                    remove(source)
-                                                    add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
-                                                }
-                                                val audio = find { it.name?.startsWith("audio", true) == true }
-                                                audio?.let { remove(it) }
-                                                add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio?.resolution, audio?.frameRate, audio?.bitrate, audio?.codecs, audio?.url))
-                                            }
+                                        qualities = VideoQualityUtils.buildQualities(list)
                                         if (backupQualities != null) {
                                             setDefaultQuality()
                                         } else {
@@ -749,21 +707,7 @@ class MediaPlayerService : BasePlaybackService() {
                                 VideoQuality(newVariantId, resolutions.getOrNull(index)?.substringAfter('x')?.toIntOrNull(), frameRates.getOrNull(index), bitrates.getOrNull(index), codecs.getOrNull(index), url)
                             }
                         }
-                        qualities = list
-                            .sortedWith(
-                                compareByDescending<VideoQuality> { it.bitrate }
-                                    .thenByDescending { it.frameRate }
-                                    .thenByDescending { it.resolution }
-                            )
-                            .toMutableList().apply {
-                                find { it.name.equals("source", true) }?.let { source ->
-                                    remove(source)
-                                    add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
-                                }
-                                val audio = find { it.name?.startsWith("audio", true) == true }
-                                audio?.let { remove(it) }
-                                add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio?.resolution, audio?.frameRate, audio?.bitrate, audio?.codecs, audio?.url))
-                            }
+                        qualities = VideoQualityUtils.buildQualities(list)
                         setDefaultQuality()
                         serviceListener?.changePlayerMode()
                         quality?.url?.let { url ->
@@ -881,20 +825,7 @@ class MediaPlayerService : BasePlaybackService() {
                 }
                 if (list != null) {
                     val supportedCodecs = prefs().getString(C.TOKEN_SUPPORTED_CODECS, "av1,h265,h264")?.split(',') ?: emptyList()
-                    val filtered = list.filterNot {
-                        it.codecs?.substringBefore('.').let { codec ->
-                            (codec == "av01" && !supportedCodecs.contains("av1")) || ((codec == "hev1" || codec == "hvc1") && !supportedCodecs.contains("h265"))
-                        }
-                    }
-                    qualities = filtered
-                        .sortedWith(
-                            compareByDescending<VideoQuality> { it.bitrate }
-                                .thenByDescending { it.frameRate }
-                                .thenByDescending { it.resolution }
-                        )
-                        .toMutableList().apply {
-                            add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY))
-                        }
+                    qualities = VideoQualityUtils.buildClipQualities(list, supportedCodecs)
                     setDefaultQuality()
                 }
             }

@@ -38,11 +38,10 @@ import com.github.andreyasadchy.xtra.repository.getStringOrNull
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.VideoQualityUtils
 import com.github.andreyasadchy.xtra.util.chat.ChatReadWebSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatUtils
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
-import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
-import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -65,7 +64,6 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.math.floor
 import kotlin.math.max
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -205,23 +203,7 @@ class StreamDownloadService : LifecycleService() {
                         val audio = if (quality.startsWith("audio", true)) {
                             qualities.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY }
                         } else null
-                        if (audio != null) {
-                            audio
-                        } else {
-                            val targetQuality = quality.split("p")
-                            targetQuality.getOrNull(0)?.takeWhile { it.isDigit() }?.toIntOrNull()?.let { targetResolution ->
-                                val targetFps = targetQuality.getOrNull(1)?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 30
-                                val last = qualities.lastOrNull { it.name != VideoQuality.AUDIO_ONLY_QUALITY }
-                                qualities.find { quality ->
-                                    val qualityResolution = quality.resolution
-                                    qualityResolution != null
-                                            && ((targetResolution == qualityResolution
-                                            && targetFps >= (quality.frameRate?.let { fps -> floor(fps) } ?: 30f))
-                                            || targetResolution > qualityResolution
-                                            || quality == last)
-                                }
-                            } ?: qualities.first()
-                        }
+                        audio ?: VideoQualityUtils.findQuality(qualities, quality) ?: qualities.first()
                     } else qualities.first()
                     xtraModule.offlineVideosRepository.update(offlineVideo.apply {
                         status = OfflineVideo.STATUS_DOWNLOADING
@@ -360,22 +342,7 @@ class StreamDownloadService : LifecycleService() {
                 VideoQuality(variantId, resolutions.getOrNull(index)?.substringAfter('x')?.toIntOrNull(), frameRates.getOrNull(index), bitrates.getOrNull(index), codecs.getOrNull(index), url)
             }
         }
-        list
-            .sortedWith(
-                compareByDescending<VideoQuality> { it.bitrate }
-                    .thenByDescending { it.frameRate }
-                    .thenByDescending { it.resolution }
-            )
-            .toMutableList().apply {
-                find { it.name.equals("source", true) }?.let { source ->
-                    remove(source)
-                    add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
-                }
-                find { it.name?.startsWith("audio", true) == true }?.let { audio ->
-                    remove(audio)
-                    add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio.resolution, audio.frameRate, audio.bitrate, audio.codecs, audio.url))
-                }
-            }
+        VideoQualityUtils.buildQualities(list, alwaysAddAudioOnly = false)
     }
 
     private suspend fun download(offlineVideo: OfflineVideo, downloadProgress: DownloadProgress, downloadJob: DownloadJob, channelLogin: String, sourceUrl: String, path: String) = withContext(Dispatchers.IO) {
