@@ -9,18 +9,14 @@ import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.Bookmark
 import com.github.andreyasadchy.xtra.model.ui.BookmarkIgnoredUser
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
-import com.github.andreyasadchy.xtra.model.ui.User
-import com.github.andreyasadchy.xtra.model.ui.Video
 import com.github.andreyasadchy.xtra.repository.BookmarksRepository
 import com.github.andreyasadchy.xtra.repository.ChannelSortRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
-import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.repository.XtraHttpClient
 import com.github.andreyasadchy.xtra.repository.getBytesOrNull
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import kotlinx.coroutines.Dispatchers
+import com.github.andreyasadchy.xtra.repository.saved.BookmarksRefreshController
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,20 +25,38 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 class BookmarksViewModel(
-    private val graphQLRepository: GraphQLRepository,
-    private val helixRepository: HelixRepository,
+    graphQLRepository: GraphQLRepository,
+    helixRepository: HelixRepository,
     private val bookmarksRepository: BookmarksRepository,
     private val channelSortRepository: ChannelSortRepository,
     playerRepository: PlayerRepository,
-    private val xtraHttpClient: XtraHttpClient,
+    xtraHttpClient: XtraHttpClient,
 ) : ViewModel() {
 
     val integrity = MutableSharedFlow<String?>()
 
     val positions = playerRepository.loadVideoPositions()
     val ignoredUsers = bookmarksRepository.getIgnoredUsersFlow()
-    private var updatedUsers = false
-    private var updatedVideos = false
+
+    private val refreshController = BookmarksRefreshController(
+        scope = viewModelScope,
+        graphQLRepository = graphQLRepository,
+        helixRepository = helixRepository,
+        bookmarksRepository = bookmarksRepository,
+        thumbnailPath = { filesDir, id ->
+            File(filesDir, "thumbnails").mkdir()
+            filesDir + File.separator + "thumbnails" + File.separator + id
+        },
+        writeThumbnail = { path, url ->
+            try {
+                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
+            } catch (e: Exception) {
+            }
+        },
+        onIntegrityFailed = { callback ->
+            viewModelScope.launch { integrity.emit(callback) }
+        },
+    )
 
     val filter = MutableStateFlow<Filter?>(null)
     val sortText = MutableStateFlow<CharSequence?>(null)
@@ -74,244 +88,15 @@ class BookmarksViewModel(
     }
 
     fun updateUsers(gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
-        if (!updatedUsers) {
-            viewModelScope.launch {
-                val bookmarks = bookmarksRepository.getAll()
-                val ignored = bookmarksRepository.getIgnoredUsers()
-                bookmarks.mapNotNull { bookmark ->
-                    bookmark.userId?.takeIf { ignored.find { it.userId == bookmark.userId } == null }
-                }.chunked(100).forEach { ids ->
-                    try {
-                        val response = graphQLRepository.loadQueryUsersType(gqlHeaders, ids)
-                        if (enableIntegrity) {
-                            response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
-                                integrity.emit("users")
-                                return@launch
-                            }
-                        }
-                        response.data!!.users?.mapNotNull {
-                            if (it != null) {
-                                User(
-                                    id = it.id,
-                                    broadcasterType = when {
-                                        it.roles?.isPartner == true -> "partner"
-                                        it.roles?.isAffiliate == true -> "affiliate"
-                                        else -> null
-                                    },
-                                    type = when {
-                                        it.roles?.isStaff == true -> "staff"
-                                        else -> null
-                                    },
-                                )
-                            } else null
-                        }
-                    } catch (e: Exception) {
-                        if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            try {
-                                helixRepository.getUsers(
-                                    headers = helixHeaders,
-                                    ids = ids,
-                                ).data.map {
-                                    User(
-                                        id = it.id,
-                                        login = it.login,
-                                        name = it.displayName,
-                                        profileImageURL = it.profileImageURL,
-                                        type = it.type,
-                                        broadcasterType = it.broadcasterType,
-                                        createdAt = it.createdAt,
-                                    )
-                                }
-                            } catch (e: Exception) {
-                                null
-                            }
-                        } else null
-                    }?.forEach { user ->
-                        user.id?.let { id ->
-                            bookmarks.filter { it.userId == id }
-                        }?.forEach { bookmark ->
-                            if (user.type != bookmark.userType || user.broadcasterType != bookmark.userBroadcasterType) {
-                                bookmarksRepository.update(bookmark.apply {
-                                    userType = user.type
-                                    userBroadcasterType = user.broadcasterType
-                                })
-                            }
-                        }
-                    }
-                }
-                updatedUsers = true
-            }
-        }
+        refreshController.updateUsers(gqlHeaders, helixHeaders, enableIntegrity)
     }
 
     fun updateVideo(filesDir: String, videoId: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>, enableIntegrity: Boolean) {
-        viewModelScope.launch {
-            if (!videoId.isNullOrBlank()) {
-                val video = try {
-                    val response = graphQLRepository.loadQueryVideo(gqlHeaders, videoId)
-                    if (enableIntegrity) {
-                        response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
-                            integrity.emit("video")
-                            return@launch
-                        }
-                    }
-                    response.data!!.let { item ->
-                        item.video?.let {
-                            Video(
-                                id = videoId,
-                                channelId = it.owner?.id,
-                                channelLogin = it.owner?.login,
-                                channelName = it.owner?.displayName,
-                                channelImageURL = it.owner?.profileImageURL,
-                                title = it.title,
-                                thumbnailURL = it.previewThumbnailURL,
-                                createdAt = it.createdAt?.toString(),
-                                durationSeconds = it.lengthSeconds,
-                                type = it.broadcastType?.toString(),
-                                animatedPreviewURL = it.animatedPreviewURL,
-                            )
-                        }
-                    }
-                } catch (e: Exception) {
-                    if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                        try {
-                            helixRepository.getVideos(
-                                headers = helixHeaders,
-                                ids = listOf(videoId),
-                            ).data.firstOrNull()?.let {
-                                Video(
-                                    id = it.id,
-                                    channelId = it.channelId,
-                                    channelLogin = it.channelLogin,
-                                    channelName = it.channelName,
-                                    title = it.title,
-                                    thumbnailURL = it.thumbnailURL,
-                                    createdAt = it.createdAt,
-                                    viewCount = it.viewCount,
-                                    durationSeconds = it.duration?.let { duration -> TwitchApiHelper.getDuration(duration) },
-                                )
-                            }
-                        } catch (e: Exception) {
-                            null
-                        }
-                    } else null
-                }
-                val bookmark = bookmarksRepository.getByVideoId(videoId)
-                if (video != null && bookmark != null) {
-                    val downloadedThumbnail = video.id.takeIf { !it.isNullOrBlank() }?.let { id ->
-                        video.thumbnail.takeIf { !it.isNullOrBlank() }?.let { url ->
-                            File(filesDir, "thumbnails").mkdir()
-                            val path = filesDir + File.separator + "thumbnails" + File.separator + id
-                            viewModelScope.launch(Dispatchers.IO) {
-                                try {
-                                    xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
-                                } catch (e: Exception) {
-
-                                }
-                            }
-                            path
-                        }
-                    }
-                    bookmarksRepository.update(
-                        Bookmark(
-                            videoId = bookmark.videoId,
-                            userId = video.channelId ?: bookmark.userId,
-                            userLogin = video.channelLogin ?: bookmark.userLogin,
-                            userName = video.channelName ?: bookmark.userName,
-                            userType = bookmark.userType,
-                            userBroadcasterType = bookmark.userBroadcasterType,
-                            userLogo = bookmark.userLogo,
-                            gameId = video.gameId ?: bookmark.gameId,
-                            gameSlug = video.gameSlug ?: bookmark.gameSlug,
-                            gameName = video.gameName ?: bookmark.gameName,
-                            title = video.title ?: bookmark.title,
-                            createdAt = video.createdAt ?: bookmark.createdAt,
-                            thumbnail = downloadedThumbnail,
-                            type = video.type ?: bookmark.type,
-                            duration = video.durationSeconds?.toString() ?: bookmark.duration,
-                            animatedPreviewURL = video.animatedPreviewURL ?: bookmark.animatedPreviewURL
-                        )
-                    )
-                }
-            }
-        }
+        refreshController.updateVideo(filesDir, videoId, gqlHeaders, helixHeaders, enableIntegrity)
     }
 
     fun updateVideos(filesDir: String, helixHeaders: Map<String, String>) {
-        if (!updatedVideos) {
-            viewModelScope.launch {
-                val bookmarks = bookmarksRepository.getAll()
-                bookmarks.mapNotNull { it.videoId }.chunked(100).forEach { ids ->
-                    try {
-                        helixRepository.getVideos(
-                            headers = helixHeaders,
-                            ids = ids,
-                        ).data.map {
-                            Video(
-                                id = it.id,
-                                channelId = it.channelId,
-                                channelLogin = it.channelLogin,
-                                channelName = it.channelName,
-                                title = it.title,
-                                thumbnailURL = it.thumbnailURL,
-                                createdAt = it.createdAt,
-                                viewCount = it.viewCount,
-                                durationSeconds = it.duration?.let { duration -> TwitchApiHelper.getDuration(duration) },
-                            )
-                        }
-                    } catch (e: Exception) {
-                        null
-                    }?.forEach { video ->
-                        video.id.takeIf { !it.isNullOrBlank() }?.let { id ->
-                            bookmarks.find { it.videoId == id }
-                        }?.let { bookmark ->
-                            if (bookmark.userId != video.channelId ||
-                                bookmark.userLogin != video.channelLogin ||
-                                bookmark.userName != video.channelName ||
-                                bookmark.title != video.title ||
-                                bookmark.createdAt != video.createdAt ||
-                                bookmark.type != video.type ||
-                                bookmark.duration != video.durationSeconds?.toString()
-                            ) {
-                                val downloadedThumbnail = video.thumbnail.takeIf { !it.isNullOrBlank() }?.let { url ->
-                                    File(filesDir, "thumbnails").mkdir()
-                                    val path = filesDir + File.separator + "thumbnails" + File.separator + video.id
-                                    viewModelScope.launch(Dispatchers.IO) {
-                                        try {
-                                            xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
-                                        } catch (e: Exception) {
-
-                                        }
-                                    }
-                                    path
-                                }
-                                bookmarksRepository.update(
-                                    Bookmark(
-                                        videoId = bookmark.videoId,
-                                        userId = video.channelId ?: bookmark.userId,
-                                        userLogin = video.channelLogin ?: bookmark.userLogin,
-                                        userName = video.channelName ?: bookmark.userName,
-                                        userType = bookmark.userType,
-                                        userBroadcasterType = bookmark.userBroadcasterType,
-                                        userLogo = bookmark.userLogo,
-                                        gameId = bookmark.gameId,
-                                        gameSlug = bookmark.gameSlug,
-                                        gameName = bookmark.gameName,
-                                        title = video.title ?: bookmark.title,
-                                        createdAt = video.createdAt ?: bookmark.createdAt,
-                                        thumbnail = downloadedThumbnail,
-                                        type = video.type ?: bookmark.type,
-                                        duration = video.durationSeconds?.toString() ?: bookmark.duration,
-                                        animatedPreviewURL = video.animatedPreviewURL ?: bookmark.animatedPreviewURL
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-                updatedVideos = true
-            }
-        }
+        refreshController.updateVideos(filesDir, helixHeaders)
     }
 
     suspend fun getChannelSort(id: String): ChannelSort? {

@@ -8,8 +8,11 @@ import androidx.navigation.fragment.findNavController
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.repository.saved.DownloadProgressState
+import com.github.andreyasadchy.xtra.repository.saved.DownloadRowAction
 import com.github.andreyasadchy.xtra.repository.saved.downloadFraction
+import com.github.andreyasadchy.xtra.repository.saved.downloadRowActions
 import com.github.andreyasadchy.xtra.repository.saved.effectiveDownloadStatus
+import com.github.andreyasadchy.xtra.repository.saved.watchedFraction
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.downloads.DownloadListItem
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
@@ -53,21 +56,16 @@ class DownloadsAdapter(
         }
         val chatFraction = if (video.downloadChat && status == OfflineVideo.STATUS_DOWNLOADING && progress != null && !video.live) downloadFraction(progress.chatProgress, progress.maxChatProgress) else null
         val shared = video.url?.toUri()?.scheme == ContentResolver.SCHEME_CONTENT
-        val actions = buildList {
-            when (status) {
-                OfflineVideo.STATUS_DOWNLOADING, OfflineVideo.STATUS_QUEUED, OfflineVideo.STATUS_WAITING_FOR_NETWORK, OfflineVideo.STATUS_WAITING_FOR_WIFI, OfflineVideo.STATUS_WAITING_FOR_STREAM -> add(R.id.stopDownload to context.getString(R.string.stop_download))
-                OfflineVideo.STATUS_PENDING -> {
-                    if (video.live) add(R.id.stopDownload to context.getString(R.string.stop_download))
-                    add(R.id.resumeDownload to context.getString(R.string.resume_download))
-                }
-                else -> {
-                    add(R.id.moveVideo to context.getString(if (shared) R.string.move_to_app_storage else R.string.move_to_shared_storage))
-                    if (video.url?.endsWith(".m3u8") == true) add(R.id.convertVideo to context.getString(R.string.convert_vod_to_file))
-                    add(R.id.updateChatUrl to context.getString(R.string.change_chat_file))
-                    if (shared) add(R.id.shareVideo to context.getString(R.string.share))
-                }
+        val actions = downloadRowActions(status, video.live, shared, video.url?.endsWith(".m3u8") == true).map { action ->
+            when (action) {
+                DownloadRowAction.STOP -> R.id.stopDownload to context.getString(R.string.stop_download)
+                DownloadRowAction.RESUME -> R.id.resumeDownload to context.getString(R.string.resume_download)
+                DownloadRowAction.MOVE -> R.id.moveVideo to context.getString(if (shared) R.string.move_to_app_storage else R.string.move_to_shared_storage)
+                DownloadRowAction.CONVERT -> R.id.convertVideo to context.getString(R.string.convert_vod_to_file)
+                DownloadRowAction.UPDATE_CHAT_URL -> R.id.updateChatUrl to context.getString(R.string.change_chat_file)
+                DownloadRowAction.SHARE -> R.id.shareVideo to context.getString(R.string.share)
+                DownloadRowAction.DELETE -> R.id.delete to context.getString(R.string.delete)
             }
-            add(R.id.delete to context.getString(R.string.delete))
         }
         val duration = video.duration
         val position = video.lastWatchPosition
@@ -101,7 +99,7 @@ class DownloadsAdapter(
             progress = fraction,
             chatStatus = chatFraction?.let { context.getString(R.string.chat_downloading_progress, (it * 100).toInt()) },
             chatProgress = chatFraction,
-            watched = if (prefs.getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true) && position != null && duration != null && duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else null,
+            watched = if (prefs.getBoolean(C.PLAYER_USE_VIDEO_POSITIONS, true)) watchedFraction(position, duration) else null,
             actions = actions,
         )
     }

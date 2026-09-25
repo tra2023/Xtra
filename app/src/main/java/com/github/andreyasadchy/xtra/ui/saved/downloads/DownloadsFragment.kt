@@ -18,14 +18,20 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -46,8 +52,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.setViewTreeLifecycleOwner
-import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.DownloadProgress
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
@@ -88,7 +92,9 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
     private var receivedItems by mutableStateOf(false)
     private var lastCount by mutableIntStateOf(0)
     private var actions by mutableStateOf<DownloadsAdapter?>(null)
-    private val actionDialogs = mutableListOf<androidx.appcompat.app.AlertDialog>()
+    private var moveDialogVideo by mutableStateOf<OfflineVideo?>(null)
+    private var deleteDialogVideo by mutableStateOf<OfflineVideo?>(null)
+    private var deleteKeepFiles by mutableStateOf(true)
     override var enableNetworkCheck = false
     private var fileResultLauncher: ActivityResultLauncher<Intent>? = null
     private var chatFileResultLauncher: ActivityResultLauncher<Intent>? = null
@@ -173,9 +179,73 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
                         cornerRadius = if (!material3) 0.dp else when (prefs.getString(C.UI_THEME_ROUNDED_CORNERS, "0")) { "1" -> 9.dp; "2" -> 0.dp; else -> 12.dp },
                         material3 = material3,
                     )
+                    MoveStorageDialog()
+                    DeleteVideoDialog()
                 }
             }
         }
+    }
+
+    @Composable
+    private fun MoveStorageDialog() {
+        val video = moveDialogVideo ?: return
+        val storage = requireContext().getExternalFilesDirs(".downloads").mapIndexedNotNull { index, file ->
+            file?.absolutePath?.let { path ->
+                if (index == 0) {
+                    getString(R.string.internal_storage) to path
+                } else {
+                    path.substringBefore("/Android/data", "").takeIf { it.isNotBlank() }?.let {
+                        it.substringAfterLast(File.separatorChar) to path
+                    }
+                }
+            }
+        }
+        val mounted = Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
+        var checked by remember(video) { mutableIntStateOf(if (storage.size == 1) 0 else requireContext().prefs().getInt(C.DOWNLOAD_STORAGE, 0)) }
+        AlertDialog(
+            onDismissRequest = { moveDialogVideo = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (mounted) storage.getOrNull(checked)?.let {
+                        requireContext().prefs().edit { putInt(C.DOWNLOAD_STORAGE, checked) }
+                        viewModel.moveToAppStorage(it.second, video)
+                    }
+                    moveDialogVideo = null
+                }) { Text(getString(android.R.string.ok)) }
+            },
+            dismissButton = { TextButton(onClick = { moveDialogVideo = null }) { Text(getString(android.R.string.cancel)) } },
+            text = {
+                StorageSelector(
+                    title = getString(R.string.save_to), noStorageText = getString(R.string.no_storage_detected),
+                    selectDirectoryText = getString(R.string.select_directory), available = mounted,
+                    locations = emptyList(), location = 1, storageNames = storage.map { it.first },
+                    selectedStorage = checked, directory = null, onLocation = {}, onStorage = { checked = it }, onDirectory = {},
+                )
+            },
+        )
+    }
+
+    @Composable
+    private fun DeleteVideoDialog() {
+        val video = deleteDialogVideo ?: return
+        AlertDialog(
+            onDismissRequest = { deleteDialogVideo = null },
+            title = { Text(getString(R.string.delete)) },
+            text = {
+                Column {
+                    Text(getString(R.string.are_you_sure))
+                    DownloadCheckBox(getString(R.string.keep_files), deleteKeepFiles) { deleteKeepFiles = it }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    cancelActiveDownload(video)
+                    viewModel.delete(video, deleteKeepFiles)
+                    deleteDialogVideo = null
+                }) { Text(getString(R.string.delete)) }
+            },
+            dismissButton = { TextButton(onClick = { deleteDialogVideo = null }) { Text(getString(android.R.string.cancel)) } },
+        )
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -249,35 +319,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
             },
             moveVideo = {
                 if (it.url?.toUri()?.scheme == ContentResolver.SCHEME_CONTENT) {
-                    val storage = requireContext().getExternalFilesDirs(".downloads").mapIndexedNotNull { index, file ->
-                        file?.absolutePath?.let { path ->
-                            if (index == 0) {
-                                getString(R.string.internal_storage) to path
-                            } else {
-                                path.substringBefore("/Android/data", "").takeIf { it.isNotBlank() }?.let {
-                                    it.substringAfterLast(File.separatorChar) to path
-                                }
-                            }
-                        }
-                    }
-                    var checked by mutableIntStateOf(if (storage.size == 1) 0 else requireContext().prefs().getInt(C.DOWNLOAD_STORAGE, 0))
-                    val mounted = Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
-                    showActionDialog(
-                        content = {
-                            StorageSelector(
-                                title = getString(R.string.save_to), noStorageText = getString(R.string.no_storage_detected),
-                                selectDirectoryText = getString(R.string.select_directory), available = mounted,
-                                locations = emptyList(), location = 1, storageNames = storage.map { it.first },
-                                selectedStorage = checked, directory = null, onLocation = {}, onStorage = { checked = it }, onDirectory = {},
-                            )
-                        },
-                        confirm = {
-                            if (mounted) storage.getOrNull(checked)?.let { storage ->
-                                requireContext().prefs().edit { putInt(C.DOWNLOAD_STORAGE, checked) }
-                                viewModel.moveToAppStorage(storage.second, it)
-                            }
-                        },
-                    )
+                    moveDialogVideo = it
                 } else {
                     viewModel.selectedVideo = it
                     fileResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
@@ -307,36 +349,8 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
                 }
             },
             deleteVideo = { video ->
-                val delete = getString(R.string.delete)
-                var keepFiles by mutableStateOf(true)
-                showActionDialog(
-                    title = delete,
-                    message = getString(R.string.are_you_sure),
-                    confirmText = delete,
-                    content = { DownloadCheckBox(getString(R.string.keep_files), keepFiles) { keepFiles = it } },
-                    confirm = {
-                        if (video.live) {
-                            if (streamDownloadService?.activeDownloads?.find { it.id == video.id } != null) {
-                                val intent = Intent(requireContext(), StreamDownloadService::class.java).apply {
-                                    action = StreamDownloadService.INTENT_CANCEL
-                                    putExtra(StreamDownloadService.KEY_VIDEO_ID, video.id)
-                                }
-                                requireContext().startService(intent)
-                                bindStreamDownloadService(true)
-                            }
-                        } else {
-                            if (videoDownloadService?.activeDownloads?.find { it.id == video.id } != null) {
-                                val intent = Intent(requireContext(), VideoDownloadService::class.java).apply {
-                                    action = VideoDownloadService.INTENT_CANCEL
-                                    putExtra(VideoDownloadService.KEY_VIDEO_ID, video.id)
-                                }
-                                requireContext().startService(intent)
-                                bindVideoDownloadService(true)
-                            }
-                        }
-                        viewModel.delete(video, keepFiles)
-                    },
-                )
+                deleteKeepFiles = true
+                deleteDialogVideo = video
             }
         )
         viewLifecycleOwner.lifecycleScope.launch {
@@ -389,29 +403,26 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
         }
     }
 
-    private fun showActionDialog(
-        title: String? = null,
-        message: String? = null,
-        confirmText: String = getString(android.R.string.ok),
-        content: @androidx.compose.runtime.Composable () -> Unit,
-        confirm: () -> Unit,
-    ) {
-        val builder = requireActivity().getAlertDialogBuilder().setTitle(title).setMessage(message)
-        val composeView = ComposeView(builder.context).apply {
-            setViewTreeLifecycleOwner(viewLifecycleOwner)
-            setViewTreeSavedStateRegistryOwner(this@DownloadsFragment)
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-            setContent {
-                val theme = rememberThemeId()
-                XtraTheme(themeId = theme) { content() }
+    private fun cancelActiveDownload(video: OfflineVideo) {
+        if (video.live) {
+            if (streamDownloadService?.activeDownloads?.find { it.id == video.id } != null) {
+                val intent = Intent(requireContext(), StreamDownloadService::class.java).apply {
+                    action = StreamDownloadService.INTENT_CANCEL
+                    putExtra(StreamDownloadService.KEY_VIDEO_ID, video.id)
+                }
+                requireContext().startService(intent)
+                bindStreamDownloadService(true)
+            }
+        } else {
+            if (videoDownloadService?.activeDownloads?.find { it.id == video.id } != null) {
+                val intent = Intent(requireContext(), VideoDownloadService::class.java).apply {
+                    action = VideoDownloadService.INTENT_CANCEL
+                    putExtra(VideoDownloadService.KEY_VIDEO_ID, video.id)
+                }
+                requireContext().startService(intent)
+                bindVideoDownloadService(true)
             }
         }
-        val dialog = builder.setView(composeView)
-            .setPositiveButton(confirmText) { _, _ -> confirm() }
-            .setNegativeButton(android.R.string.cancel, null).create()
-        actionDialogs.add(dialog)
-        dialog.setOnDismissListener { composeView.disposeComposition(); actionDialogs.remove(dialog) }
-        dialog.show()
     }
 
     fun bindVideoDownloadService(started: Boolean = false) {
@@ -526,7 +537,6 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
     override fun onDestroyView() {
         collectionJob?.cancel()
         collectionJob = null
-        actionDialogs.toList().forEach { it.dismiss() }
         actions = null
         gridState = null
         super.onDestroyView()

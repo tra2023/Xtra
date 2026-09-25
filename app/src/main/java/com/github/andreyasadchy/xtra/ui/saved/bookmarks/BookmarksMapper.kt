@@ -9,7 +9,13 @@ import com.github.andreyasadchy.xtra.model.VideoPosition
 import com.github.andreyasadchy.xtra.model.ui.Bookmark
 import com.github.andreyasadchy.xtra.model.ui.BookmarkIgnoredUser
 import com.github.andreyasadchy.xtra.model.ui.Video
+import com.github.andreyasadchy.xtra.repository.saved.BookmarkRowAction
+import com.github.andreyasadchy.xtra.repository.saved.bookmarkDurationSeconds
+import com.github.andreyasadchy.xtra.repository.saved.bookmarkRowActions
+import com.github.andreyasadchy.xtra.repository.saved.startsFromBeginning
 import com.github.andreyasadchy.xtra.repository.saved.timeLeftSeconds
+import com.github.andreyasadchy.xtra.repository.saved.videoPosition
+import com.github.andreyasadchy.xtra.repository.saved.watchedFraction
 import com.github.andreyasadchy.xtra.ui.bookmarks.BookmarkListItem
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
@@ -36,8 +42,8 @@ class BookmarksMapper(
 
     fun item(bookmark: Bookmark, positions: List<VideoPosition>?, ignored: List<BookmarkIgnoredUser>?): BookmarkListItem {
         val context = fragment.requireContext()
-        val durationSeconds = durationSeconds(bookmark)
-        val position = position(bookmark, positions)
+        val durationSeconds = bookmarkDurationSeconds(bookmark.duration)
+        val position = videoPosition(bookmark.videoId, positions)
         val ignore = ignored?.find { it.userId == bookmark.userId } != null
         return BookmarkListItem(
             id = bookmark.id,
@@ -59,17 +65,15 @@ class BookmarksMapper(
             channelImage = bookmark.userLogo,
             roundImage = context.prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true),
             game = bookmark.gameName,
-            watched = if (position != null && durationSeconds != null && durationSeconds > 0) {
-                (position.toFloat() / (durationSeconds * 1000f)).coerceIn(0f, 1f)
-            } else null,
+            watched = watchedFraction(position, durationSeconds?.let { it * 1000L }),
             actions = actions(bookmark, ignore, context),
         )
     }
 
     fun open(bookmark: Bookmark, positions: List<VideoPosition>?) {
-        val durationSeconds = durationSeconds(bookmark)
-        val position = position(bookmark, positions)
-        val startFromBeginning = startFromBeginning(position, durationSeconds)
+        val durationSeconds = bookmarkDurationSeconds(bookmark.duration)
+        val position = videoPosition(bookmark.videoId, positions)
+        val startFromBeginning = startsFromBeginning(position, durationSeconds)
         (fragment.activity as MainActivity).startVideo(
             video(bookmark, durationSeconds),
             if (startFromBeginning) 0 else position,
@@ -111,7 +115,7 @@ class BookmarksMapper(
     fun action(bookmark: Bookmark, action: Int) {
         when (action) {
             R.id.delete -> deleteVideo(bookmark)
-            R.id.download -> showDownloadDialog(video(bookmark, durationSeconds(bookmark)))
+            R.id.download -> showDownloadDialog(video(bookmark, bookmarkDurationSeconds(bookmark.duration)))
             R.id.vodIgnore -> bookmark.userId?.let { vodIgnoreUser(it) }
             R.id.refresh -> refreshVideo(bookmark.videoId)
         }
@@ -134,16 +138,20 @@ class BookmarksMapper(
         animatedPreviewURL = bookmark.animatedPreviewURL,
     )
 
-    private fun actions(bookmark: Bookmark, ignore: Boolean, context: Context): List<Pair<Int, String>> = buildList {
-        if (!bookmark.videoId.isNullOrBlank()) {
-            add(R.id.refresh to context.getString(R.string.refresh))
-            add(R.id.download to context.getString(R.string.download))
+    private fun actions(bookmark: Bookmark, ignore: Boolean, context: Context): List<Pair<Int, String>> =
+        bookmarkRowActions(
+            videoId = bookmark.videoId,
+            type = bookmark.type,
+            userId = bookmark.userId,
+            ignoreEnabled = context.prefs().getBoolean(C.UI_BOOKMARK_TIME_LEFT, true),
+        ).map { action ->
+            when (action) {
+                BookmarkRowAction.REFRESH -> R.id.refresh to context.getString(R.string.refresh)
+                BookmarkRowAction.DOWNLOAD -> R.id.download to context.getString(R.string.download)
+                BookmarkRowAction.VOD_IGNORE -> R.id.vodIgnore to context.getString(if (ignore) R.string.vod_remove_ignore else R.string.vod_ignore_user)
+                BookmarkRowAction.DELETE -> R.id.delete to context.getString(R.string.delete)
+            }
         }
-        if (bookmark.type?.lowercase() == "archive" && bookmark.userId != null && context.prefs().getBoolean(C.UI_BOOKMARK_TIME_LEFT, true)) {
-            add(R.id.vodIgnore to context.getString(if (ignore) R.string.vod_remove_ignore else R.string.vod_ignore_user))
-        }
-        add(R.id.delete to context.getString(R.string.delete))
-    }
 
     /** Remaining archive lifetime, using Twitch's retention per user type. */
     private fun timeLeft(bookmark: Bookmark, ignore: Boolean): String? {
@@ -155,12 +163,4 @@ class BookmarksMapper(
         }
     }
 
-    private fun durationSeconds(bookmark: Bookmark): Int? =
-        bookmark.duration?.let { duration -> duration.toIntOrNull() ?: TwitchApiHelper.getDuration(duration) }
-
-    private fun position(bookmark: Bookmark, positions: List<VideoPosition>?): Long? =
-        bookmark.videoId?.toLongOrNull()?.let { id -> positions?.find { it.id == id }?.position }
-
-    private fun startFromBeginning(position: Long?, durationSeconds: Int?): Boolean =
-        position != null && durationSeconds != null && durationSeconds > 0 && position >= (durationSeconds * 1000)
 }
