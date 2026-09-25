@@ -87,7 +87,6 @@ dependencies {
 
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
-    implementation(libs.conscrypt)
     implementation(libs.serialization.json)
     implementation(libs.apollo.api)
 
