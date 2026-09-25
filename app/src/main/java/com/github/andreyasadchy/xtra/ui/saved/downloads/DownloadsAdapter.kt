@@ -7,6 +7,8 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
+import com.github.andreyasadchy.xtra.repository.saved.downloadFraction
+import com.github.andreyasadchy.xtra.repository.saved.effectiveDownloadStatus
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.downloads.DownloadListItem
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
@@ -30,12 +32,10 @@ class DownloadsAdapter(
     fun item(video: OfflineVideo, progress: DownloadProgressState?): DownloadListItem {
         val context = fragment.requireContext()
         val prefs = context.prefs()
-        val status = if (video.status in listOf(OfflineVideo.STATUS_DOWNLOADING, OfflineVideo.STATUS_QUEUED, OfflineVideo.STATUS_WAITING_FOR_STREAM) && progress == null) {
-            OfflineVideo.STATUS_PENDING
-        } else video.status
+        val status = effectiveDownloadStatus(video.status, progress != null)
         val fraction = when (status) {
-            OfflineVideo.STATUS_DOWNLOADING -> if (!video.live && progress != null) fraction(progress.progress, progress.maxProgress) else null
-            OfflineVideo.STATUS_MOVING, OfflineVideo.STATUS_DELETING, OfflineVideo.STATUS_CONVERTING -> fraction(video.progress, video.maxProgress)
+            OfflineVideo.STATUS_DOWNLOADING -> if (!video.live && progress != null) downloadFraction(progress.progress, progress.maxProgress) else null
+            OfflineVideo.STATUS_MOVING, OfflineVideo.STATUS_DELETING, OfflineVideo.STATUS_CONVERTING -> downloadFraction(video.progress, video.maxProgress)
             else -> null
         }
         val statusText = when (status) {
@@ -50,7 +50,7 @@ class DownloadsAdapter(
             OfflineVideo.STATUS_WAITING_FOR_STREAM -> context.getString(R.string.download_waiting_for_stream)
             else -> context.getString(R.string.download_pending)
         }
-        val chatFraction = if (video.downloadChat && status == OfflineVideo.STATUS_DOWNLOADING && progress != null && !video.live) fraction(progress.chatProgress, progress.maxChatProgress) else null
+        val chatFraction = if (video.downloadChat && status == OfflineVideo.STATUS_DOWNLOADING && progress != null && !video.live) downloadFraction(progress.chatProgress, progress.maxChatProgress) else null
         val shared = video.url?.toUri()?.scheme == ContentResolver.SCHEME_CONTENT
         val actions = buildList {
             when (status) {
@@ -104,8 +104,6 @@ class DownloadsAdapter(
             actions = actions,
         )
     }
-
-    private fun fraction(progress: Int, max: Int): Float = if (max > 0) (progress.toFloat() / max).coerceIn(0f, 1f) else 0f
 
     fun action(video: OfflineVideo, action: Int) {
         when (action) {

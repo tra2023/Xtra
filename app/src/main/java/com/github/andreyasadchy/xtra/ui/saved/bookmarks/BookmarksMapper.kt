@@ -9,6 +9,7 @@ import com.github.andreyasadchy.xtra.model.VideoPosition
 import com.github.andreyasadchy.xtra.model.ui.Bookmark
 import com.github.andreyasadchy.xtra.model.ui.BookmarkIgnoredUser
 import com.github.andreyasadchy.xtra.model.ui.Video
+import com.github.andreyasadchy.xtra.repository.saved.timeLeftSeconds
 import com.github.andreyasadchy.xtra.ui.bookmarks.BookmarkListItem
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
@@ -18,8 +19,6 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
-import kotlin.time.Clock
-import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 
 /**
@@ -151,21 +150,9 @@ class BookmarksMapper(
         val context = fragment.requireContext()
         if (ignore || bookmark.type?.lowercase() != "archive") return null
         if (!context.prefs().getBoolean(C.UI_BOOKMARK_TIME_LEFT, true)) return null
-        val createdAt = bookmark.createdAt ?: return null
-        val created = Instant.parseOrNull(createdAt)?.takeIf { it.toEpochMilliseconds() > 0 } ?: return null
-        val userType = bookmark.userType ?: bookmark.userBroadcasterType
-        val days = if (userType.isNullOrBlank()) {
-            7
-        } else {
-            when (userType.lowercase()) {
-                "affiliate" -> 14
-                else -> 60 // Partners, Prime, Turbo
-            }
+        return timeLeftSeconds(bookmark)?.let {
+            TwitchApiHelper.getDurationFromSeconds(context, it.toString())
         }
-        val remaining = (created + days.days) - Clock.System.now()
-        return if (remaining.isPositive()) {
-            TwitchApiHelper.getDurationFromSeconds(context, remaining.inWholeSeconds.toString())
-        } else null
     }
 
     private fun durationSeconds(bookmark: Bookmark): Int? =
