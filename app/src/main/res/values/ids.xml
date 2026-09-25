@@ -3,4 +3,8 @@
     <item name="languageLayout" type="id" />
     <item name="layout" type="id" />
     <item name="sort" type="id" />
+    <!-- Legacy view IDs kept for programmatic lookups after the settings
+        screens moved to Compose in :core:ui (see SettingsActivity). -->
+    <item name="appBar" type="id" />
+    <item name="searchView" type="id" />
 </resources>

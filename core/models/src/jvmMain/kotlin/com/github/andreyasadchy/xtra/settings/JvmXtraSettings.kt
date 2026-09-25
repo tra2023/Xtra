@@ -1,5 +1,8 @@
 package com.github.andreyasadchy.xtra.settings
 
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import java.util.prefs.Preferences
 
 /**
@@ -17,11 +20,30 @@ class JvmXtraSettings(
     override fun getBoolean(key: String, default: Boolean): Boolean =
         prefs.getBoolean(key, default)
 
-    fun putString(key: String, value: String?) {
+    override fun getInt(key: String, default: Int): Int =
+        prefs.get(key, null)?.toIntOrNull() ?: prefs.getInt(key, default)
+
+    override fun putString(key: String, value: String?) {
         if (value == null) prefs.remove(key) else prefs.put(key, value)
     }
 
-    fun putBoolean(key: String, value: Boolean) {
+    override fun putBoolean(key: String, value: Boolean) {
         prefs.putBoolean(key, value)
+    }
+
+    override fun putInt(key: String, value: Int) {
+        prefs.putInt(key, value)
+    }
+
+    override fun remove(key: String) {
+        prefs.remove(key)
+    }
+
+    override fun observeChanges(): Flow<String> = callbackFlow {
+        val listener = java.util.prefs.PreferenceChangeListener { event ->
+            trySend(event.key)
+        }
+        prefs.addPreferenceChangeListener(listener)
+        awaitClose { prefs.removePreferenceChangeListener(listener) }
     }
 }
