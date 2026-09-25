@@ -2,11 +2,10 @@ package com.github.andreyasadchy.xtra.player
 
 import com.github.andreyasadchy.xtra.model.PlaybackType
 import com.github.andreyasadchy.xtra.model.VideoQuality
-import com.github.andreyasadchy.xtra.model.ui.VideoSwap
+import com.github.andreyasadchy.xtra.repository.HideAdsController
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.repository.PlaybackSession
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
-import com.github.andreyasadchy.xtra.repository.VideoSwapController
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.PlaybackUtils
 import com.github.andreyasadchy.xtra.util.VideoQualityUtils
@@ -23,7 +22,7 @@ class PlayerController(
     private val engine: PlaybackEngine,
     private val playerRepository: PlayerRepository,
     private val offlineVideosRepository: OfflineVideosRepository,
-    private val videoSwapController: VideoSwapController,
+    private val hideAdsController: HideAdsController,
     private val prefs: PlayerPrefs,
     private val host: Host,
     private val scope: CoroutineScope,
@@ -48,7 +47,6 @@ class PlayerController(
             PlaybackType.STREAM -> {
                 session.started = true
                 host.onStarted()
-                videoSwapController.init(prefs.getBoolean(C.PLAYER_USE_VIDEO_SWAP, false))
                 loadStream(restorePauseState)
             }
             PlaybackType.VIDEO -> {
@@ -94,9 +92,8 @@ class PlayerController(
     private suspend fun loadStream(restorePauseState: Boolean = false, restart: Boolean = false) {
         val channelLogin = session.channelLogin ?: return
         if (restart || session.qualities.isNullOrEmpty()) {
-            session.playlistUrl = getStreamPlaylistUrl(channelLogin, videoSwapController.currentSwapItemOrNull())
+            session.playlistUrl = getStreamPlaylistUrl(channelLogin)
         }
-        videoSwapController.onStreamLoaded()
         val url = session.playlistUrl ?: return
         engine.setSource(
             SourceRequest(
@@ -109,13 +106,13 @@ class PlayerController(
         )
     }
 
-    private suspend fun getStreamPlaylistUrl(channelLogin: String, videoSwap: VideoSwap?): String? {
+    private suspend fun getStreamPlaylistUrl(channelLogin: String): String? {
         return try {
             playerRepository.loadStreamPlaylistUrl(
                 gqlHeaders = host.gqlHeaders(prefs.getBoolean(C.TOKEN_INCLUDE_TOKEN_STREAM, true)),
                 channelLogin = channelLogin,
-                platform = videoSwap?.platform ?: prefs.getString(C.TOKEN_PLATFORM, "web"),
-                playerType = videoSwap?.playerType ?: prefs.getString(C.TOKEN_PLAYER_TYPE, "site"),
+                platform = prefs.getString(C.TOKEN_PLATFORM, "web"),
+                playerType = prefs.getString(C.TOKEN_PLAYER_TYPE, "site"),
                 supportedCodecs = prefs.getString(C.TOKEN_SUPPORTED_CODECS, "av1,h265,h264"),
                 enableIntegrity = prefs.getBoolean(C.ENABLE_INTEGRITY, false),
             )
@@ -295,7 +292,7 @@ class PlayerController(
             host.onLoaded()
             toggleSubtitles(prefs.getBoolean(C.PLAYER_SUBTITLES_ENABLED, false))
         }
-        if (session.qualities?.find { it.name == VideoQuality.AUTO_QUALITY } != null && session.quality?.name != VideoQuality.AUDIO_ONLY_QUALITY && !videoSwapController.isHidden) {
+        if (session.qualities?.find { it.name == VideoQuality.AUTO_QUALITY } != null && session.quality?.name != VideoQuality.AUDIO_ONLY_QUALITY && !hideAdsController.isHidden) {
             changeQuality(session.quality)
         }
     }
@@ -325,11 +322,9 @@ class PlayerController(
             }
         }
         if (isAd != null) {
-            videoSwapController.onAdsChanged(
+            hideAdsController.onAdsChanged(
                 isAd = isAd,
                 hideAds = hideAds,
-                playbackUrl = session.quality?.url,
-                isAudioOnly = session.quality?.name == VideoQuality.AUDIO_ONLY_QUALITY,
             )
         }
     }

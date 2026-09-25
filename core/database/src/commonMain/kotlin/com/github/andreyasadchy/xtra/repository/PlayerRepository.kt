@@ -3,7 +3,6 @@ package com.github.andreyasadchy.xtra.repository
 import com.github.andreyasadchy.xtra.db.PlaybackStatesDao
 import com.github.andreyasadchy.xtra.db.RecentEmotesDao
 import com.github.andreyasadchy.xtra.db.VideoPositionsDao
-import com.github.andreyasadchy.xtra.db.VideoSwapDao
 import com.github.andreyasadchy.xtra.graphql.type.BadgeImageSize
 import com.github.andreyasadchy.xtra.graphql.type.EmoteType
 import com.github.andreyasadchy.xtra.model.PlaybackState
@@ -22,11 +21,8 @@ import com.github.andreyasadchy.xtra.model.misc.RecentMessagesResponse
 import com.github.andreyasadchy.xtra.model.misc.STVChannelResponse
 import com.github.andreyasadchy.xtra.model.misc.STVEmoteSetResponse
 import com.github.andreyasadchy.xtra.model.ui.Video
-import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchImageUrls
-import com.github.andreyasadchy.xtra.util.m3u8.AdDetector
-import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -43,7 +39,6 @@ import kotlinx.serialization.json.putJsonObject
 import kotlin.io.encoding.Base64
 import kotlin.math.roundToInt
 import kotlin.random.Random
-import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class PlayerRepository(
@@ -51,7 +46,6 @@ class PlayerRepository(
     private val json: Json,
     private val userAgent: String,
     private val recentEmotes: RecentEmotesDao,
-    private val videoSwapDao: VideoSwapDao,
     private val videoPositions: VideoPositionsDao,
     private val playbackStatesDao: PlaybackStatesDao,
     private val graphQLRepository: GraphQLRepository,
@@ -351,35 +345,6 @@ class PlayerRepository(
             } else null
         }
         video
-    }
-
-    suspend fun checkForAds(url: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val playlist = PlaylistUtils.parseMediaPlaylist(httpGet(url))
-            val segment = playlist.segments.lastOrNull() ?: return@withContext false
-            AdDetector.isAd(
-                segment = AdDetector.AdSegment(
-                    title = segment.title,
-                    startTimeMs = segment.programDateTime?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } },
-                ),
-                ranges = playlist.dateRanges.map { dateRange ->
-                    val startTime = Instant.parseOrNull(dateRange.startDate)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }
-                    AdDetector.AdRange(
-                        id = dateRange.id,
-                        rangeClass = dateRange.rangeClass,
-                        ad = dateRange.ad,
-                        startTimeMs = startTime,
-                        endTimeMs = startTime?.let { start ->
-                            dateRange.endDate?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } }
-                                ?: dateRange.duration?.let { start + (it * 1000f).toLong() }
-                                ?: dateRange.plannedDuration?.let { start + (it * 1000f).toLong() }
-                        },
-                    )
-                },
-            )
-        } catch (e: Exception) {
-            false
-        }
     }
 
     suspend fun sendMinuteWatched(userId: String?, streamId: String?, channelId: String?, channelLogin: String?) = withContext(Dispatchers.IO) {
@@ -1113,30 +1078,6 @@ class PlayerRepository(
             emotes.toList().subList(listSize - RecentEmote.MAX_SIZE, listSize)
         }
         recentEmotes.ensureMaxSizeAndInsert(list)
-    }
-
-    suspend fun getVideoSwapItems() = withContext(Dispatchers.IO) {
-        videoSwapDao.getAll()
-    }
-
-    suspend fun saveVideoSwapItems(items: List<VideoSwap>) = withContext(Dispatchers.IO) {
-        videoSwapDao.insertList(items)
-    }
-
-    suspend fun updateVideoSwapItems(items: List<VideoSwap>) = withContext(Dispatchers.IO) {
-        videoSwapDao.updateList(items)
-    }
-
-    suspend fun saveVideoSwap(item: VideoSwap): Long = withContext(Dispatchers.IO) {
-        videoSwapDao.insert(item)
-    }
-
-    suspend fun deleteVideoSwap(item: VideoSwap) = withContext(Dispatchers.IO) {
-        videoSwapDao.delete(item)
-    }
-
-    suspend fun updateVideoSwap(item: VideoSwap) = withContext(Dispatchers.IO) {
-        videoSwapDao.update(item)
     }
 
     fun loadVideoPositions() = videoPositions.getAll()

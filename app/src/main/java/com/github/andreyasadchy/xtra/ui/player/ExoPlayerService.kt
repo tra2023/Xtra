@@ -57,7 +57,7 @@ import com.github.andreyasadchy.xtra.player.PlayerController
 import com.github.andreyasadchy.xtra.player.PlayerPrefs
 import com.github.andreyasadchy.xtra.player.SourceFormat
 import com.github.andreyasadchy.xtra.player.SourceRequest
-import com.github.andreyasadchy.xtra.repository.VideoSwapController
+import com.github.andreyasadchy.xtra.repository.HideAdsController
 import com.github.andreyasadchy.xtra.repository.getBytesOrNull
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
@@ -95,7 +95,7 @@ class ExoPlayerService : BasePlaybackService(), PlaybackEngine {
     private var savePositionTimer: Timer? = null
     private var stopServiceTimer: Timer? = null
 
-    private lateinit var videoSwapController: VideoSwapController
+    private lateinit var hideAdsController: HideAdsController
     private lateinit var playerController: PlayerController
 
     private var created = false
@@ -111,9 +111,7 @@ class ExoPlayerService : BasePlaybackService(), PlaybackEngine {
 
     var serviceListener: Listener? = null
 
-    private val videoSwapHost = object : VideoSwapController.Host {
-        override fun restartPlayer() = this@ExoPlayerService.restartPlayer()
-
+    private val hideAdsHost = object : HideAdsController.Host {
         override fun setVideoHidden(hidden: Boolean) {
             player?.let { player ->
                 if (quality?.name != VideoQuality.AUDIO_ONLY_QUALITY) {
@@ -125,18 +123,8 @@ class ExoPlayerService : BasePlaybackService(), PlaybackEngine {
             }
         }
 
-        override fun onVideoSwapActive() {
-            serviceListener?.toast(R.string.video_swap_active, Toast.LENGTH_SHORT)
-        }
-
         override fun onWaitingAds() {
             serviceListener?.toast(R.string.waiting_ads, Toast.LENGTH_LONG)
-        }
-
-        override fun savedQuality(): String? = prefs().getString(C.PLAYER_QUALITY, "720p60")
-
-        override fun setSavedQuality(value: String?) {
-            prefs().edit { putString(C.PLAYER_QUALITY, value) }
         }
     }
 
@@ -197,13 +185,13 @@ class ExoPlayerService : BasePlaybackService(), PlaybackEngine {
         super.onCreate()
         xtraModule = (application as XtraApp).xtraModule
         sleepTimer = SleepTimer(lifecycleScope)
-        videoSwapController = VideoSwapController(xtraModule.playerRepository, lifecycleScope, videoSwapHost)
+        hideAdsController = HideAdsController(hideAdsHost)
         playerController = PlayerController(
             session = this,
             engine = this,
             playerRepository = xtraModule.playerRepository,
             offlineVideosRepository = xtraModule.offlineVideosRepository,
-            videoSwapController = videoSwapController,
+            hideAdsController = hideAdsController,
             prefs = playerPrefs,
             host = playerHost,
             scope = lifecycleScope,
@@ -255,7 +243,7 @@ class ExoPlayerService : BasePlaybackService(), PlaybackEngine {
                         }
                     }
                     val hideAds = prefs().getBoolean(C.PLAYER_HIDE_ADS, false)
-                    val isAd = if (type == STREAM && videoSwapController.shouldProcess(hideAds)) {
+                    val isAd = if (type == STREAM && hideAdsController.shouldProcess(hideAds)) {
                         val playlist = manifest?.mediaPlaylist
                         playlist?.segments?.lastOrNull()?.let { segment ->
                             AdDetector.isAd(

@@ -313,8 +313,6 @@ val SettingsSearchIndex: List<SettingsSearchEntry> = listOf(
     SettingsSearchEntry(C.PLAYER_LIVE_MAX_SPEED, SettingsRoute.Buffer),
     SettingsSearchEntry(C.PLAYER_LIVE_TARGET_OFFSET, SettingsRoute.Buffer),
     // playback
-    SettingsSearchEntry(C.PLAYER_USE_VIDEO_SWAP, SettingsRoute.Playback),
-    SettingsSearchEntry("video_swap_settings", SettingsRoute.Playback),
     SettingsSearchEntry(C.PLAYER_HIDE_ADS, SettingsRoute.Playback),
     SettingsSearchEntry(C.TOKEN_SUPPORTED_CODECS, SettingsRoute.Playback),
     SettingsSearchEntry(C.TOKEN_INCLUDE_TOKEN_STREAM, SettingsRoute.Playback),

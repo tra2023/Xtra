@@ -31,13 +31,6 @@ fun PlaybackSettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     SettingsList(modifier = modifier) {
-        settingsBooleanPref(C.PLAYER_USE_VIDEO_SWAP, false, strings)
-        settingsClick(
-            key = "video_swap_settings",
-            title = strings.title("video_swap_settings"),
-            summary = strings.summary("video_swap_settings"),
-            onClick = { onNavigate(SettingsRoute.VideoSwap) },
-        )
         settingsBooleanPref(C.PLAYER_HIDE_ADS, false, strings)
         settingsTextPref(C.TOKEN_SUPPORTED_CODECS, "av1,h265,h264", strings)
         settingsBooleanPref(C.TOKEN_INCLUDE_TOKEN_STREAM, true, strings)

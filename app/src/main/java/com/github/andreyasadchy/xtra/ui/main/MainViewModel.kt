@@ -25,18 +25,17 @@ import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.model.ui.Video
-import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import com.github.andreyasadchy.xtra.repository.AuthRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
-import com.github.andreyasadchy.xtra.ui.login.LoginActivity
-import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.repository.XtraHttpClient
 import com.github.andreyasadchy.xtra.repository.getBytesOrNull
 import com.github.andreyasadchy.xtra.repository.getString
+import com.github.andreyasadchy.xtra.ui.login.LoginActivity
+import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.Dispatchers
@@ -758,20 +757,6 @@ class MainViewModel(
     fun deleteOldImages() {
         viewModelScope.launch(Dispatchers.IO) {
             localChannelFollowsRepository.deleteOldImages()
-        }
-    }
-
-    fun setDefaultVideoSwapItems() {
-        viewModelScope.launch(Dispatchers.IO) {
-            playerRepository.saveVideoSwapItems(
-                listOf(
-                    Triple("android", "autoplay", true),
-                    Triple("web", "embed", false),
-                    Triple("web", "popout", false),
-                ).mapIndexed { index, triple ->
-                    VideoSwap(triple.first, triple.second, index, triple.third)
-                }
-            )
         }
     }
 

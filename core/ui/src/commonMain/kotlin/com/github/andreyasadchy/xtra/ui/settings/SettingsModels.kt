@@ -23,7 +23,6 @@ enum class SettingsRoute {
     Update,
     Debug,
     Search,
-    VideoSwap,
 }
 
 sealed interface SettingsAction {

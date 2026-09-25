@@ -4,6 +4,12 @@ import androidx.room.migration.Migration
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
 
+val MIGRATION_42_43 = object : Migration(42, 43) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("DROP TABLE IF EXISTS video_swap")
+    }
+}
+
 val MIGRATION_41_42 = object : Migration(41, 42) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("DROP TABLE IF EXISTS translate_all_messages")
@@ -23,5 +29,6 @@ val MIGRATION_40_41 = object : Migration(40, 41) {
 
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_40_41,
-    MIGRATION_41_42
+    MIGRATION_41_42,
+    MIGRATION_42_43
 )

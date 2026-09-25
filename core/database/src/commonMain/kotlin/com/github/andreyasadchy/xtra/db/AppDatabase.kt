@@ -19,7 +19,6 @@ import com.github.andreyasadchy.xtra.model.ui.LocalGameFollow
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.model.ui.RecentSearch
 import com.github.andreyasadchy.xtra.model.ui.SavedFilter
-import com.github.andreyasadchy.xtra.model.ui.VideoSwap
 import kotlinx.coroutines.Dispatchers
 
 @Database(
@@ -38,9 +37,8 @@ import kotlinx.coroutines.Dispatchers
         SavedFilter::class,
         RecentSearch::class,
         PlaybackState::class,
-        VideoSwap::class,
     ],
-    version = 42,
+    version = 43,
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -60,7 +58,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun savedFilters(): SavedFiltersDao
     abstract fun recentSearches(): RecentSearchesDao
     abstract fun playbackStates(): PlaybackStatesDao
-    abstract fun videoSwap(): VideoSwapDao
 }
 
 @Suppress("NO_ACTUAL_FOR_EXPECT")

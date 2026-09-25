@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -33,7 +32,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -43,7 +41,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
@@ -54,7 +51,6 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.settings.AndroidXtraSettings
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.settings.SettingsViewModel.Companion.SettingsViewModelFactory
-import com.github.andreyasadchy.xtra.ui.settings.VideoSwapSettingsViewModel.Companion.VideoSwapSettingsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
@@ -73,7 +69,6 @@ import com.github.andreyasadchy.xtra.util.tokenPrefs
 class SettingsActivity : AppCompatActivity() {
 
     private val settingsViewModel: SettingsViewModel by viewModels { SettingsViewModelFactory }
-    private val videoSwapViewModel: VideoSwapSettingsViewModel by viewModels { VideoSwapSettingsViewModelFactory }
     private var changed = false
 
     private val backStack = mutableStateListOf(SettingsRoute.Root)
@@ -320,7 +315,6 @@ class SettingsActivity : AppCompatActivity() {
                         SettingsRoute.Download -> DownloadSettingsScreen(strings, ::handleAction)
                         SettingsRoute.Update -> UpdateSettingsScreen(strings)
                         SettingsRoute.Debug -> DebugSettingsScreen(strings, ::handleAction)
-                        SettingsRoute.VideoSwap -> VideoSwapRoute()
                         SettingsRoute.Search -> SettingsSearchScreen(
                             strings = strings,
                             query = searchQuery,
@@ -423,59 +417,7 @@ class SettingsActivity : AppCompatActivity() {
         SettingsRoute.Download -> getString(R.string.download_settings)
         SettingsRoute.Update -> getString(R.string.update_settings)
         SettingsRoute.Debug -> getString(R.string.debug_settings)
-        SettingsRoute.VideoSwap -> getString(R.string.video_swap_settings)
         SettingsRoute.Search -> getString(R.string.search)
-    }
-
-    @Composable
-    private fun VideoSwapRoute() {
-        val context = this
-        val listState = rememberLazyListState()
-        val bottomPadding = with(LocalDensity.current) { 0.dp }
-        val state by videoSwapViewModel.state.collectAsState()
-        LaunchedEffect(Unit) {
-            videoSwapViewModel.initialize(
-                context.prefs().getString(C.TOKEN_PLATFORM, "web"),
-                context.prefs().getString(C.TOKEN_PLAYER_TYPE, "site"),
-            )
-        }
-        VideoSwapSettingsScreen(
-            state = state,
-            labels = VideoSwapLabels(
-                add = getString(R.string.add_item),
-                defaultValues = getString(R.string.default_values),
-                platform = getString(R.string.platform_param),
-                playerType = getString(R.string.player_type_param),
-                enabled = getString(R.string.enabled_setting),
-                edit = getString(R.string.edit),
-                delete = getString(R.string.delete),
-                deleteMessage = getString(R.string.delete_item_message),
-                confirm = getString(android.R.string.ok),
-                cancel = getString(android.R.string.cancel),
-                reorder = getString(R.string.order),
-                moveUp = getString(R.string.ascending),
-                moveDown = getString(R.string.descending),
-                retry = getString(R.string.retry),
-            ),
-            onAdd = videoSwapViewModel::add,
-            onEdit = { id, platform, playerType ->
-                if (videoSwapViewModel.state.value.items.any { it.id == id && it.isDefault }) {
-                    context.prefs().edit {
-                        putString(C.TOKEN_PLATFORM, platform)
-                        putString(C.TOKEN_PLAYER_TYPE, playerType)
-                    }
-                    videoSwapViewModel.updateDefault(platform, playerType)
-                } else {
-                    videoSwapViewModel.edit(id, platform, playerType)
-                }
-            },
-            onToggle = videoSwapViewModel::toggle,
-            onDelete = videoSwapViewModel::delete,
-            onReorder = videoSwapViewModel::reorder,
-            onRetry = videoSwapViewModel::load,
-            listState = listState,
-            bottomPadding = bottomPadding,
-        )
     }
 
     companion object {

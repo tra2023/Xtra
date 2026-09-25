@@ -179,7 +179,6 @@ object C {
     const val PLAYER_MOVE_FREELY = "player_move_freely"
     const val PLAYER_KEEP_CHAT_OPEN = "player_keep_chat_open"
     const val PLAYER_HIDE_ADS = "player_hide_ads"
-    const val PLAYER_USE_VIDEO_SWAP = "player_use_video_swap"
     const val PLAYER_STREAM_HEADERS = "player_stream_headers"
     const val PLAYER_SHOW_UPTIME = "player_show_uptime"
     const val ANIMATED_EMOTES = "animatedGifEmotes"

@@ -91,7 +91,7 @@ class XtraModule(application: Application) {
     }
 
     val playerRepository by lazy {
-        PlayerRepository(xtraHttpClient, json, "Xtra/" + BuildConfig.VERSION_NAME, database.recentEmotes(), database.videoSwap(), database.videoPositions(), database.playbackStates(), graphQLRepository, helixRepository)
+        PlayerRepository(xtraHttpClient, json, "Xtra/" + BuildConfig.VERSION_NAME, database.recentEmotes(), database.videoPositions(), database.playbackStates(), graphQLRepository, helixRepository)
     }
 
     val playbackPositionSaver by lazy {
