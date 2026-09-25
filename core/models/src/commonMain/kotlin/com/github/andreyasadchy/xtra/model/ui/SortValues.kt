@@ -57,3 +57,64 @@ object FollowedChannelsSort {
         else -> DEFAULT_ORDER
     }
 }
+
+/**
+ * Filter values for the videos/clips sort dialog.
+ *
+ * Lives in `:core:models` (instead of the app `VideosSortDialog`) so that
+ * view models, repositories and shared UI can reference the values without
+ * depending on Android dialog classes.
+ */
+object VideosSort {
+    const val SORT_TIME = "time"
+    const val SORT_VIEWS = "views"
+
+    const val PERIOD_DAY = "day"
+    const val PERIOD_WEEK = "week"
+    const val PERIOD_MONTH = "month"
+    const val PERIOD_ALL = "all"
+
+    const val VIDEO_TYPE_ALL = "all"
+    const val VIDEO_TYPE_ARCHIVE = "archive"
+    const val VIDEO_TYPE_HIGHLIGHT = "highlight"
+    const val VIDEO_TYPE_UPLOAD = "upload"
+
+    const val DEFAULT_SORT = SORT_TIME
+    const val DEFAULT_PERIOD = PERIOD_WEEK
+    const val DEFAULT_TYPE = VIDEO_TYPE_ALL
+
+    fun sanitizeSort(value: String?): String = when (value) {
+        SORT_TIME, SORT_VIEWS -> value
+        else -> DEFAULT_SORT
+    }
+
+    fun sanitizePeriod(value: String?): String = when (value) {
+        PERIOD_DAY, PERIOD_WEEK, PERIOD_MONTH, PERIOD_ALL -> value
+        else -> DEFAULT_PERIOD
+    }
+
+    fun sanitizeType(value: String?): String = when (value) {
+        VIDEO_TYPE_ALL, VIDEO_TYPE_ARCHIVE, VIDEO_TYPE_HIGHLIGHT, VIDEO_TYPE_UPLOAD -> value
+        else -> DEFAULT_TYPE
+    }
+}
+
+/**
+ * Filter values for the streams sort dialog.
+ *
+ * Lives in `:core:models` (instead of the app `StreamsSortDialog`) so that
+ * view models, repositories and shared UI can reference the values without
+ * depending on Android dialog classes.
+ */
+object StreamsSort {
+    const val SORT_VIEWERS = "VIEWER_COUNT"
+    const val SORT_VIEWERS_ASC = "VIEWER_COUNT_ASC"
+    const val RECENT = "RECENT"
+
+    const val DEFAULT_SORT = SORT_VIEWERS
+
+    fun sanitizeSort(value: String?): String = when (value) {
+        SORT_VIEWERS, SORT_VIEWERS_ASC, RECENT -> value
+        else -> DEFAULT_SORT
+    }
+}

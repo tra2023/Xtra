@@ -16,12 +16,12 @@ import com.github.andreyasadchy.xtra.graphql.type.Language
 import com.github.andreyasadchy.xtra.graphql.type.StreamSort
 import com.github.andreyasadchy.xtra.model.ui.GameSort
 import com.github.andreyasadchy.xtra.model.ui.SavedFilter
+import com.github.andreyasadchy.xtra.model.ui.StreamsSort
 import com.github.andreyasadchy.xtra.repository.GameSortRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.SavedFiltersRepository
 import com.github.andreyasadchy.xtra.repository.datasource.GameStreamsDataSource
-import com.github.andreyasadchy.xtra.ui.common.StreamsSortDialog
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentArgs
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
@@ -45,7 +45,7 @@ class GameStreamsViewModel(
     val filtersText = MutableStateFlow<CharSequence?>(null)
 
     val sort: String
-        get() = filter.value?.sort ?: StreamsSortDialog.SORT_VIEWERS
+        get() = filter.value?.sort ?: StreamsSort.SORT_VIEWERS
     val tags: Array<String>
         get() = filter.value?.tags ?: emptyArray()
     val languages: Array<String>
@@ -68,16 +68,16 @@ class GameStreamsViewModel(
                     Language.entries.find { it.rawValue == language }
                 },
                 gqlQuerySort = when (sort) {
-                    StreamsSortDialog.SORT_VIEWERS -> StreamSort.VIEWER_COUNT
-                    StreamsSortDialog.SORT_VIEWERS_ASC -> StreamSort.VIEWER_COUNT_ASC
-                    StreamsSortDialog.RECENT -> StreamSort.RECENT
+                    StreamsSort.SORT_VIEWERS -> StreamSort.VIEWER_COUNT
+                    StreamsSort.SORT_VIEWERS_ASC -> StreamSort.VIEWER_COUNT_ASC
+                    StreamsSort.RECENT -> StreamSort.RECENT
                     else -> StreamSort.VIEWER_COUNT
                 },
                 gqlLanguages = languages.ifEmpty { null }?.toList(),
                 gqlSort = when (sort) {
-                    StreamsSortDialog.SORT_VIEWERS -> "VIEWER_COUNT"
-                    StreamsSortDialog.SORT_VIEWERS_ASC -> "VIEWER_COUNT_ASC"
-                    StreamsSortDialog.RECENT -> "RECENT"
+                    StreamsSort.SORT_VIEWERS -> "VIEWER_COUNT"
+                    StreamsSort.SORT_VIEWERS_ASC -> "VIEWER_COUNT_ASC"
+                    StreamsSort.RECENT -> "RECENT"
                     else -> "VIEWER_COUNT"
                 },
                 tags = tags.ifEmpty { null }?.toList(),

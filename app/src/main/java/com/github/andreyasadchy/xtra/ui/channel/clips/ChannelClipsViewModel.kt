@@ -14,12 +14,12 @@ import androidx.paging.cachedIn
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.graphql.type.ClipsPeriod
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
+import com.github.andreyasadchy.xtra.model.ui.VideosSort
 import com.github.andreyasadchy.xtra.repository.ChannelSortRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.datasource.ChannelClipsDataSource
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentArgs
-import com.github.andreyasadchy.xtra.ui.common.VideosSortDialog
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
@@ -42,7 +42,7 @@ class ChannelClipsViewModel(
     val sortText = MutableStateFlow<CharSequence?>(null)
 
     val period: String
-        get() = filter.value?.period ?: VideosSortDialog.PERIOD_WEEK
+        get() = filter.value?.period ?: VideosSort.PERIOD_WEEK
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {
@@ -50,33 +50,33 @@ class ChannelClipsViewModel(
             PagingConfig(pageSize = 20, prefetchDistance = 3, initialLoadSize = 20)
         ) {
             val started = when (period) {
-                VideosSortDialog.PERIOD_ALL -> null
+                VideosSort.PERIOD_ALL -> null
                 else -> {
                     val days = when (period) {
-                        VideosSortDialog.PERIOD_DAY -> 1
-                        VideosSortDialog.PERIOD_WEEK -> 7
-                        VideosSortDialog.PERIOD_MONTH -> 30
+                        VideosSort.PERIOD_DAY -> 1
+                        VideosSort.PERIOD_WEEK -> 7
+                        VideosSort.PERIOD_MONTH -> 30
                         else -> 7
                     }
                     (Clock.System.now() - days.days).toString()
                 }
             }
             val ended = when (period) {
-                VideosSortDialog.PERIOD_ALL -> null
+                VideosSort.PERIOD_ALL -> null
                 else -> Clock.System.now().toString()
             }
             val gqlQueryPeriod = when (period) {
-                VideosSortDialog.PERIOD_DAY -> ClipsPeriod.LAST_DAY
-                VideosSortDialog.PERIOD_WEEK -> ClipsPeriod.LAST_WEEK
-                VideosSortDialog.PERIOD_MONTH -> ClipsPeriod.LAST_MONTH
-                VideosSortDialog.PERIOD_ALL -> ClipsPeriod.ALL_TIME
+                VideosSort.PERIOD_DAY -> ClipsPeriod.LAST_DAY
+                VideosSort.PERIOD_WEEK -> ClipsPeriod.LAST_WEEK
+                VideosSort.PERIOD_MONTH -> ClipsPeriod.LAST_MONTH
+                VideosSort.PERIOD_ALL -> ClipsPeriod.ALL_TIME
                 else -> ClipsPeriod.LAST_WEEK
             }
             val gqlPeriod = when (period) {
-                VideosSortDialog.PERIOD_DAY -> "LAST_DAY"
-                VideosSortDialog.PERIOD_WEEK -> "LAST_WEEK"
-                VideosSortDialog.PERIOD_MONTH -> "LAST_MONTH"
-                VideosSortDialog.PERIOD_ALL -> "ALL_TIME"
+                VideosSort.PERIOD_DAY -> "LAST_DAY"
+                VideosSort.PERIOD_WEEK -> "LAST_WEEK"
+                VideosSort.PERIOD_MONTH -> "LAST_MONTH"
+                VideosSort.PERIOD_ALL -> "ALL_TIME"
                 else -> "LAST_WEEK"
             }
             ChannelClipsDataSource(

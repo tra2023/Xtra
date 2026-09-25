@@ -12,14 +12,16 @@ import androidx.compose.ui.unit.dp
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.ui.common.SearchTagsDialog
-import com.github.andreyasadchy.xtra.ui.sort.SortDialogAction
-import com.github.andreyasadchy.xtra.ui.sort.SortDialogContent
-import com.github.andreyasadchy.xtra.ui.sort.SortTagSelection
+import com.github.andreyasadchy.xtra.ui.sort.TagSortScreen
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.getThemeFlags
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
+/**
+ * Thin Android shell around the shared [TagSortScreen]: only owns the tag
+ * selection mutated by the nested search dialog and forwards it to [OnFilter].
+ */
 class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelectedListener {
 
     interface OnFilter {
@@ -74,24 +76,21 @@ class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelec
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 XtraTheme(darkTheme = darkTheme, amoled = amoled, blue = blue) {
-                    SortDialogContent(
-                        tags = SortTagSelection(
-                            title = getString(R.string.filters),
-                            tags = selectedTags.map { it.name.orEmpty() },
-                            addLabel = getString(R.string.add_tag),
-                            removeLabel = getString(R.string.delete),
-                            onAdd = { SearchTagsDialog.newInstance(true).show(childFragmentManager, null) },
-                            onRemove = { selectedTags.removeAt(it) },
-                        ),
-                        actions = listOf(
-                            SortDialogAction(getString(R.string.apply), {
-                                val tags = selectedTags.sortedBy { it.id }
-                                if (!tags.mapNotNull { it.id }.toTypedArray().contentEquals(originalTagIds)) {
-                                    listener.onChange(tags.toTypedArray())
-                                }
-                                dismiss()
-                            }),
-                        ),
+                    TagSortScreen(
+                        filtersTitle = getString(R.string.filters),
+                        tags = selectedTags.map { it.name.orEmpty() },
+                        addTagLabel = getString(R.string.add_tag),
+                        removeTagLabel = getString(R.string.delete),
+                        onAddTag = { SearchTagsDialog.newInstance(true).show(childFragmentManager, null) },
+                        onRemoveTag = { selectedTags.removeAt(it) },
+                        applyLabel = getString(R.string.apply),
+                        onApply = {
+                            val tags = selectedTags.sortedBy { it.id }
+                            if (!tags.mapNotNull { it.id }.toTypedArray().contentEquals(originalTagIds)) {
+                                listener.onChange(tags.toTypedArray())
+                            }
+                            dismiss()
+                        },
                         contentPadding = padding,
                     )
                 }

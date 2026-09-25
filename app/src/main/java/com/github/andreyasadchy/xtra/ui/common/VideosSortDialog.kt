@@ -5,19 +5,13 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.ui.sort.SortDialogAction
-import com.github.andreyasadchy.xtra.ui.sort.SortDialogContent
+import com.github.andreyasadchy.xtra.model.ui.VideosSort
 import com.github.andreyasadchy.xtra.ui.sort.SortOption
-import com.github.andreyasadchy.xtra.ui.sort.SortSelection
+import com.github.andreyasadchy.xtra.ui.sort.VideosSortScreen
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
@@ -25,6 +19,11 @@ import com.github.andreyasadchy.xtra.util.getThemeFlags
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
+/**
+ * Thin Android shell around the shared [VideosSortScreen]: only resolves
+ * platform strings, decides section visibility and forwards the selected
+ * values to [OnFilter].
+ */
 class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSelectedLanguagesChanged {
 
     interface OnFilter {
@@ -33,16 +32,16 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
     }
 
     companion object {
-        const val PERIOD_DAY = "day"
-        const val PERIOD_WEEK = "week"
-        const val PERIOD_MONTH = "month"
-        const val PERIOD_ALL = "all"
-        const val SORT_TIME = "time"
-        const val SORT_VIEWS = "views"
-        const val VIDEO_TYPE_ALL = "all"
-        const val VIDEO_TYPE_ARCHIVE = "archive"
-        const val VIDEO_TYPE_HIGHLIGHT = "highlight"
-        const val VIDEO_TYPE_UPLOAD = "upload"
+        const val PERIOD_DAY = VideosSort.PERIOD_DAY
+        const val PERIOD_WEEK = VideosSort.PERIOD_WEEK
+        const val PERIOD_MONTH = VideosSort.PERIOD_MONTH
+        const val PERIOD_ALL = VideosSort.PERIOD_ALL
+        const val SORT_TIME = VideosSort.SORT_TIME
+        const val SORT_VIEWS = VideosSort.SORT_VIEWS
+        const val VIDEO_TYPE_ALL = VideosSort.VIDEO_TYPE_ALL
+        const val VIDEO_TYPE_ARCHIVE = VideosSort.VIDEO_TYPE_ARCHIVE
+        const val VIDEO_TYPE_HIGHLIGHT = VideosSort.VIDEO_TYPE_HIGHLIGHT
+        const val VIDEO_TYPE_UPLOAD = VideosSort.VIDEO_TYPE_UPLOAD
 
         private const val SORT = "sort"
         private const val PERIOD = "period"
@@ -102,9 +101,9 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
             SortOption(VIDEO_TYPE_UPLOAD, getString(R.string.video_type_upload)),
             SortOption(VIDEO_TYPE_ALL, getString(R.string.all)),
         )
-        val originalSort = args.getString(SORT).takeIf { value -> sortOptions.any { it.value == value } } ?: SORT_TIME
-        val originalPeriod = args.getString(PERIOD).takeIf { value -> periodOptions.any { it.value == value } } ?: PERIOD_WEEK
-        val originalType = args.getString(TYPE).takeIf { value -> typeOptions.any { it.value == value } } ?: VIDEO_TYPE_ALL
+        val originalSort = VideosSort.sanitizeSort(args.getString(SORT))
+        val originalPeriod = VideosSort.sanitizePeriod(args.getString(PERIOD))
+        val originalType = VideosSort.sanitizeType(args.getString(TYPE))
         val originalLanguages = args.getStringArray(LANGUAGES) ?: emptyArray()
         selectedLanguages = originalLanguages
         val explicitTab = args.getString(TAB)
@@ -134,60 +133,86 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
             id = R.id.sort
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                var sort by rememberSaveable { mutableStateOf(originalSort) }
-                var period by rememberSaveable { mutableStateOf(originalPeriod) }
-                var type by rememberSaveable { mutableStateOf(originalType) }
-                var saved by remember { mutableStateOf(args.getBoolean(SAVED)) }
-                val applyFilters: (Boolean, Boolean) -> Unit = { saveSort, saveDefault ->
-                    listener.onChange(
-                        sort, sortOptions.first { it.value == sort }.label,
-                        period, periodOptions.first { it.value == period }.label,
-                        type, typeOptions.first { it.value == type }.label,
-                        selectedLanguages,
-                        period != originalPeriod || sort != originalSort || type != originalType || !selectedLanguages.contentEquals(originalLanguages),
-                        saveSort, saveDefault,
-                    )
-                    dismiss()
-                }
                 XtraTheme(darkTheme = darkTheme, amoled = amoled, blue = blue) {
-                    SortDialogContent(
-                        selections = buildList {
-                            if (showSortAndType) {
-                                add(SortSelection(getString(R.string.sort), sortOptions, sort, { sort = it }))
-                                add(SortSelection(getString(R.string.type), typeOptions, type, { type = it }))
-                            }
-                            if (showPeriod) {
-                                add(SortSelection(getString(R.string.period), periodOptions, period, { period = it }))
-                            }
+                    VideosSortScreen(
+                        sortTitle = getString(R.string.sort),
+                        sortOptions = sortOptions,
+                        initialSort = originalSort,
+                        typeTitle = getString(R.string.type),
+                        typeOptions = typeOptions,
+                        initialType = originalType,
+                        periodTitle = getString(R.string.period),
+                        periodOptions = periodOptions,
+                        initialPeriod = originalPeriod,
+                        showSortAndType = showSortAndType,
+                        showPeriod = showPeriod,
+                        languagesLabel = getString(R.string.languages).takeIf { showLanguages },
+                        onLanguagesClick = {
+                            SelectLanguagesDialog.newInstance(selectedLanguages).show(childFragmentManager, "closeOnPip")
                         },
-                        actions = buildList {
-                            if (showLanguages) {
-                                add(SortDialogAction(getString(R.string.languages), {
-                                    SelectLanguagesDialog.newInstance(selectedLanguages).show(childFragmentManager, "closeOnPip")
-                                }))
-                            }
-                            add(SortDialogAction(getString(R.string.save_default), { applyFilters(false, true) }))
-                            if (showSaveSort) {
-                                add(SortDialogAction(
-                                    label = saveSortLabel,
-                                    onClick = { applyFilters(true, false) },
-                                    deleteLabel = getString(R.string.delete),
-                                    onDelete = if (saved) {
-                                        {
-                                            listener.deleteSavedSort()
-                                            saved = false
-                                        }
-                                    } else null,
-                                ))
-                            }
-                            add(SortDialogAction(getString(R.string.apply), { applyFilters(false, false) }))
+                        saveDefaultLabel = getString(R.string.save_default),
+                        saveSortLabel = saveSortLabel.takeIf { showSaveSort },
+                        saved = args.getBoolean(SAVED),
+                        deleteLabel = getString(R.string.delete),
+                        applyLabel = getString(R.string.apply),
+                        onApply = { sort, period, type ->
+                            applyFilters(sort, period, type, saveSort = false, saveDefault = false)
                         },
+                        onSaveDefault = { sort, period, type ->
+                            applyFilters(sort, period, type, saveSort = false, saveDefault = true)
+                        },
+                        onSaveSort = { sort, period, type ->
+                            applyFilters(sort, period, type, saveSort = true, saveDefault = false)
+                        },
+                        onDeleteSaved = { listener.deleteSavedSort() },
                         contentPadding = padding,
                     )
                 }
             }
         }
     }
+
+    private fun applyFilters(sort: String, period: String, type: String, saveSort: Boolean, saveDefault: Boolean) {
+        val args = requireArguments()
+        val originalSort = VideosSort.sanitizeSort(args.getString(SORT))
+        val originalPeriod = VideosSort.sanitizePeriod(args.getString(PERIOD))
+        val originalType = VideosSort.sanitizeType(args.getString(TYPE))
+        val originalLanguages = args.getStringArray(LANGUAGES) ?: emptyArray()
+        listener.onChange(
+            sort, sortLabel(sort),
+            period, periodLabel(period),
+            type, typeLabel(type),
+            selectedLanguages,
+            period != originalPeriod || sort != originalSort || type != originalType || !selectedLanguages.contentEquals(originalLanguages),
+            saveSort, saveDefault,
+        )
+        dismiss()
+    }
+
+    private fun sortLabel(value: String): String = getString(
+        when (value) {
+            SORT_VIEWS -> R.string.view_count
+            else -> R.string.upload_date
+        }
+    )
+
+    private fun periodLabel(value: String): String = getString(
+        when (value) {
+            PERIOD_DAY -> R.string.today
+            PERIOD_WEEK -> R.string.this_week
+            PERIOD_MONTH -> R.string.this_month
+            else -> R.string.all_time
+        }
+    )
+
+    private fun typeLabel(value: String): String = getString(
+        when (value) {
+            VIDEO_TYPE_ARCHIVE -> R.string.video_type_archive
+            VIDEO_TYPE_HIGHLIGHT -> R.string.video_type_highlight
+            VIDEO_TYPE_UPLOAD -> R.string.video_type_upload
+            else -> R.string.all
+        }
+    )
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)

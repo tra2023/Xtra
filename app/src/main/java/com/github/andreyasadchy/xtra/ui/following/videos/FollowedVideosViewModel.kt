@@ -16,16 +16,16 @@ import com.github.andreyasadchy.xtra.model.ui.Bookmark
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
 import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.model.ui.Video
+import com.github.andreyasadchy.xtra.model.ui.VideosSort
 import com.github.andreyasadchy.xtra.repository.BookmarksRepository
 import com.github.andreyasadchy.xtra.repository.ChannelSortRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
-import com.github.andreyasadchy.xtra.repository.datasource.FollowedVideosDataSource
-import com.github.andreyasadchy.xtra.ui.common.VideosSortDialog
-import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.repository.XtraHttpClient
+import com.github.andreyasadchy.xtra.repository.datasource.FollowedVideosDataSource
 import com.github.andreyasadchy.xtra.repository.getBytesOrNull
+import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+
 class FollowedVideosViewModel(
     private val applicationContext: Context,
     private val channelSortRepository: ChannelSortRepository,
@@ -51,11 +52,11 @@ class FollowedVideosViewModel(
     val bookmarks = bookmarksRepository.getAllFlow()
 
     val sort: String
-        get() = filter.value?.sort ?: VideosSortDialog.SORT_TIME
+        get() = filter.value?.sort ?: VideosSort.SORT_TIME
     val period: String
-        get() = filter.value?.period ?: VideosSortDialog.PERIOD_ALL
+        get() = filter.value?.period ?: VideosSort.PERIOD_ALL
     val type: String
-        get() = filter.value?.type ?: VideosSortDialog.VIDEO_TYPE_ALL
+        get() = filter.value?.type ?: VideosSort.VIDEO_TYPE_ALL
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {
@@ -64,15 +65,15 @@ class FollowedVideosViewModel(
         ) {
             FollowedVideosDataSource(
                 gqlQueryType = when (type) {
-                    VideosSortDialog.VIDEO_TYPE_ALL -> null
-                    VideosSortDialog.VIDEO_TYPE_ARCHIVE -> BroadcastType.ARCHIVE
-                    VideosSortDialog.VIDEO_TYPE_HIGHLIGHT -> BroadcastType.HIGHLIGHT
-                    VideosSortDialog.VIDEO_TYPE_UPLOAD -> BroadcastType.UPLOAD
+                    VideosSort.VIDEO_TYPE_ALL -> null
+                    VideosSort.VIDEO_TYPE_ARCHIVE -> BroadcastType.ARCHIVE
+                    VideosSort.VIDEO_TYPE_HIGHLIGHT -> BroadcastType.HIGHLIGHT
+                    VideosSort.VIDEO_TYPE_UPLOAD -> BroadcastType.UPLOAD
                     else -> null
                 },
                 gqlQuerySort = when (sort) {
-                    VideosSortDialog.SORT_TIME -> VideoSort.TIME
-                    VideosSortDialog.SORT_VIEWS -> VideoSort.VIEWS
+                    VideosSort.SORT_TIME -> VideoSort.TIME
+                    VideosSort.SORT_VIEWS -> VideoSort.VIEWS
                     else -> VideoSort.TIME
                 },
                 gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext, true),
