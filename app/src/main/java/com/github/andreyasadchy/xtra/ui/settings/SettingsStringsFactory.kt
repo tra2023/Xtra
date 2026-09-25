@@ -33,7 +33,7 @@ fun Context.settingsStrings(): SettingsStrings {
             C.PLAYER_PICTURE_IN_PICTURE to s(R.string.picture_in_picture),
             C.PLAYER_BACKGROUND_AUDIO to s(R.string.use_background_audio),
             C.PLAYER_BACKGROUND_AUDIO_LOCKED to s(R.string.use_background_audio_locked),
-            "player_settings" to s(R.string.player_settings),
+            "player_settings_screen" to s(R.string.player_settings),
             "player_button_settings" to s(R.string.player_buttons),
             "buffer_settings" to s(R.string.buffer_settings),
             "playback_settings" to s(R.string.playback_settings),

@@ -70,7 +70,7 @@ fun RootSettingsScreen(
         }
         settingsBooleanPref(C.PLAYER_BACKGROUND_AUDIO, true, strings)
         settingsBooleanPref(C.PLAYER_BACKGROUND_AUDIO_LOCKED, true, strings)
-        settingsClickNav("player_settings", strings, onNavigate, SettingsRoute.Player)
+        settingsClickNav("player_settings_screen", strings, onNavigate, SettingsRoute.Player)
         settingsClickNav("player_button_settings", strings, onNavigate, SettingsRoute.PlayerButtons)
         settingsClickNav("buffer_settings", strings, onNavigate, SettingsRoute.Buffer)
         settingsClickNav("playback_settings", strings, onNavigate, SettingsRoute.Playback)
@@ -146,7 +146,7 @@ val SettingsSearchIndex: List<SettingsSearchEntry> = listOf(
     SettingsSearchEntry(C.PLAYER_PICTURE_IN_PICTURE, SettingsRoute.Root),
     SettingsSearchEntry(C.PLAYER_BACKGROUND_AUDIO, SettingsRoute.Root),
     SettingsSearchEntry(C.PLAYER_BACKGROUND_AUDIO_LOCKED, SettingsRoute.Root),
-    SettingsSearchEntry("player_settings", SettingsRoute.Root),
+    SettingsSearchEntry("player_settings_screen", SettingsRoute.Root),
     SettingsSearchEntry("player_button_settings", SettingsRoute.Root),
     SettingsSearchEntry("buffer_settings", SettingsRoute.Root),
     SettingsSearchEntry("playback_settings", SettingsRoute.Root),
