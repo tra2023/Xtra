@@ -1,7 +1,9 @@
 package com.github.andreyasadchy.xtra.player
 
+import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsManifest
 import com.github.andreyasadchy.xtra.model.VideoQuality
@@ -25,6 +27,7 @@ actual fun platformPlayerControls(player: MediampPlayer): PlatformPlayerControls
             }
         }
 
+        @OptIn(UnstableApi::class)
         override fun videoRenditions(): List<VideoQuality>? {
             val manifest = exoPlayer?.currentManifest as? HlsManifest ?: return null
             val playlist = manifest.multivariantPlaylist
@@ -46,6 +49,7 @@ actual fun platformPlayerControls(player: MediampPlayer): PlatformPlayerControls
             }
         }
 
+        @OptIn(UnstableApi::class)
         override fun selectRendition(quality: VideoQuality) {
             val exo = exoPlayer ?: return
             if (quality.name == VideoQuality.AUTO_QUALITY) {
