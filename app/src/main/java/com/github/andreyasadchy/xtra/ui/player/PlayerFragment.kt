@@ -52,7 +52,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.TimeBar
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.RecyclerView
@@ -143,6 +142,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
     open fun seekToLivePosition() {}
     open fun setPlaybackSpeed(speed: Float) {}
     open fun changeVolume(volume: Float) {}
+    open fun applyAspectRatioMode(mode: Int) {}
     open fun updateProgress() {}
     open fun restartPlayer() {}
     open fun toggleAudioCompressor() {}
@@ -238,8 +238,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             }
             isChatOpen = requireContext().prefs().getBoolean(C.KEY_CHAT_OPENED, true) && !requireContext().prefs().getBoolean(C.CHAT_DISABLE, false)
             chatWidthLandscape = requireContext().prefs().getInt(C.LANDSCAPE_CHAT_WIDTH, 0)
-            resizeMode = requireContext().prefs().getInt(C.ASPECT_RATIO_LANDSCAPE, AspectRatioFrameLayout.RESIZE_MODE_FIT)
-            aspectRatioFrameLayout.setAspectRatio(16f / 9f)
+            resizeMode = requireContext().prefs().getInt(C.ASPECT_RATIO_LANDSCAPE, 0)
             initLayout()
             changePlayerMode()
             val viewConfiguration = ViewConfiguration.get(requireContext())
@@ -623,8 +622,6 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 )
                 position.text = DateUtils.formatElapsedTime(0)
                 duration.text = DateUtils.formatElapsedTime(0)
-                subtitleView.setUserDefaultStyle()
-                subtitleView.setUserDefaultTextSize()
             }
         }
     }
@@ -1158,7 +1155,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                         slidingLayout.translationY = 0f - scaledYDiff - ((insets?.top ?: 0) * minimizedScaleY) + newY
                     }
                 }
-                aspectRatioFrameLayout.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                applyAspectRatioMode(0)
                 playerLayout.isPortrait = true
                 chatLayout.isPortrait = true
                 with(playerControls) {
@@ -1233,7 +1230,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                         slidingLayout.translationY = 0f - scaledYDiff - ((insets?.top ?: 0) * minimizedScaleY) + newY
                     }
                 }
-                aspectRatioFrameLayout.resizeMode = resizeMode
+                applyAspectRatioMode(resizeMode)
                 playerLayout.isPortrait = false
                 chatLayout.isPortrait = false
                 with(playerControls) {
@@ -1275,40 +1272,40 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
     }
 
     fun setResizeMode() {
-        resizeMode = (resizeMode + 1).let { if (it < 5) it else 0 }
-        binding.aspectRatioFrameLayout.resizeMode = resizeMode
+        resizeMode = when (resizeMode) {
+            0 -> 3
+            3 -> 4
+            else -> 0
+        }
+        applyAspectRatioMode(resizeMode)
         requireContext().prefs().edit { putInt(C.ASPECT_RATIO_LANDSCAPE, resizeMode) }
     }
 
     fun showSleepTimerDialog() {
-        if (requireContext().prefs().getBoolean(C.SLEEP_TIMER_USE_TIME_PICKER, false)) {
-            if (((activity as? MainActivity)?.getSleepTimerTimeLeft() ?: 0) > 0L) {
-                requireContext().getAlertDialogBuilder()
-                    .setMessage(getString(R.string.stop_sleep_timer_message))
-                    .setPositiveButton(getString(R.string.yes)) { _, _ ->
-                        onSleepTimerChanged(-1L, 0, 0, requireContext().prefs().getBoolean(C.SLEEP_TIMER_LOCK, false))
-                    }
-                    .setNegativeButton(getString(R.string.no), null)
-                    .show()
-            } else {
-                val savedValue = requireContext().prefs().getInt(C.SLEEP_TIMER_TIME, 15)
-                val picker = MaterialTimePicker.Builder()
-                    .setTimeFormat(if (DateFormat.is24HourFormat(requireContext())) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
-                    .setInputMode(MaterialTimePicker.INPUT_MODE_CLOCK)
-                    .setHour(savedValue / 60)
-                    .setMinute(savedValue % 60)
-                    .build()
-                picker.addOnPositiveButtonClickListener {
-                    val minutes = TwitchApiHelper.getMinutesLeft(picker.hour, picker.minute)
-                    onSleepTimerChanged(minutes * 60_000L, minutes / 60, minutes % 60, requireContext().prefs().getBoolean(C.SLEEP_TIMER_LOCK, false))
-                    requireContext().prefs().edit {
-                        putInt(C.SLEEP_TIMER_TIME, picker.hour * 60 + picker.minute)
-                    }
+        if (((activity as? MainActivity)?.getSleepTimerTimeLeft() ?: 0) > 0L) {
+            requireContext().getAlertDialogBuilder()
+                .setMessage(getString(R.string.stop_sleep_timer_message))
+                .setPositiveButton(getString(R.string.yes)) { _, _ ->
+                    onSleepTimerChanged(-1L, 0, 0, requireContext().prefs().getBoolean(C.SLEEP_TIMER_LOCK, false))
                 }
-                picker.show(childFragmentManager, null)
-            }
+                .setNegativeButton(getString(R.string.no), null)
+                .show()
         } else {
-            SleepTimerDialog.newInstance((activity as? MainActivity)?.getSleepTimerTimeLeft() ?: 0).show(childFragmentManager, null)
+            val savedValue = requireContext().prefs().getInt(C.SLEEP_TIMER_TIME, 15)
+            val picker = MaterialTimePicker.Builder()
+                .setTimeFormat(if (DateFormat.is24HourFormat(requireContext())) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
+                .setInputMode(MaterialTimePicker.INPUT_MODE_CLOCK)
+                .setHour(savedValue / 60)
+                .setMinute(savedValue % 60)
+                .build()
+            picker.addOnPositiveButtonClickListener {
+                val minutes = TwitchApiHelper.getMinutesLeft(picker.hour, picker.minute)
+                onSleepTimerChanged(minutes * 60_000L, minutes / 60, minutes % 60, requireContext().prefs().getBoolean(C.SLEEP_TIMER_LOCK, false))
+                requireContext().prefs().edit {
+                    putInt(C.SLEEP_TIMER_TIME, picker.hour * 60 + picker.minute)
+                }
+            }
+            picker.show(childFragmentManager, null)
         }
     }
 

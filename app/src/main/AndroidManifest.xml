@@ -59,7 +59,7 @@
             android:windowSoftInputMode="adjustResize" />
 
         <service
-            android:name=".ui.player.ExoPlayerService"
+            android:name=".ui.player.MediampPlayerService"
             android:foregroundServiceType="mediaPlayback" />
 
         <service

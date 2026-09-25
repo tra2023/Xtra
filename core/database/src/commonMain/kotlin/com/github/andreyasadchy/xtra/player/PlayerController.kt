@@ -332,7 +332,12 @@ class PlayerController(
     fun changeQuality(selectedQuality: VideoQuality?) {
         session.previousQuality = session.quality
         session.quality = selectedQuality
-        val quality = selectedQuality ?: return
+        val quality = selectedQuality ?: run {
+            // Restoring from background audio (or auto quality) re-enables the video track.
+            engine.setVideoEnabled(true)
+            engine.resetVideoTracks()
+            return
+        }
         when (quality.name) {
             VideoQuality.AUTO_QUALITY -> {
                 if (session.restorePlaylist) {
@@ -415,13 +420,16 @@ class PlayerController(
     private fun switchToBackgroundAudio() {
         session.restoreQuality = true
         session.previousQuality = session.quality
+        // The HLS multivariant playlist is not exposed by the mediamp common API, so an
+        // explicit audio-only rendition may not exist. Mark the session as audio-only and
+        // disable the video track; audio keeps playing from the same source.
         session.quality = session.qualities?.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY }
-        val quality = session.quality ?: return
+            ?: VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY)
         if (prefs.getBoolean(C.PLAYER_DISABLE_BACKGROUND_VIDEO, true)) {
             engine.setVideoEnabled(false)
         }
         if (prefs.getBoolean(C.PLAYER_USE_BACKGROUND_AUDIO_TRACK, false)) {
-            quality.url?.let { url ->
+            session.qualities?.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY }?.url?.let { url ->
                 val position = engine.currentPosition
                 if (session.qualities?.find { it.name == VideoQuality.AUTO_QUALITY } != null) {
                     session.restorePlaylist = true

@@ -389,7 +389,6 @@
     <string name="live_notification">%s is live</string>
     <string name="live_notifications">Live notifications</string>
     <string name="sleep_timer_lock_screen">Lock screen after sleep timer is done</string>
-    <string name="sleep_timer_time_picker">Use Material time picker for sleep timer</string>
     <string name="stop_sleep_timer_message">Stop sleep timer?</string>
     <string name="enable_notifications">Turn on notifications</string>
     <string name="disable_notifications">Turn off notifications</string>

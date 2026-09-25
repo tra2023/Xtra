@@ -15,23 +15,11 @@
             android:layout_height="0dp"
             android:background="@android:color/black">
 
-            <androidx.media3.ui.AspectRatioFrameLayout
-                android:id="@+id/aspectRatioFrameLayout"
+            <androidx.compose.ui.platform.ComposeView
+                android:id="@+id/playerComposeView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_gravity="center">
-
-                <SurfaceView
-                    android:id="@+id/playerSurface"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent" />
-
-            </androidx.media3.ui.AspectRatioFrameLayout>
-
-            <androidx.media3.ui.SubtitleView
-                android:id="@+id/subtitleView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
+                android:layout_gravity="center" />
 
             <com.google.android.material.progressindicator.CircularProgressIndicator
                 android:id="@+id/bufferingIndicator"

@@ -388,7 +388,6 @@
     <string name="live_notification">%s está ao vivo</string>
     <string name="live_notifications">Notificações ao vivo</string>
     <string name="sleep_timer_lock_screen">Bloquear tela após o tempo do timer de sono</string>
-    <string name="sleep_timer_time_picker">Usar seletor de tempo Material para o timer de sono</string>
     <string name="stop_sleep_timer_message">Parar timer de sono?</string>
     <string name="enable_notifications">Ativar notificações</string>
     <string name="disable_notifications">Desativar notificações</string>

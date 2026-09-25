@@ -111,6 +111,8 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:models"))
     implementation(project(":core:network"))
+    // KMP mediamp-based player (engine + Compose surface + platform host helpers).
+    implementation(project(":core:player"))
     // Shared Compose Multiplatform image UI (XtraAsyncImage). Views keep working unchanged.
     implementation(project(":core:ui"))
 }

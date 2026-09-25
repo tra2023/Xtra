@@ -388,7 +388,6 @@
     <string name="live_notification">%s está en directo</string>
     <string name="live_notifications">Notificacións en directo</string>
     <string name="sleep_timer_lock_screen">Bloquear pantalla ao rematar o temporizador de suspensión</string>
-    <string name="sleep_timer_time_picker">Usar selector de hora Material para o temporizador de suspensión</string>
     <string name="stop_sleep_timer_message">Deter o temporizador de suspensión?</string>
     <string name="enable_notifications">Activar notificacións</string>
     <string name="disable_notifications">Desactivar notificacións</string>

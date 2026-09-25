@@ -388,7 +388,6 @@
     <string name="live_notification">%s はライブ中です</string>
     <string name="live_notifications">ライブ通知</string>
     <string name="sleep_timer_lock_screen">スリープタイマー終了後に画面をロックする</string>
-    <string name="sleep_timer_time_picker">スリープタイマーにMaterialデザインの時間選択ピッカーを使用する</string>
     <string name="stop_sleep_timer_message">スリープタイマーを停止しますか？</string>
     <string name="enable_notifications">通知をオンにする</string>
     <string name="disable_notifications">通知をオフにする</string>

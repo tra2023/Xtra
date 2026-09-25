@@ -137,7 +137,6 @@ fun Context.settingsStrings(): SettingsStrings {
             C.PLAYER_DOWNLOAD to s(R.string.download),
             C.PLAYER_FOLLOW to s(R.string.follow),
             C.PLAYER_SLEEP to s(R.string.sleep_timer),
-            C.SLEEP_TIMER_USE_TIME_PICKER to s(R.string.sleep_timer_time_picker),
             C.SLEEP_TIMER_LOCK to s(R.string.sleep_timer_lock_screen),
             "admin_settings" to s(R.string.admin_settings),
             C.PLAYER_ASPECT to s(R.string.aspect_ratio),

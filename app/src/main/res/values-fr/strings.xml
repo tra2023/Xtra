@@ -388,7 +388,6 @@
     <string name="live_notification">%s est en direct</string>
     <string name="live_notifications">Notifications en direct</string>
     <string name="sleep_timer_lock_screen">Verrouiller l\'écran après la fin du minuteur de sommeil</string>
-    <string name="sleep_timer_time_picker">Utiliser le sélecteur de temps Material pour le minuteur de sommeil</string>
     <string name="stop_sleep_timer_message">Arrêter le minuteur de sommeil ?</string>
     <string name="enable_notifications">Activer les notifications</string>
     <string name="disable_notifications">Désactiver les notifications</string>

@@ -255,7 +255,6 @@ val SettingsSearchIndex: List<SettingsSearchEntry> = listOf(
     SettingsSearchEntry(C.PLAYER_DOWNLOAD, SettingsRoute.PlayerButtons),
     SettingsSearchEntry(C.PLAYER_FOLLOW, SettingsRoute.PlayerButtons),
     SettingsSearchEntry(C.PLAYER_SLEEP, SettingsRoute.PlayerButtons),
-    SettingsSearchEntry(C.SLEEP_TIMER_USE_TIME_PICKER, SettingsRoute.PlayerButtons),
     SettingsSearchEntry(C.SLEEP_TIMER_LOCK, SettingsRoute.PlayerButtons),
     SettingsSearchEntry("admin_settings", SettingsRoute.PlayerButtons),
     SettingsSearchEntry(C.PLAYER_ASPECT, SettingsRoute.PlayerButtons),

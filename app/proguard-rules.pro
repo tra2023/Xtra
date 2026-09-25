@@ -40,3 +40,8 @@
 -keep class androidx.navigation.fragment.NavHostFragment {
     *;
 }
+
+# mediamp discovers its Android backend and Compose surface provider through
+# java.util.ServiceLoader (META-INF/services), so R8 must not remove them.
+-keep class org.openani.mediamp.exoplayer.ExoPlayerMediampPlayerFactory { <init>(); }
+-keep class org.openani.mediamp.exoplayer.compose.ExoPlayerMediampPlayerSurfaceProvider { <init>(); }

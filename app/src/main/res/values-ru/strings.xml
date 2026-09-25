@@ -388,7 +388,6 @@
     <string name="live_notification">%s в эфире</string>
     <string name="live_notifications">Уведомлять о выходе в эфир</string>
     <string name="sleep_timer_lock_screen">Блокировка экрана по окончании таймера сна</string>
-    <string name="sleep_timer_time_picker">Использовать пикер времени из Material для таймера сна</string>
     <string name="stop_sleep_timer_message">Остановить таймер сна?</string>
     <string name="enable_notifications">Включить уведомления</string>
     <string name="disable_notifications">Отключить уведомления</string>

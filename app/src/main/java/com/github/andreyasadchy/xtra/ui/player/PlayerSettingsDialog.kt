@@ -8,7 +8,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.edit
-import androidx.media3.common.Tracks
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
@@ -180,8 +179,8 @@ class PlayerSettingsDialog : BottomSheetDialogFragment() {
         menuState = menuState.copy(bookmarked = isBookmarked)
     }
 
-    fun setSubtitles(subtitles: Tracks.Group? = null) {
-        menuState = menuState.copy(subtitlesSelected = subtitles?.isSelected)
+    fun setSubtitles(selected: Boolean? = null) {
+        menuState = menuState.copy(subtitlesSelected = selected)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

@@ -142,7 +142,6 @@ fun PlayerButtonSettingsScreen(
         settingsBooleanPref(C.PLAYER_DOWNLOAD, false, strings)
         settingsBooleanPref(C.PLAYER_FOLLOW, false, strings)
         settingsBooleanPref(C.PLAYER_SLEEP, false, strings)
-        settingsBooleanPref(C.SLEEP_TIMER_USE_TIME_PICKER, false, strings)
         settingsBooleanPref(C.SLEEP_TIMER_LOCK, false, strings, onChanged = {
             if (it) onAction(SettingsAction.RequestDeviceAdmin)
         })

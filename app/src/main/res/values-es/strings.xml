@@ -393,7 +393,6 @@
     <string name="live_notification">%s está En vivo</string>
     <string name="live_notifications">Notificaciones de En vivo</string>
     <string name="sleep_timer_lock_screen">Bloquear pantalla después de que el modo de dormir termine</string>
-    <string name="sleep_timer_time_picker">Usar seleccionador de tiempo tipo Material para el modo de dormir</string>
     <string name="stop_sleep_timer_message">¿Detener el modo de dormir?</string>
     <string name="enable_notifications">Activar notificaciones</string>
     <string name="disable_notifications">Desactivar notificaciones</string>

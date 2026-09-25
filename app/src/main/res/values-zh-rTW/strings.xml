@@ -388,7 +388,6 @@
     <string name="live_notification">%s 正在實況</string>
     <string name="live_notifications">實況通知</string>
     <string name="sleep_timer_lock_screen">在睡眠計時器即時完畢後鎖定螢幕</string>
-    <string name="sleep_timer_time_picker">對於睡眠計時器使用 Material 時間選擇器</string>
     <string name="stop_sleep_timer_message">停止睡眠計時器？</string>
     <string name="enable_notifications">開啟通知</string>
     <string name="disable_notifications">關閉通知</string>

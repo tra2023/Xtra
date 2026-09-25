@@ -388,7 +388,6 @@
     <string name="live_notification">%s ist Live</string>
     <string name="live_notifications">Live-Benachrichtigungen</string>
     <string name="sleep_timer_lock_screen">Bildschirm sperren, nachdem der Sleep-Timer abgelaufen ist</string>
-    <string name="sleep_timer_time_picker">Verwenden Sie den Material-Zeitwähler für den Sleep-Timer</string>
     <string name="stop_sleep_timer_message">Sleep-Timer stoppen?</string>
     <string name="enable_notifications">Benachrichtigungen aktivieren</string>
     <string name="disable_notifications">Benachrichtigungen deaktivieren</string>

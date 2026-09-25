@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.view.KeyEvent
 import com.github.andreyasadchy.xtra.XtraApp
-import com.github.andreyasadchy.xtra.ui.player.ExoPlayerService
+import com.github.andreyasadchy.xtra.ui.player.MediampPlayerService
 import kotlinx.coroutines.runBlocking
 
 class MediaButtonReceiver: BroadcastReceiver() {
@@ -21,7 +21,7 @@ class MediaButtonReceiver: BroadcastReceiver() {
                         (context.applicationContext as XtraApp).xtraModule.playerRepository.getPlaybackStates()
                     }
                     if (savedStates.isNotEmpty()) {
-                        context.startForegroundService(Intent(context, ExoPlayerService::class.java).apply {
+                        context.startForegroundService(Intent(context, MediampPlayerService::class.java).apply {
                             fillIn(intent, 0)
                         })
                     }

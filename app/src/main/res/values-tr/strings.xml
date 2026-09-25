@@ -389,7 +389,6 @@
     <string name="live_notification">%s canlı yayında</string>
     <string name="live_notifications">Canlı bildirimler</string>
     <string name="sleep_timer_lock_screen">Uyku zamanlayıcısı bittiğinde ekranı kilitle</string>
-    <string name="sleep_timer_time_picker">Uyku zamanlayıcısı için Material saat seçicisini kullan</string>
     <string name="stop_sleep_timer_message">Uyku zamanlayıcısı durdurulsun mu?</string>
     <string name="enable_notifications">Bildirimleri aç</string>
     <string name="disable_notifications">Bildirimleri kapat</string>
