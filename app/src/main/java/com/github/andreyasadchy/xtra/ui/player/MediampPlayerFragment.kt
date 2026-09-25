@@ -1,5 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.player
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -7,11 +9,15 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.text.format.DateUtils
 import android.view.View
+import android.widget.HorizontalScrollView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.view.isVisible
+import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.github.andreyasadchy.xtra.R
@@ -21,6 +27,7 @@ import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -371,7 +378,14 @@ class MediampPlayerFragment : PlayerFragment() {
     }
 
     override fun toggleAudioCompressor() {
-        // The audio compressor was an ExoPlayer-only effect and is not part of mediamp's common API.
+        val enabled = playbackService?.toggleDynamicsProcessing()
+        binding.playerControls.audioCompressor.setImageResource(
+            if (enabled == true) {
+                R.drawable.baseline_audio_compressor_on_24dp
+            } else {
+                R.drawable.baseline_audio_compressor_off_24dp
+            }
+        )
     }
 
     override fun setSubtitlesButton() {
@@ -404,10 +418,26 @@ class MediampPlayerFragment : PlayerFragment() {
         playbackService?.toggleSubtitles(enabled)
     }
 
-    override fun getUnavailableQualities(): List<VideoQuality> = emptyList()
+    override fun getUnavailableQualities(): List<VideoQuality> = playbackService?.unavailableQualities() ?: emptyList()
 
     override fun showPlaylistTags(mediaPlaylist: Boolean) {
-        // HLS playlist manifests are not exposed by mediamp's common API.
+        val tags = playbackService?.getPlaylistTags(mediaPlaylist) ?: return
+        requireContext().getAlertDialogBuilder().apply {
+            setView(NestedScrollView(context).apply {
+                addView(HorizontalScrollView(context).apply {
+                    addView(TextView(context).apply {
+                        text = tags
+                        textSize = 12F
+                        setTextIsSelectable(true)
+                    })
+                })
+            })
+            setNegativeButton(R.string.copy_clip) { _, _ ->
+                val clipboard = ContextCompat.getSystemService(requireContext(), ClipboardManager::class.java)
+                clipboard?.setPrimaryClip(ClipData.newPlainText("label", tags))
+            }
+            setPositiveButton(android.R.string.ok, null)
+        }.show()
     }
 
     override fun changeQuality(selectedQuality: VideoQuality?) {

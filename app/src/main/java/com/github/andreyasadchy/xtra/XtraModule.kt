@@ -21,18 +21,8 @@ import com.github.andreyasadchy.xtra.repository.SavedFiltersRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 
 class XtraModule(application: Application) {
-
-    val okHttpClient = lazy {
-        OkHttpClient.Builder().apply {
-            if (BuildConfig.DEBUG) {
-                addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY })
-            }
-        }.build()
-    }
 
     val json by lazy {
         Json { ignoreUnknownKeys = true }

@@ -84,21 +84,19 @@ dependencies {
     implementation(libs.webkit)
     implementation(libs.work.runtime)
 
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.logging)
     implementation(libs.serialization.json)
     implementation(libs.apollo.api)
 
+    // media3 remains as the Android backend of mediamp and for the notification/time-bar
+    // resources. Playback itself goes through :core:player (mediamp).
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.exoplayer.hls)
-    implementation(libs.media3.datasource.okhttp)
     implementation(libs.media3.ui)
     implementation(libs.media3.session)
 
     implementation(libs.coil)
     implementation(libs.coil.compose)
     // KMP-ready network fetcher and API transport (Android + JVM desktop via CIO).
-    // ExoPlayer data sources continue to use OkHttp.
     implementation(libs.coil.network.ktor3)
     implementation(libs.coil.network.cache.control)
     implementation(libs.ktor.client.cio)

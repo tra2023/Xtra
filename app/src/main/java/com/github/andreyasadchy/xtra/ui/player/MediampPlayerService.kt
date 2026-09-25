@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.drawable.Icon
 import android.media.MediaMetadata
+import android.media.audiofx.DynamicsProcessing
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.net.ConnectivityManager
@@ -21,6 +22,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.util.Base64
 import android.view.KeyEvent
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -28,8 +30,12 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.Player
+import androidx.media3.common.Timeline
+import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.HlsManifest
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.VideoQuality
@@ -43,6 +49,7 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.MediaButtonReceiver
 import com.github.andreyasadchy.xtra.util.SleepTimer
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.m3u8.AdDetector
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,6 +57,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONException
 import org.openani.mediamp.MediaStatus
 import org.openani.mediamp.MediampPlayer
 import org.openani.mediamp.PlaybackEvent
@@ -79,8 +88,8 @@ class MediampPlayerService : BasePlaybackService() {
     private var bitmapLoadJob: Job? = null
     private var showStreamNotificationSeekbar = true
     private var wasPlaying = false
-    private var qualitiesLoaded = false
 
+    private var dynamicsProcessing: DynamicsProcessing? = null
     private lateinit var sleepTimer: SleepTimer
     private var savePositionTimer: Timer? = null
     private var stopServiceTimer: Timer? = null
@@ -103,9 +112,13 @@ class MediampPlayerService : BasePlaybackService() {
 
     private val hideAdsHost = object : HideAdsController.Host {
         override fun setVideoHidden(hidden: Boolean) {
+            if (player == null) {
+                return
+            }
             if (quality?.name != VideoQuality.AUDIO_ONLY_QUALITY) {
                 engine.setVideoEnabled(!hidden)
             }
+            engine.setVolume(if (hidden) 0f else prefs().getInt(C.PLAYER_VOLUME, 100) / 100f)
         }
 
         override fun onWaitingAds() {
@@ -209,6 +222,7 @@ class MediampPlayerService : BasePlaybackService() {
             scope = lifecycleScope,
         )
         observePlayer(player)
+        attachExoPlayerListener(player)
         createMediaSession(player)
         createNotificationChannel()
         start(restorePauseState)
@@ -227,9 +241,6 @@ class MediampPlayerService : BasePlaybackService() {
                 if (!loaded && ready) {
                     playerController.onTracksChanged(true)
                 }
-                if (ready) {
-                    ensureQualities()
-                }
             }
         }
         lifecycleScope.launch {
@@ -237,7 +248,6 @@ class MediampPlayerService : BasePlaybackService() {
                 updatePlaybackState()
                 updateMetadata()
                 updateNotification()
-                ensureQualities()
             }
         }
         lifecycleScope.launch {
@@ -251,32 +261,135 @@ class MediampPlayerService : BasePlaybackService() {
         }
     }
 
-    private fun ensureQualities() {
-        if (qualitiesLoaded) {
-            return
+    /**
+     * The Android mediamp backend is ExoPlayer, so its [Player.Listener] is the only way to
+     * observe HLS timeline changes. This restores manifest-driven quality list updates and
+     * Twitch ad detection, both of which rely on the raw HLS manifest.
+     */
+    private fun attachExoPlayerListener(player: MediampPlayer) {
+        val exoPlayer = player.impl as? ExoPlayer ?: return
+        exoPlayer.addListener(object : Player.Listener {
+            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                dynamicsProcessing?.let {
+                    it.release()
+                    dynamicsProcessing = null
+                }
+                if (prefs().getBoolean(C.PLAYER_AUDIO_COMPRESSOR, false)) {
+                    reinitializeDynamicsProcessing(audioSessionId)
+                }
+            }
+
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                playerController.onTimelineChanged(
+                    variants = engine.videoRenditions(),
+                    playlistChanged = reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED,
+                    timelineEmpty = timeline.isEmpty,
+                    sourceUpdate = reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE,
+                    isAd = detectAd(exoPlayer.currentManifest as? HlsManifest),
+                    hideAds = prefs().getBoolean(C.PLAYER_HIDE_ADS, false),
+                )
+            }
+
+            override fun onTracksChanged(tracks: Tracks) {
+                playerController.onTracksChanged(!tracks.isEmpty)
+            }
+        })
+    }
+
+    private fun detectAd(manifest: HlsManifest?): Boolean? {
+        val hideAds = prefs().getBoolean(C.PLAYER_HIDE_ADS, false)
+        if (type != STREAM || !hideAdsController.shouldProcess(hideAds)) {
+            return null
         }
-        if (!qualities.isNullOrEmpty()) {
-            qualitiesLoaded = true
-            return
+        val playlist = manifest?.mediaPlaylist ?: return false
+        return playlist.segments.lastOrNull()?.let { segment ->
+            AdDetector.isAd(
+                segment = AdDetector.AdSegment(
+                    title = segment.title,
+                    startTimeMs = (playlist.startTimeUs + segment.relativeStartTimeUs) / 1000,
+                ),
+                ranges = playlist.interstitials.map { dateRange ->
+                    AdDetector.AdRange(
+                        id = dateRange.id,
+                        rangeClass = dateRange.clientDefinedAttributes.find { it.name == "CLASS" }?.textValue,
+                        ad = dateRange.clientDefinedAttributes.find { it.name.startsWith("X-TV-TWITCH-AD-") } != null,
+                        startTimeMs = dateRange.startDateUnixUs / 1000,
+                        endTimeMs = (dateRange.endDateUnixUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }
+                            ?: dateRange.durationUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }?.let { dateRange.startDateUnixUs + it }
+                            ?: dateRange.plannedDurationUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }?.let { dateRange.startDateUnixUs + it })?.let { it / 1000 },
+                    )
+                },
+            )
+        } ?: false
+    }
+
+    /** Raw `#EXT-...` tag lines of the current HLS manifest (debug helper). */
+    fun getPlaylistTags(mediaPlaylist: Boolean): String? {
+        val manifest = (player?.impl as? ExoPlayer)?.currentManifest as? HlsManifest ?: return null
+        val tags = if (mediaPlaylist) {
+            manifest.mediaPlaylist.tags
+        } else {
+            manifest.multivariantPlaylist.tags
         }
-        // The Android ExoPlayer backend exposes the HLS multivariant playlist through
-        // PlatformPlayerControls, so the shared quality list can be rebuilt.
-        val variants = engine.videoRenditions() ?: return
-        if (variants.isEmpty()) {
-            return
+        return tags.joinToString("\n").takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * Twitch marks renditions that are not part of the variant list in the
+     * `com.amazon.ivs.unavailable-media` `EXT-X-SESSION-DATA` tag. The "find unlisted video"
+     * flow uses them to reconstruct URLs for VODs Twitch does not list.
+     */
+    fun unavailableQualities(): List<VideoQuality> {
+        val stableVariantIds = mutableListOf<VideoQuality>()
+        val manifest = (player?.impl as? ExoPlayer)?.currentManifest as? HlsManifest ?: return stableVariantIds
+        manifest.multivariantPlaylist.tags.filter { it.startsWith("#EXT-X-SESSION-DATA") }.forEach { line ->
+            val id = Regex("DATA-ID=\"(.+?)\"").find(line)?.groups?.get(1)?.value
+            if (id == "com.amazon.ivs.unavailable-media") {
+                val value = Regex("VALUE=\"(.+?)\"").find(line)?.groups?.get(1)?.value
+                if (value != null) {
+                    val bytes = try {
+                        Base64.decode(value, Base64.DEFAULT)
+                    } catch (e: IllegalArgumentException) {
+                        null
+                    }
+                    if (bytes != null) {
+                        val string = String(bytes)
+                        val array = try {
+                            JSONArray(string)
+                        } catch (e: JSONException) {
+                            null
+                        }
+                        if (array != null) {
+                            for (i in 0 until array.length()) {
+                                val obj = array.optJSONObject(i) ?: continue
+                                var skip = false
+                                val filterReasons = obj.optJSONArray("FILTER_REASONS")
+                                if (filterReasons != null) {
+                                    for (filterIndex in 0 until filterReasons.length()) {
+                                        val filter = filterReasons.optString(filterIndex)
+                                        if (filter.isNotEmpty()) {
+                                            skip = true
+                                            break
+                                        }
+                                    }
+                                }
+                                if (!skip) {
+                                    val newVariantId = obj.optString("STABLE-VARIANT-ID")
+                                    val resolution = obj.optString("RESOLUTION")
+                                    val frameRate = obj.optString("FRAME-RATE").toFloatOrNull()
+                                    val bitrate = obj.optInt("BANDWIDTH")
+                                    val codec = obj.optString("CODECS")
+                                    if (!newVariantId.isNullOrBlank()) {
+                                        stableVariantIds.add(VideoQuality(newVariantId, resolution.substringAfter('x').toIntOrNull(), frameRate, bitrate, codec))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
-        playerController.onTimelineChanged(
-            variants = variants,
-            playlistChanged = true,
-            timelineEmpty = false,
-            sourceUpdate = false,
-            isAd = null,
-            hideAds = prefs().getBoolean(C.PLAYER_HIDE_ADS, false),
-        )
-        qualitiesLoaded = true
-        if (loaded) {
-            playerController.onTracksChanged(true)
-        }
+        return stableVariantIds
     }
 
     private fun createMediaSession(player: MediampPlayer) {
@@ -431,8 +544,6 @@ class MediampPlayerService : BasePlaybackService() {
     fun getCurrentVolume(): Float? = (player?.impl as? ExoPlayer)?.volume
 
     fun getTotalDuration(): Long? = player?.mediaProperties?.value?.durationMillis
-
-    fun isPlaying(): Boolean = player?.state?.value?.isPlaying == true
 
     private fun seekBackMs(): Long = (prefs().getString(C.PLAYER_REWIND, "10")?.toLongOrNull() ?: 10) * 1000
     private fun seekForwardMs(): Long = (prefs().getString(C.PLAYER_FORWARD, "10")?.toLongOrNull() ?: 10) * 1000
@@ -715,8 +826,41 @@ class MediampPlayerService : BasePlaybackService() {
     }
 
     fun toggleDynamicsProcessing(): Boolean {
-        // Audio compressor is an ExoPlayer-only effect that mediamp does not expose.
-        return false
+        if (dynamicsProcessing?.enabled == true) {
+            dynamicsProcessing?.enabled = false
+        } else {
+            if (dynamicsProcessing == null) {
+                (player?.impl as? ExoPlayer)?.audioSessionId?.let { reinitializeDynamicsProcessing(it) }
+            } else {
+                dynamicsProcessing?.enabled = true
+            }
+        }
+        val enabled = dynamicsProcessing?.enabled == true
+        prefs().edit { putBoolean(C.PLAYER_AUDIO_COMPRESSOR, enabled) }
+        return enabled
+    }
+
+    private fun reinitializeDynamicsProcessing(audioSessionId: Int) {
+        dynamicsProcessing = DynamicsProcessing(0, audioSessionId, null).apply {
+            for (channelIdx in 0 until channelCount) {
+                for (bandIdx in 0 until getMbcByChannelIndex(channelIdx).bandCount) {
+                    setMbcBandByChannelIndex(
+                        channelIdx,
+                        bandIdx,
+                        getMbcBandByChannelIndex(channelIdx, bandIdx).apply {
+                            attackTime = 0f
+                            releaseTime = 0.25f
+                            ratio = 1.6f
+                            threshold = -50f
+                            kneeWidth = 40f
+                            preGain = 0f
+                            postGain = 10f
+                        }
+                    )
+                }
+            }
+            enabled = true
+        }
     }
 
     private fun savePosition() {
@@ -813,6 +957,8 @@ class MediampPlayerService : BasePlaybackService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        dynamicsProcessing?.release()
+        dynamicsProcessing = null
         player?.close()
         session?.release()
         bitmapLoadJob?.cancel()
