@@ -6,48 +6,43 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.paging.Pager
-import androidx.paging.PagingConfig
-import androidx.paging.cachedIn
+import androidx.paging.PagingData
 import com.github.andreyasadchy.xtra.XtraApp
+import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
-import com.github.andreyasadchy.xtra.repository.datasource.TagsDataSource
-import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.repository.browse.TagSearchController
+import com.github.andreyasadchy.xtra.settings.AndroidXtraSettings
 import com.github.andreyasadchy.xtra.util.prefs
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.github.andreyasadchy.xtra.util.tokenPrefs
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flatMapLatest
 
+/**
+ * Thin Android wrapper around [TagSearchController]: only binds the shared
+ * query/pager logic to [viewModelScope] with the platform settings store.
+ */
 class SearchTagsViewModel(
     applicationContext: Context,
-    private val graphQLRepository: GraphQLRepository,
+    graphQLRepository: GraphQLRepository,
 ) : ViewModel() {
 
-    var getGameTags = false
-    private val _query = MutableStateFlow("")
-    val query: StateFlow<String> = _query
+    private val controller = TagSearchController(
+        scope = viewModelScope,
+        settings = AndroidXtraSettings(applicationContext.prefs(), applicationContext.tokenPrefs()),
+        graphQLRepository = graphQLRepository,
+    )
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val flow = _query.flatMapLatest { query ->
-        Pager(
-            PagingConfig(pageSize = 30, prefetchDistance = 10, initialLoadSize = 30)
-        ) {
-            TagsDataSource(
-                getGameTags = getGameTags,
-                query = query,
-                gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext),
-                graphQLRepository = graphQLRepository,
-                enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
-            )
-        }.flow
-    }.cachedIn(viewModelScope)
+    var getGameTags: Boolean
+        get() = controller.getGameTags
+        set(value) {
+            controller.getGameTags = value
+        }
+
+    val query: StateFlow<String> = controller.query
+    val flow: Flow<PagingData<Tag>> = controller.flow
 
     fun setQuery(newQuery: String) {
-        if (_query.value != newQuery) {
-            _query.value = newQuery
-        }
+        controller.setQuery(newQuery)
     }
 
     companion object {
