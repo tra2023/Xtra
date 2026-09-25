@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.Bookmark
 import com.github.andreyasadchy.xtra.model.ui.BookmarkIgnoredUser
+import com.github.andreyasadchy.xtra.model.ui.BookmarksSort
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
 import com.github.andreyasadchy.xtra.repository.BookmarksRepository
 import com.github.andreyasadchy.xtra.repository.ChannelSortRepository
@@ -62,9 +63,9 @@ class BookmarksViewModel(
     val sortText = MutableStateFlow<CharSequence?>(null)
 
     val sort: String
-        get() = filter.value?.sort ?: BookmarksSortDialog.SORT_SAVED_AT
+        get() = filter.value?.sort ?: BookmarksSort.DEFAULT_SORT
     val order: String
-        get() = filter.value?.order ?: BookmarksSortDialog.ORDER_DESC
+        get() = filter.value?.order ?: BookmarksSort.DEFAULT_ORDER
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {

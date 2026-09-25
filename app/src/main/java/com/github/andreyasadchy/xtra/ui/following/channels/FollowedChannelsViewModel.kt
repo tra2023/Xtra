@@ -11,6 +11,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
+import com.github.andreyasadchy.xtra.model.ui.FollowedChannelsSort
 import com.github.andreyasadchy.xtra.repository.BookmarksRepository
 import com.github.andreyasadchy.xtra.repository.ChannelSortRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
@@ -40,9 +41,9 @@ class FollowedChannelsViewModel(
     val sortText = MutableStateFlow<CharSequence?>(null)
 
     val sort: String
-        get() = filter.value?.sort ?: FollowedChannelsSortDialog.SORT_LAST_BROADCAST
+        get() = filter.value?.sort ?: FollowedChannelsSort.DEFAULT_SORT
     val order: String
-        get() = filter.value?.order ?: FollowedChannelsSortDialog.ORDER_DESC
+        get() = filter.value?.order ?: FollowedChannelsSort.DEFAULT_ORDER
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {
@@ -52,14 +53,14 @@ class FollowedChannelsViewModel(
             FollowedChannelsDataSource(
                 userId = applicationContext.tokenPrefs().getString(C.USER_ID, null),
                 sort = when (sort) {
-                    FollowedChannelsSortDialog.SORT_FOLLOWED_AT -> "created_at"
-                    FollowedChannelsSortDialog.SORT_ALPHABETICALLY -> "login"
-                    FollowedChannelsSortDialog.SORT_LAST_BROADCAST -> "last_broadcast"
+                    FollowedChannelsSort.SORT_FOLLOWED_AT -> "created_at"
+                    FollowedChannelsSort.SORT_ALPHABETICALLY -> "login"
+                    FollowedChannelsSort.SORT_LAST_BROADCAST -> "last_broadcast"
                     else -> "last_broadcast"
                 },
                 order = when (order) {
-                    FollowedChannelsSortDialog.ORDER_DESC -> "desc"
-                    FollowedChannelsSortDialog.ORDER_ASC -> "asc"
+                    FollowedChannelsSort.ORDER_DESC -> "desc"
+                    FollowedChannelsSort.ORDER_ASC -> "asc"
                     else -> "desc"
                 },
                 localChannelFollowsRepository = localChannelFollowsRepository,
