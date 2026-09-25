@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
-import androidx.compose.ui.unit.dp
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -36,11 +35,16 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.SavedFilter
 import com.github.andreyasadchy.xtra.ui.common.FragmentHost
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
+import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
+import com.github.andreyasadchy.xtra.ui.common.gridColumns
+import com.github.andreyasadchy.xtra.ui.common.rememberXtraCardStyle
 import com.github.andreyasadchy.xtra.ui.filters.FilterListItem
 import com.github.andreyasadchy.xtra.ui.filters.FiltersScreen
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
+import com.github.andreyasadchy.xtra.ui.paging.findById
+import com.github.andreyasadchy.xtra.ui.paging.rememberInsertionScroll
 import com.github.andreyasadchy.xtra.ui.paging.rememberPagingSnapshot
 import com.github.andreyasadchy.xtra.ui.saved.filters.FiltersViewModel.Companion.FiltersViewModelFactory
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
@@ -59,53 +63,35 @@ class FiltersFragment : PagedListFragment(), Scrollable {
     private var gridState by mutableStateOf<LazyGridState?>(null)
     private var deleteDialog: AlertDialog? = null
     private var bottomInset by mutableIntStateOf(0)
-    private var insertionScroll by mutableIntStateOf(0)
-    private var firstId: Int? = null
-    private var receivedItems by mutableStateOf(false)
-    private var lastCount by mutableIntStateOf(0)
     override var enableNetworkCheck = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         bottomInset = 0
-        insertionScroll = 0
-        firstId = null
-        receivedItems = false
-        lastCount = 0
         return ComposeView(requireContext()).apply {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 val configuration = LocalConfiguration.current
-                val prefs = requireContext().prefs()
                 val theme = rememberThemeId()
-                val columns = if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
-                    prefs.getString(C.PORTRAIT_COLUMN_COUNT, "1")?.toIntOrNull() ?: 1
-                } else {
-                    prefs.getString(C.LANDSCAPE_COLUMN_COUNT, "2")?.toIntOrNull() ?: 2
-                }
+                val portrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
                 val state = rememberLazyGridState()
                 DisposableEffect(state) {
                     gridState = state
                     onDispose { gridState = null }
                 }
-                val scrollRequest = insertionScroll
-                LaunchedEffect(scrollRequest) {
-                    if (scrollRequest > 0) {
+                val snapshot = rememberPagingSnapshot(viewModel.flow)
+                val insertionScroll = snapshot.rememberInsertionScroll { it.id }
+                LaunchedEffect(insertionScroll) {
+                    if (insertionScroll > 0) {
                         state.animateScrollToItem(0)
                     }
                 }
-                val snapshot = rememberPagingSnapshot(viewModel.flow)
-                val firstIdNow = if (snapshot.itemCount > 0) snapshot.peek(0)?.id else null
-                LaunchedEffect(firstIdNow) {
-                    if (receivedItems && firstIdNow != null && firstIdNow != firstId && snapshot.itemCount > lastCount) insertionScroll++
-                    lastCount = snapshot.itemCount
-                    if (snapshot.itemCount > 0) receivedItems = true
-                    firstId = firstIdNow
-                }
-                fun find(id: Int) = (0 until snapshot.itemCount).mapNotNull { snapshot.peek(it) }.find { it.id == id }
-                val material3 = prefs.getBoolean(C.UI_THEME_MATERIAL3, true)
+                fun find(id: Int) = snapshot.findById(id) { it.id }
                 XtraTheme(themeId = theme) {
-                    FiltersScreen(
+                    ProvideXtraLocals(activity) {
+                        val columns = gridColumns(portrait)
+                        val style = rememberXtraCardStyle()
+                        FiltersScreen(
                         itemCount = snapshot.itemCount,
                         itemKey = { index -> snapshot.peek(index)?.id ?: "placeholder:$index" },
                         itemAt = { index ->
@@ -128,15 +114,12 @@ class FiltersFragment : PagedListFragment(), Scrollable {
                         onDelete = { id -> find(id)?.let(::confirmDelete) },
                         modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
                         bottomPadding = with(LocalDensity.current) { bottomInset.toDp() },
-                        cardMargin = if (!material3) 0.dp else if (prefs.getBoolean(C.UI_THEME_REDUCED_PADDING, false)) 4.dp else 8.dp,
-                        cornerRadius = if (!material3) 0.dp else when (prefs.getString(C.UI_THEME_ROUNDED_CORNERS, "0")) {
-                            "1" -> 9.dp
-                            "2" -> 0.dp
-                            else -> 12.dp
-                        },
-                        compactText = material3 && prefs.getBoolean(C.UI_THEME_COMPACT_TEXT, false),
-                        material3 = material3,
+                        cardMargin = style.cardMargin,
+                        cornerRadius = style.cornerRadius,
+                        compactText = style.compactText,
+                        material3 = style.material3,
                     )
+                    }
                 }
             }
         }

@@ -24,7 +24,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -45,6 +44,8 @@ import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.common.SortRow
+import com.github.andreyasadchy.xtra.ui.common.gridColumns
+import com.github.andreyasadchy.xtra.ui.common.rememberXtraCardStyle
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.saved.bookmarks.BookmarksViewModel.Companion.BookmarksViewModelFactory
@@ -90,13 +91,8 @@ class BookmarksFragment : BaseNetworkFragment(), Scrollable, BookmarksSortDialog
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 val configuration = LocalConfiguration.current
-                val prefs = requireContext().prefs()
                 val theme = rememberThemeId()
                 val portrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-                val columns = prefs.getString(
-                    if (portrait) C.PORTRAIT_COLUMN_COUNT else C.LANDSCAPE_COLUMN_COUNT,
-                    if (portrait) "1" else "2",
-                )?.toIntOrNull() ?: 1
                 val state = rememberLazyGridState()
                 DisposableEffect(state) {
                     gridState = state
@@ -107,10 +103,11 @@ class BookmarksFragment : BaseNetworkFragment(), Scrollable, BookmarksSortDialog
                 val currentPositions = positions
                 val currentIgnored = ignored
                 val currentMapper = mapper
-                val material3 = prefs.getBoolean(C.UI_THEME_MATERIAL3, true)
                 val sortText by viewModel.sortText.collectAsState()
                 XtraTheme(themeId = theme) {
                     ProvideXtraLocals(activity) {
+                        val columns = gridColumns(portrait)
+                        val style = rememberXtraCardStyle()
                         Column {
                             SortRow(
                                 sortText = sortText,
@@ -140,17 +137,9 @@ class BookmarksFragment : BaseNetworkFragment(), Scrollable, BookmarksSortDialog
                                 onAction = { id, action -> list.find { it.id == id }?.let { currentMapper?.action(it, action) } },
                                 modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
                                 bottomPadding = with(LocalDensity.current) { bottomInset.toDp() },
-                                cardMargin = if (!material3) 0.dp else if (prefs.getBoolean(C.UI_THEME_REDUCED_PADDING, false)) 4.dp else 8.dp,
-                                cornerRadius = if (!material3) {
-                                    0.dp
-                                } else {
-                                    when (prefs.getString(C.UI_THEME_ROUNDED_CORNERS, "0")) {
-                                        "1" -> 9.dp
-                                        "2" -> 0.dp
-                                        else -> 12.dp
-                                    }
-                                },
-                                material3 = material3,
+                                cardMargin = style.cardMargin,
+                                cornerRadius = style.cornerRadius,
+                                material3 = style.material3,
                             )
                         }
                     }

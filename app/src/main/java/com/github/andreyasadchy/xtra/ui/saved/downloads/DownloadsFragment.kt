@@ -18,12 +18,8 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -41,7 +37,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
-import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
@@ -59,12 +54,19 @@ import com.github.andreyasadchy.xtra.repository.saved.DownloadProgressState
 import com.github.andreyasadchy.xtra.repository.saved.DownloadsProgressTracker
 import com.github.andreyasadchy.xtra.ui.common.FragmentHost
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
+import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
+import com.github.andreyasadchy.xtra.ui.common.gridColumns
+import com.github.andreyasadchy.xtra.ui.common.rememberXtraCardStyle
 import com.github.andreyasadchy.xtra.ui.download.StreamDownloadService
 import com.github.andreyasadchy.xtra.ui.download.VideoDownloadService
-import com.github.andreyasadchy.xtra.ui.downloads.DownloadCheckBox
+import com.github.andreyasadchy.xtra.ui.downloads.DeleteDownloadDialogContent
+import com.github.andreyasadchy.xtra.ui.downloads.DeleteDownloadDialogLabels
 import com.github.andreyasadchy.xtra.ui.downloads.DownloadsList
-import com.github.andreyasadchy.xtra.ui.downloads.StorageSelector
+import com.github.andreyasadchy.xtra.ui.downloads.MoveStorageDialogContent
+import com.github.andreyasadchy.xtra.ui.downloads.MoveStorageDialogLabels
+import com.github.andreyasadchy.xtra.ui.paging.findById
+import com.github.andreyasadchy.xtra.ui.paging.rememberInsertionScroll
 import com.github.andreyasadchy.xtra.ui.paging.rememberPagingSnapshot
 import com.github.andreyasadchy.xtra.ui.saved.downloads.DownloadsViewModel.Companion.DownloadsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
@@ -87,10 +89,6 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
     private var collectionJob: Job? = null
     private var gridState by mutableStateOf<LazyGridState?>(null)
     private var bottomInset by mutableIntStateOf(0)
-    private var insertionScroll by mutableIntStateOf(0)
-    private var firstId: Int? = null
-    private var receivedItems by mutableStateOf(false)
-    private var lastCount by mutableIntStateOf(0)
     private var actions by mutableStateOf<DownloadsAdapter?>(null)
     private var moveDialogVideo by mutableStateOf<OfflineVideo?>(null)
     private var deleteDialogVideo by mutableStateOf<OfflineVideo?>(null)
@@ -129,58 +127,49 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         bottomInset = 0
-        insertionScroll = 0
-        firstId = null
-        receivedItems = false
-        lastCount = 0
         return ComposeView(requireContext()).apply {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 val configuration = LocalConfiguration.current
-                val prefs = requireContext().prefs()
                 val theme = rememberThemeId()
-                val columns = prefs.getString(if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) C.PORTRAIT_COLUMN_COUNT else C.LANDSCAPE_COLUMN_COUNT, if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) "1" else "2")?.toIntOrNull() ?: 1
+                val portrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
                 val state = rememberLazyGridState()
                 DisposableEffect(state) {
                     gridState = state
                     onDispose { gridState = null }
                 }
-                LaunchedEffect(insertionScroll) { if (insertionScroll > 0) state.animateScrollToItem(0) }
                 val snapshot = rememberPagingSnapshot(viewModel.flow)
-                val firstIdNow = if (snapshot.itemCount > 0) snapshot.peek(0)?.id else null
-                LaunchedEffect(firstIdNow) {
-                    if (receivedItems && firstIdNow != null && firstIdNow != firstId && snapshot.itemCount > lastCount) insertionScroll++
-                    lastCount = snapshot.itemCount
-                    if (snapshot.itemCount > 0) receivedItems = true
-                    firstId = firstIdNow
-                }
+                val insertionScroll = snapshot.rememberInsertionScroll { it.id }
+                LaunchedEffect(insertionScroll) { if (insertionScroll > 0) state.animateScrollToItem(0) }
                 val progress by progressViewModel.progress.collectAsState()
                 val adapter = actions
-                val material3 = prefs.getBoolean(C.UI_THEME_MATERIAL3, true)
-                fun find(id: Int) = (0 until snapshot.itemCount).mapNotNull { snapshot.peek(it) }.find { it.id == id }
                 XtraTheme(themeId = theme) {
-                    DownloadsList(
-                        itemCount = snapshot.itemCount,
-                        itemKey = { snapshot.peek(it)?.id ?: "placeholder:$it" },
-                        itemAt = { index -> snapshot[index]?.let { adapter?.item(it, progress[it.id]) } },
-                        loading = snapshot.loading, columns = columns, state = state,
-                        emptyText = getString(R.string.nothing_here),
-                        optionsText = getString(androidx.appcompat.R.string.abc_action_menu_overflow_description),
-                        deleteText = getString(R.string.delete),
-                        onOpen = { find(it)?.let { adapter?.open(it) } },
-                        onChannel = { find(it)?.let { adapter?.channel(it) } },
-                        onGame = { find(it)?.let { adapter?.game(it) } },
-                        onDelete = { find(it)?.let { adapter?.deleteVideo?.invoke(it) } },
-                        onAction = { id, action -> find(id)?.let { adapter?.action(it, action) } },
-                        modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
-                        bottomPadding = with(LocalDensity.current) { bottomInset.toDp() },
-                        cardMargin = if (!material3) 0.dp else if (prefs.getBoolean(C.UI_THEME_REDUCED_PADDING, false)) 4.dp else 8.dp,
-                        cornerRadius = if (!material3) 0.dp else when (prefs.getString(C.UI_THEME_ROUNDED_CORNERS, "0")) { "1" -> 9.dp; "2" -> 0.dp; else -> 12.dp },
-                        material3 = material3,
-                    )
-                    MoveStorageDialog()
-                    DeleteVideoDialog()
+                    ProvideXtraLocals(activity) {
+                        val columns = gridColumns(portrait)
+                        val style = rememberXtraCardStyle()
+                        DownloadsList(
+                            itemCount = snapshot.itemCount,
+                            itemKey = { snapshot.peek(it)?.id ?: "placeholder:$it" },
+                            itemAt = { index -> snapshot[index]?.let { adapter?.item(it, progress[it.id]) } },
+                            loading = snapshot.loading, columns = columns, state = state,
+                            emptyText = getString(R.string.nothing_here),
+                            optionsText = getString(androidx.appcompat.R.string.abc_action_menu_overflow_description),
+                            deleteText = getString(R.string.delete),
+                            onOpen = { snapshot.findById(it) { video -> video.id }?.let { adapter?.open(it) } },
+                            onChannel = { snapshot.findById(it) { video -> video.id }?.let { adapter?.channel(it) } },
+                            onGame = { snapshot.findById(it) { video -> video.id }?.let { adapter?.game(it) } },
+                            onDelete = { snapshot.findById(it) { video -> video.id }?.let { adapter?.deleteVideo?.invoke(it) } },
+                            onAction = { id, action -> snapshot.findById(id) { video -> video.id }?.let { adapter?.action(it, action) } },
+                            modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
+                            bottomPadding = with(LocalDensity.current) { bottomInset.toDp() },
+                            cardMargin = style.cardMargin,
+                            cornerRadius = style.cornerRadius,
+                            material3 = style.material3,
+                        )
+                        MoveStorageDialog()
+                        DeleteVideoDialog()
+                    }
                 }
             }
         }
@@ -202,49 +191,48 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
         }
         val mounted = Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
         var checked by remember(video) { mutableIntStateOf(if (storage.size == 1) 0 else requireContext().prefs().getInt(C.DOWNLOAD_STORAGE, 0)) }
-        AlertDialog(
-            onDismissRequest = { moveDialogVideo = null },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (mounted) storage.getOrNull(checked)?.let {
-                        requireContext().prefs().edit { putInt(C.DOWNLOAD_STORAGE, checked) }
-                        viewModel.moveToAppStorage(it.second, video)
-                    }
-                    moveDialogVideo = null
-                }) { Text(getString(android.R.string.ok)) }
+        MoveStorageDialogContent(
+            storageNames = storage.map { it.first },
+            selectedStorage = checked,
+            storageAvailable = mounted,
+            labels = MoveStorageDialogLabels(
+                saveTo = getString(R.string.save_to),
+                noStorage = getString(R.string.no_storage_detected),
+                selectDirectory = getString(R.string.select_directory),
+                confirm = getString(android.R.string.ok),
+                dismiss = getString(android.R.string.cancel),
+            ),
+            onStorageChange = { checked = it },
+            onConfirm = {
+                if (mounted) storage.getOrNull(checked)?.let {
+                    requireContext().prefs().edit { putInt(C.DOWNLOAD_STORAGE, checked) }
+                    viewModel.moveToAppStorage(it.second, video)
+                }
+                moveDialogVideo = null
             },
-            dismissButton = { TextButton(onClick = { moveDialogVideo = null }) { Text(getString(android.R.string.cancel)) } },
-            text = {
-                StorageSelector(
-                    title = getString(R.string.save_to), noStorageText = getString(R.string.no_storage_detected),
-                    selectDirectoryText = getString(R.string.select_directory), available = mounted,
-                    locations = emptyList(), location = 1, storageNames = storage.map { it.first },
-                    selectedStorage = checked, directory = null, onLocation = {}, onStorage = { checked = it }, onDirectory = {},
-                )
-            },
+            onDismiss = { moveDialogVideo = null },
         )
     }
 
     @Composable
     private fun DeleteVideoDialog() {
         val video = deleteDialogVideo ?: return
-        AlertDialog(
-            onDismissRequest = { deleteDialogVideo = null },
-            title = { Text(getString(R.string.delete)) },
-            text = {
-                Column {
-                    Text(getString(R.string.are_you_sure))
-                    DownloadCheckBox(getString(R.string.keep_files), deleteKeepFiles) { deleteKeepFiles = it }
-                }
+        DeleteDownloadDialogContent(
+            keepFiles = deleteKeepFiles,
+            labels = DeleteDownloadDialogLabels(
+                title = getString(R.string.delete),
+                message = getString(R.string.are_you_sure),
+                keepFiles = getString(R.string.keep_files),
+                confirm = getString(R.string.delete),
+                dismiss = getString(android.R.string.cancel),
+            ),
+            onKeepFilesChange = { deleteKeepFiles = it },
+            onConfirm = {
+                cancelActiveDownload(video)
+                viewModel.delete(video, deleteKeepFiles)
+                deleteDialogVideo = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    cancelActiveDownload(video)
-                    viewModel.delete(video, deleteKeepFiles)
-                    deleteDialogVideo = null
-                }) { Text(getString(R.string.delete)) }
-            },
-            dismissButton = { TextButton(onClick = { deleteDialogVideo = null }) { Text(getString(android.R.string.cancel)) } },
+            onDismiss = { deleteDialogVideo = null },
         )
     }
 
