@@ -6,12 +6,18 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.res.Configuration
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Environment
 import android.os.IBinder
-import android.content.res.Configuration
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.LinearLayout
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.DisposableEffect
@@ -20,7 +26,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -31,51 +36,42 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.paging.AsyncPagingDataDiffer
-import androidx.paging.LoadState
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListUpdateCallback
-import com.github.andreyasadchy.xtra.ui.common.FragmentHost
-import com.github.andreyasadchy.xtra.ui.downloads.DownloadsList
-import com.github.andreyasadchy.xtra.ui.downloads.StorageSelector
-import com.github.andreyasadchy.xtra.ui.downloads.DownloadCheckBox
-import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
-import com.google.android.material.appbar.AppBarLayout
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.LinearLayout
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
-import androidx.lifecycle.setViewTreeLifecycleOwner
-import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.DownloadProgress
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
+import com.github.andreyasadchy.xtra.repository.saved.DownloadProgressState
+import com.github.andreyasadchy.xtra.repository.saved.DownloadsProgressTracker
+import com.github.andreyasadchy.xtra.ui.common.FragmentHost
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.download.StreamDownloadService
 import com.github.andreyasadchy.xtra.ui.download.VideoDownloadService
+import com.github.andreyasadchy.xtra.ui.downloads.DownloadCheckBox
+import com.github.andreyasadchy.xtra.ui.downloads.DownloadsList
+import com.github.andreyasadchy.xtra.ui.downloads.StorageSelector
+import com.github.andreyasadchy.xtra.ui.paging.rememberPagingSnapshot
 import com.github.andreyasadchy.xtra.ui.saved.downloads.DownloadsViewModel.Companion.DownloadsViewModelFactory
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.rememberThemeId
+import com.google.android.material.appbar.AppBarLayout
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.io.File
@@ -84,13 +80,13 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
 
     private val viewModel: DownloadsViewModel by viewModels { DownloadsViewModelFactory }
     private val progressViewModel: DownloadsProgressViewModel by viewModels()
-    private var pagingDiffer: AsyncPagingDataDiffer<OfflineVideo>? = null
     private var collectionJob: Job? = null
     private var gridState by mutableStateOf<LazyGridState?>(null)
     private var bottomInset by mutableIntStateOf(0)
-    private var pageVersion by mutableIntStateOf(0)
     private var insertionScroll by mutableIntStateOf(0)
-    private var loading by mutableStateOf(true)
+    private var firstId: Int? = null
+    private var receivedItems by mutableStateOf(false)
+    private var lastCount by mutableIntStateOf(0)
     private var actions by mutableStateOf<DownloadsAdapter?>(null)
     private val actionDialogs = mutableListOf<androidx.appcompat.app.AlertDialog>()
     override var enableNetworkCheck = false
@@ -126,28 +122,11 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        var receivedInsertion = false
         bottomInset = 0
-        pageVersion = 0
         insertionScroll = 0
-        loading = true
-        val differ = AsyncPagingDataDiffer(
-            diffCallback = object : DiffUtil.ItemCallback<OfflineVideo>() {
-                override fun areItemsTheSame(oldItem: OfflineVideo, newItem: OfflineVideo) = oldItem.id == newItem.id
-                override fun areContentsTheSame(oldItem: OfflineVideo, newItem: OfflineVideo) = false
-            },
-            updateCallback = object : ListUpdateCallback {
-                override fun onInserted(position: Int, count: Int) {
-                    if (receivedInsertion && position == 0) insertionScroll++
-                    receivedInsertion = true
-                    pageVersion++
-                }
-                override fun onRemoved(position: Int, count: Int) { pageVersion++ }
-                override fun onMoved(fromPosition: Int, toPosition: Int) { pageVersion++ }
-                override fun onChanged(position: Int, count: Int, payload: Any?) { pageVersion++ }
-            },
-        )
-        pagingDiffer = differ
+        firstId = null
+        receivedItems = false
+        lastCount = 0
         return ComposeView(requireContext()).apply {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
@@ -162,20 +141,24 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
                     onDispose { gridState = null }
                 }
                 LaunchedEffect(insertionScroll) { if (insertionScroll > 0) state.animateScrollToItem(0) }
-                val snapshot = remember(pageVersion) { differ.snapshot() }
+                val snapshot = rememberPagingSnapshot(viewModel.flow)
+                val firstIdNow = if (snapshot.itemCount > 0) snapshot.peek(0)?.id else null
+                LaunchedEffect(firstIdNow) {
+                    if (receivedItems && firstIdNow != null && firstIdNow != firstId && snapshot.itemCount > lastCount) insertionScroll++
+                    lastCount = snapshot.itemCount
+                    if (snapshot.itemCount > 0) receivedItems = true
+                    firstId = firstIdNow
+                }
                 val progress by progressViewModel.progress.collectAsState()
                 val adapter = actions
                 val material3 = prefs.getBoolean(C.UI_THEME_MATERIAL3, true)
-                fun find(id: Int) = differ.snapshot().items.find { it.id == id }
+                fun find(id: Int) = (0 until snapshot.itemCount).mapNotNull { snapshot.peek(it) }.find { it.id == id }
                 XtraTheme(themeId = theme) {
                     DownloadsList(
-                        itemCount = snapshot.size,
-                        itemKey = { snapshot[it]?.id ?: "placeholder:$it" },
-                        itemAt = { index ->
-                            if (index < differ.itemCount) differ.getItem(index)
-                            snapshot[index]?.let { adapter?.item(it, progress[it.id]) }
-                        },
-                        loading = loading, columns = columns, state = state,
+                        itemCount = snapshot.itemCount,
+                        itemKey = { snapshot.peek(it)?.id ?: "placeholder:$it" },
+                        itemAt = { index -> snapshot[index]?.let { adapter?.item(it, progress[it.id]) } },
+                        loading = snapshot.loading, columns = columns, state = state,
                         emptyText = getString(R.string.nothing_here),
                         optionsText = getString(androidx.appcompat.R.string.abc_action_menu_overflow_description),
                         deleteText = getString(R.string.delete),
@@ -393,12 +376,8 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
 
     override fun initialize() {
         if (collectionJob != null) return
-        val differ = pagingDiffer ?: return
         collectionJob = viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch { viewModel.flow.collectLatest { differ.submitData(it) } }
-                launch { differ.loadStateFlow.collectLatest { loading = it.refresh is LoadState.Loading; pageVersion++ } }
-                launch { differ.onPagesUpdatedFlow.collectLatest { pageVersion++ } }
                 launch {
                     while (true) {
                         progressViewModel.replace(false, videoDownloadService?.activeDownloads?.toList().orEmpty())
@@ -548,36 +527,17 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
         collectionJob?.cancel()
         collectionJob = null
         actionDialogs.toList().forEach { it.dismiss() }
-        pagingDiffer = null
         actions = null
         gridState = null
         super.onDestroyView()
     }
 }
 
-data class DownloadProgressState(
-    val live: Boolean,
-    val progress: Int,
-    val maxProgress: Int,
-    val chatProgress: Int,
-    val maxChatProgress: Int,
-)
-
 class DownloadsProgressViewModel : ViewModel() {
-    private val _progress = MutableStateFlow<Map<Int, DownloadProgressState>>(emptyMap())
-    val progress: StateFlow<Map<Int, DownloadProgressState>> = _progress
+    private val tracker = DownloadsProgressTracker()
+    val progress: StateFlow<Map<Int, DownloadProgressState>> = tracker.progress
 
-    fun update(progress: DownloadProgress, live: Boolean) {
-        val snapshot = snapshot(progress, live)
-        _progress.update { it + (progress.id to snapshot) }
-    }
+    fun update(progress: DownloadProgress, live: Boolean) = tracker.update(progress, live)
 
-    fun replace(live: Boolean, downloads: List<DownloadProgress>) {
-        val snapshots = downloads.associate { it.id to snapshot(it, live) }
-        _progress.update { current -> current.filterValues { it.live != live } + snapshots }
-    }
-
-    private fun snapshot(progress: DownloadProgress, live: Boolean) = DownloadProgressState(
-        live, progress.progress, progress.maxProgress, progress.chatProgress, progress.maxChatProgress,
-    )
+    fun replace(live: Boolean, downloads: List<DownloadProgress>) = tracker.replace(live, downloads)
 }

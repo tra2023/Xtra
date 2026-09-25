@@ -14,7 +14,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -33,10 +32,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
-import androidx.paging.AsyncPagingDataDiffer
-import androidx.paging.LoadState
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListUpdateCallback
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.SavedFilter
 import com.github.andreyasadchy.xtra.ui.common.FragmentHost
@@ -46,6 +41,7 @@ import com.github.andreyasadchy.xtra.ui.filters.FilterListItem
 import com.github.andreyasadchy.xtra.ui.filters.FiltersScreen
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
+import com.github.andreyasadchy.xtra.ui.paging.rememberPagingSnapshot
 import com.github.andreyasadchy.xtra.ui.saved.filters.FiltersViewModel.Companion.FiltersViewModelFactory
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragmentDirections
@@ -54,61 +50,27 @@ import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.google.android.material.appbar.AppBarLayout
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class FiltersFragment : PagedListFragment(), Scrollable {
 
     private val viewModel: FiltersViewModel by viewModels { FiltersViewModelFactory }
-    private var pagingDiffer: AsyncPagingDataDiffer<SavedFilter>? = null
-    private var collectionJob: Job? = null
     private var gridState by mutableStateOf<LazyGridState?>(null)
     private var deleteDialog: AlertDialog? = null
     private var bottomInset by mutableIntStateOf(0)
-    private var pageVersion by mutableIntStateOf(0)
     private var insertionScroll by mutableIntStateOf(0)
-    private var loading by mutableStateOf(true)
+    private var firstId: Int? = null
+    private var receivedItems by mutableStateOf(false)
+    private var lastCount by mutableIntStateOf(0)
     override var enableNetworkCheck = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        var receivedInsertion = false
         bottomInset = 0
-        pageVersion = 0
         insertionScroll = 0
-        loading = true
-        val differ = AsyncPagingDataDiffer(
-            diffCallback = object : DiffUtil.ItemCallback<SavedFilter>() {
-                override fun areItemsTheSame(oldItem: SavedFilter, newItem: SavedFilter): Boolean = oldItem.id == newItem.id
-
-                override fun areContentsTheSame(oldItem: SavedFilter, newItem: SavedFilter): Boolean =
-                    oldItem.gameId == newItem.gameId && oldItem.gameSlug == newItem.gameSlug &&
-                            oldItem.gameName == newItem.gameName && oldItem.tags == newItem.tags &&
-                            oldItem.languages == newItem.languages
-            },
-            updateCallback = object : ListUpdateCallback {
-                override fun onInserted(position: Int, count: Int) {
-                    if (receivedInsertion && position == 0) {
-                        insertionScroll++
-                    }
-                    receivedInsertion = true
-                    pageVersion++
-                }
-
-                override fun onRemoved(position: Int, count: Int) {
-                    pageVersion++
-                }
-
-                override fun onMoved(fromPosition: Int, toPosition: Int) {
-                    pageVersion++
-                }
-
-                override fun onChanged(position: Int, count: Int, payload: Any?) {
-                    pageVersion++
-                }
-            },
-        )
-        pagingDiffer = differ
+        firstId = null
+        receivedItems = false
+        lastCount = 0
         return ComposeView(requireContext()).apply {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
@@ -132,15 +94,21 @@ class FiltersFragment : PagedListFragment(), Scrollable {
                         state.animateScrollToItem(0)
                     }
                 }
-                val version = pageVersion
-                val snapshot = remember(version) { differ.snapshot() }
+                val snapshot = rememberPagingSnapshot(viewModel.flow)
+                val firstIdNow = if (snapshot.itemCount > 0) snapshot.peek(0)?.id else null
+                LaunchedEffect(firstIdNow) {
+                    if (receivedItems && firstIdNow != null && firstIdNow != firstId && snapshot.itemCount > lastCount) insertionScroll++
+                    lastCount = snapshot.itemCount
+                    if (snapshot.itemCount > 0) receivedItems = true
+                    firstId = firstIdNow
+                }
+                fun find(id: Int) = (0 until snapshot.itemCount).mapNotNull { snapshot.peek(it) }.find { it.id == id }
                 val material3 = prefs.getBoolean(C.UI_THEME_MATERIAL3, true)
                 XtraTheme(themeId = theme) {
                     FiltersScreen(
-                        itemCount = snapshot.size,
-                        itemKey = { index -> snapshot[index]?.id ?: "placeholder:$index" },
+                        itemCount = snapshot.itemCount,
+                        itemKey = { index -> snapshot.peek(index)?.id ?: "placeholder:$index" },
                         itemAt = { index ->
-                            if (index < differ.itemCount) differ.getItem(index)
                             snapshot[index]?.let { item ->
                                 FilterListItem(
                                     id = item.id,
@@ -150,14 +118,14 @@ class FiltersFragment : PagedListFragment(), Scrollable {
                                 )
                             }
                         },
-                        loading = loading,
+                        loading = snapshot.loading,
                         columns = columns,
                         state = state,
                         emptyText = getString(R.string.nothing_here),
                         optionsText = getString(androidx.appcompat.R.string.abc_action_menu_overflow_description),
                         deleteText = getString(R.string.delete),
-                        onOpen = { id -> differ.snapshot().items.find { it.id == id }?.let(::openFilter) },
-                        onDelete = { id -> differ.snapshot().items.find { it.id == id }?.let(::confirmDelete) },
+                        onOpen = { id -> find(id)?.let(::openFilter) },
+                        onDelete = { id -> find(id)?.let(::confirmDelete) },
                         modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
                         bottomPadding = with(LocalDensity.current) { bottomInset.toDp() },
                         cardMargin = if (!material3) 0.dp else if (prefs.getBoolean(C.UI_THEME_REDUCED_PADDING, false)) 4.dp else 8.dp,
@@ -193,24 +161,7 @@ class FiltersFragment : PagedListFragment(), Scrollable {
     }
 
     override fun initialize() {
-        if (collectionJob != null) return
-        val differ = pagingDiffer ?: return
-        collectionJob = viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    viewModel.flow.collectLatest { differ.submitData(it) }
-                }
-                launch {
-                    differ.loadStateFlow.collectLatest {
-                        loading = it.refresh is LoadState.Loading
-                        pageVersion++
-                    }
-                }
-                launch {
-                    differ.onPagesUpdatedFlow.collectLatest { pageVersion++ }
-                }
-            }
-        }
+        // No adapter: FiltersScreen collects viewModel.flow through rememberPagingSnapshot.
     }
 
     private fun updateAppBar(scrolled: Boolean) {
@@ -276,12 +227,9 @@ class FiltersFragment : PagedListFragment(), Scrollable {
     }
 
     override fun onDestroyView() {
-        collectionJob?.cancel()
-        collectionJob = null
         deleteDialog?.dismiss()
         deleteDialog = null
         gridState = null
-        pagingDiffer = null
         super.onDestroyView()
     }
 }

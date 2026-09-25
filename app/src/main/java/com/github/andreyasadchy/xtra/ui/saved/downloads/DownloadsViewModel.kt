@@ -4,7 +4,6 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.util.JsonReader
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -17,11 +16,11 @@ import androidx.paging.cachedIn
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
-import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.chat.parseVideoMetadataFromChatJson
 import com.github.andreyasadchy.xtra.util.m3u8.DownloadPlaylists
+import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
 import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
-import com.github.andreyasadchy.xtra.util.m3u8.Segment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
@@ -607,58 +606,22 @@ class DownloadsViewModel(
     fun updateChatUrl(newUri: Uri, video: OfflineVideo) {
         if (!videosInUse.contains(video)) {
             viewModelScope.launch(Dispatchers.IO) {
-                var id: String? = null
-                var title: String? = null
-                var uploadDate: Long? = null
-                var channelId: String? = null
-                var channelLogin: String? = null
-                var channelName: String? = null
-                var gameId: String? = null
-                var gameSlug: String? = null
-                var gameName: String? = null
-                try {
-                    applicationContext.contentResolver.openInputStream(newUri)?.bufferedReader()?.use { fileReader ->
-                        JsonReader(fileReader).use { reader ->
-                            reader.beginObject()
-                            while (reader.hasNext()) {
-                                when (reader.nextName()) {
-                                    "video" -> {
-                                        reader.beginObject()
-                                        while (reader.hasNext()) {
-                                            when (reader.nextName()) {
-                                                "id" -> id = reader.nextString()
-                                                "title" -> title = reader.nextString()
-                                                "uploadDate" -> uploadDate = reader.nextLong()
-                                                "channelId" -> channelId = reader.nextString()
-                                                "channelLogin" -> channelLogin = reader.nextString()
-                                                "channelName" -> channelName = reader.nextString()
-                                                "gameId" -> gameId = reader.nextString()
-                                                "gameSlug" -> gameSlug = reader.nextString()
-                                                "gameName" -> gameName = reader.nextString()
-                                                else -> reader.skipValue()
-                                            }
-                                        }
-                                        reader.endObject()
-                                    }
-                                    else -> reader.skipValue()
-                                }
-                            }
-                            reader.endObject()
-                        }
-                    }
+                val metadata = try {
+                    applicationContext.contentResolver.openInputStream(newUri)?.bufferedReader()?.use { it.readText() }
+                        ?.let { parseVideoMetadataFromChatJson(it) }
                 } catch (e: Exception) {
-
+                    null
                 }
                 offlineVideosRepository.update(video.apply {
-                    if (!title.isNullOrBlank()) this.name = title
-                    if (!channelId.isNullOrBlank()) this.channelId = channelId
-                    if (!channelLogin.isNullOrBlank()) this.channelLogin = channelLogin
-                    if (!channelName.isNullOrBlank()) this.channelName = channelName
-                    if (!gameId.isNullOrBlank()) this.gameId = gameId
-                    if (!gameSlug.isNullOrBlank()) this.gameSlug = gameSlug
-                    if (!gameName.isNullOrBlank()) this.gameName = gameName
-                    if (uploadDate != null) this.uploadDate = uploadDate
-                    if (!id.isNullOrBlank()) this.videoId = id
+                    metadata?.title?.let { this.name = it }
+                    metadata?.channelId?.let { this.channelId = it }
+                    metadata?.channelLogin?.let { this.channelLogin = it }
+                    metadata?.channelName?.let { this.channelName = it }
+                    metadata?.gameId?.let { this.gameId = it }
+                    metadata?.gameSlug?.let { this.gameSlug = it }
+                    metadata?.gameName?.let { this.gameName = it }
+                    metadata?.uploadDate?.let { this.uploadDate = it }
+                    metadata?.id?.let { this.videoId = it }
                     chatUrl = newUri.toString()
                 })
             }

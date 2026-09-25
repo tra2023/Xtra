@@ -7,6 +7,7 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
+import com.github.andreyasadchy.xtra.repository.saved.DownloadProgressState
 import com.github.andreyasadchy.xtra.repository.saved.downloadFraction
 import com.github.andreyasadchy.xtra.repository.saved.effectiveDownloadStatus
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections

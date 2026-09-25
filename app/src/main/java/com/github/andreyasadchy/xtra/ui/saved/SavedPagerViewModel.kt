@@ -3,7 +3,6 @@ package com.github.andreyasadchy.xtra.ui.saved
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.util.JsonReader
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -13,11 +12,11 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
-import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.chat.parseVideoMetadataFromChatJson
 import com.github.andreyasadchy.xtra.util.m3u8.DownloadPlaylists
+import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
 import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
 import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
-import com.github.andreyasadchy.xtra.util.m3u8.Segment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.max
@@ -92,66 +91,30 @@ class SavedPagerViewModel(
                         PlaylistUtils.writeMediaPlaylist(playlist.copy(initSegmentUri = playlist.initSegmentUri?.let(mapUri), segments = segments), it)
                     }
                     val chatFileUri = chatFiles[videoDirectoryName + uri.toString().substringAfterLast("%2F").removeSuffix(".m3u8")]
-                    var id: String? = null
-                    var title: String? = null
-                    var uploadDate: Long? = null
-                    var channelId: String? = null
-                    var channelLogin: String? = null
-                    var channelName: String? = null
-                    var gameId: String? = null
-                    var gameSlug: String? = null
-                    var gameName: String? = null
-                    chatFileUri?.let { chatFileUri ->
+                    val metadata = chatFileUri?.let { chatUri ->
                         try {
-                            applicationContext.contentResolver.openInputStream(chatFileUri.toUri())!!.bufferedReader().use { fileReader ->
-                                JsonReader(fileReader).use { reader ->
-                                    reader.beginObject()
-                                    while (reader.hasNext()) {
-                                        when (reader.nextName()) {
-                                            "video" -> {
-                                                reader.beginObject()
-                                                while (reader.hasNext()) {
-                                                    when (reader.nextName()) {
-                                                        "id" -> id = reader.nextString()
-                                                        "title" -> title = reader.nextString()
-                                                        "uploadDate" -> uploadDate = reader.nextLong()
-                                                        "channelId" -> channelId = reader.nextString()
-                                                        "channelLogin" -> channelLogin = reader.nextString()
-                                                        "channelName" -> channelName = reader.nextString()
-                                                        "gameId" -> gameId = reader.nextString()
-                                                        "gameSlug" -> gameSlug = reader.nextString()
-                                                        "gameName" -> gameName = reader.nextString()
-                                                        else -> reader.skipValue()
-                                                    }
-                                                }
-                                                reader.endObject()
-                                            }
-                                            else -> reader.skipValue()
-                                        }
-                                    }
-                                    reader.endObject()
-                                }
-                            }
+                            applicationContext.contentResolver.openInputStream(chatUri.toUri())?.bufferedReader()?.use { it.readText() }
+                                ?.let { parseVideoMetadataFromChatJson(it) }
                         } catch (e: Exception) {
-
+                            null
                         }
                     }
                     offlineVideosRepository.save(OfflineVideo(
                         url = uri.toString(),
-                        name = if (!title.isNullOrBlank()) title else Uri.decode(videoDirectoryName),
-                        channelId = if (!channelId.isNullOrBlank()) channelId else null,
-                        channelLogin = if (!channelLogin.isNullOrBlank()) channelLogin else null,
-                        channelName = if (!channelName.isNullOrBlank()) channelName else null,
+                        name = if (!metadata?.title.isNullOrBlank()) metadata.title else Uri.decode(videoDirectoryName),
+                        channelId = metadata?.channelId,
+                        channelLogin = metadata?.channelLogin,
+                        channelName = metadata?.channelName,
                         thumbnail = segments.getOrNull(max(0, (segments.size / 2) - 1))?.uri,
-                        gameId = if (!gameId.isNullOrBlank()) gameId else null,
-                        gameSlug = if (!gameSlug.isNullOrBlank()) gameSlug else null,
-                        gameName = if (!gameName.isNullOrBlank()) gameName else null,
+                        gameId = metadata?.gameId,
+                        gameSlug = metadata?.gameSlug,
+                        gameName = metadata?.gameName,
                         duration = totalDuration,
-                        uploadDate = uploadDate,
+                        uploadDate = metadata?.uploadDate,
                         progress = 100,
                         maxProgress = 100,
                         status = OfflineVideo.STATUS_DOWNLOADED,
-                        videoId = if (!id.isNullOrBlank()) id else null,
+                        videoId = metadata?.id,
                         chatUrl = chatFileUri
                     ))
                 }
@@ -171,66 +134,30 @@ class SavedPagerViewModel(
                 if (existingVideo == null) {
                     val fileName = url.substringAfterLast("%2F").substringAfterLast("%3A").removeSuffix(".mp4").removeSuffix(".ts")
                     val chatFile = chatFiles[fileName]
-                    var id: String? = null
-                    var title: String? = null
-                    var uploadDate: Long? = null
-                    var channelId: String? = null
-                    var channelLogin: String? = null
-                    var channelName: String? = null
-                    var gameId: String? = null
-                    var gameSlug: String? = null
-                    var gameName: String? = null
-                    chatFile?.let { uri ->
+                    val metadata = chatFile?.let { uri ->
                         try {
-                            applicationContext.contentResolver.openInputStream(uri.toUri())?.bufferedReader()?.use { fileReader ->
-                                JsonReader(fileReader).use { reader ->
-                                    reader.beginObject()
-                                    while (reader.hasNext()) {
-                                        when (reader.nextName()) {
-                                            "video" -> {
-                                                reader.beginObject()
-                                                while (reader.hasNext()) {
-                                                    when (reader.nextName()) {
-                                                        "id" -> id = reader.nextString()
-                                                        "title" -> title = reader.nextString()
-                                                        "uploadDate" -> uploadDate = reader.nextLong()
-                                                        "channelId" -> channelId = reader.nextString()
-                                                        "channelLogin" -> channelLogin = reader.nextString()
-                                                        "channelName" -> channelName = reader.nextString()
-                                                        "gameId" -> gameId = reader.nextString()
-                                                        "gameSlug" -> gameSlug = reader.nextString()
-                                                        "gameName" -> gameName = reader.nextString()
-                                                        else -> reader.skipValue()
-                                                    }
-                                                }
-                                                reader.endObject()
-                                            }
-                                            else -> reader.skipValue()
-                                        }
-                                    }
-                                    reader.endObject()
-                                }
-                            }
+                            applicationContext.contentResolver.openInputStream(uri.toUri())?.bufferedReader()?.use { it.readText() }
+                                ?.let { parseVideoMetadataFromChatJson(it) }
                         } catch (e: Exception) {
-
+                            null
                         }
                     }
                     offlineVideosRepository.save(
                         OfflineVideo(
                             url = url,
-                            name = if (!title.isNullOrBlank()) title else Uri.decode(fileName),
-                            channelId = if (!channelId.isNullOrBlank()) channelId else null,
-                            channelLogin = if (!channelLogin.isNullOrBlank()) channelLogin else null,
-                            channelName = if (!channelName.isNullOrBlank()) channelName else null,
+                            name = if (!metadata?.title.isNullOrBlank()) metadata.title else Uri.decode(fileName),
+                            channelId = metadata?.channelId,
+                            channelLogin = metadata?.channelLogin,
+                            channelName = metadata?.channelName,
                             thumbnail = url,
-                            gameId = if (!gameId.isNullOrBlank()) gameId else null,
-                            gameSlug = if (!gameSlug.isNullOrBlank()) gameSlug else null,
-                            gameName = if (!gameName.isNullOrBlank()) gameName else null,
-                            uploadDate = uploadDate,
+                            gameId = metadata?.gameId,
+                            gameSlug = metadata?.gameSlug,
+                            gameName = metadata?.gameName,
+                            uploadDate = metadata?.uploadDate,
                             progress = 100,
                             maxProgress = 100,
                             status = OfflineVideo.STATUS_DOWNLOADED,
-                            videoId = if (!id.isNullOrBlank()) id else null,
+                            videoId = metadata?.id,
                             chatUrl = chatFile
                         )
                     )
