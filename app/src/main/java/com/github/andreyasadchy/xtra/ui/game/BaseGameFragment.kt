@@ -99,7 +99,7 @@ import kotlinx.coroutines.launch
 /**
  * Shared host for the two game screens as a full-Compose scaffold: collapsing
  * banner, tab selector and sort row on top, one shared nested-scroll system
- * underneath (no View CoordinatorLayout interop). The fragment stays the host
+ * underneath. The fragment stays the host
  * for navigation, dialogs, launchers and ViewModels; tab ViewModels are
  * parent-scoped by key.
  *

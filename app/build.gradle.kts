@@ -65,7 +65,6 @@ dependencies {
     implementation(libs.activity)
     implementation(libs.appcompat)
     implementation(libs.constraintlayout)
-    implementation(libs.coordinatorlayout)
     implementation(libs.core)
     implementation(libs.fragment)
     implementation(libs.fragment.compose)

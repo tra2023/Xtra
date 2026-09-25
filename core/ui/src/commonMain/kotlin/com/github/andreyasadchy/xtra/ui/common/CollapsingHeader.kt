@@ -35,7 +35,7 @@ class CollapsingHeaderState {
  * Up-drags collapse first; down-drags only re-expand at the true top
  * ([CollapsingHeaderState.atTop], reported by the lists themselves), so
  * mid-list gestures belong to the list alone. Flings always belong to the
- * list. Single scroll system: no View CoordinatorLayout interop involved.
+ * list. Single scroll system.
  */
 @Composable
 fun rememberCollapseConnection(state: CollapsingHeaderState): NestedScrollConnection =
