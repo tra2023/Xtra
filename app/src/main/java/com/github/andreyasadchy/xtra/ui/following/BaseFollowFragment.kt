@@ -86,8 +86,10 @@ import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragmentDirections
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.defaultTabIndex
 import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
+import com.github.andreyasadchy.xtra.util.parseEnabledTabs
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.github.andreyasadchy.xtra.util.tokenPrefs
@@ -152,36 +154,19 @@ abstract class BaseFollowFragment : PagedListFragment(), Scrollable, FollowedCha
 
     private fun computeTabs(): List<String> {
         val showVideosTab = !TwitchApiHelper.getGQLHeaders(requireContext(), true)[C.HEADER_TOKEN].isNullOrBlank()
-        val tabList = requireContext().prefs().getString(C.UI_FOLLOWING_TABS, null).let { tabPref ->
-            val defaultTabs = C.DEFAULT_FOLLOWING_TABS.split(',')
-            if (tabPref != null) {
-                val list = tabPref.split(',').filter { item ->
-                    defaultTabs.find { it.first() == item.first() } != null
-                }.toMutableList()
-                defaultTabs.forEachIndexed { index, item ->
-                    if (list.find { it.first() == item.first() } == null) {
-                        list.add(index, item)
-                    }
-                }
-                list
-            } else defaultTabs
-        }
-        return tabList.mapNotNull {
-            val split = it.split(':')
-            val key = split[0]
-            val enabled = split[2] != "0"
-            if (enabled && (key != "2" || showVideosTab)) {
-                key
-            } else {
-                null
-            }
-        }
+        return parseEnabledTabs(
+            requireContext().prefs().getString(C.UI_FOLLOWING_TABS, null),
+            C.DEFAULT_FOLLOWING_TABS,
+        ).filter { it != "2" || showVideosTab }
     }
 
     private fun computeInitialTab(): Int {
-        val tabList = requireContext().prefs().getString(C.UI_FOLLOWING_TABS, null)?.split(',') ?: C.DEFAULT_FOLLOWING_TABS.split(',')
-        val defaultItem = tabList.find { it.split(':')[1] != "0" }?.split(':')?.get(0) ?: "1"
-        return tabs.indexOf(defaultItem).takeIf { it != -1 } ?: tabs.indexOf("1").takeIf { it != -1 } ?: 0
+        return defaultTabIndex(
+            tabs,
+            requireContext().prefs().getString(C.UI_FOLLOWING_TABS, null),
+            C.DEFAULT_FOLLOWING_TABS,
+            "1",
+        )
     }
 
     override fun initialize() {

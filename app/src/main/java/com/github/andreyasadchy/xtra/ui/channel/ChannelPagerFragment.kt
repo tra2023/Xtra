@@ -97,7 +97,9 @@ import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragmentDirections
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.defaultTabIndex
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
+import com.github.andreyasadchy.xtra.util.parseEnabledTabs
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.github.andreyasadchy.xtra.util.tokenPrefs
@@ -435,32 +437,19 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, VideosSortDialog
     }
 
     private fun computeTabs(): List<String> {
-        val tabList = requireContext().prefs().getString(C.UI_CHANNEL_TABS, null).let { tabPref ->
-            val defaultTabs = C.DEFAULT_CHANNEL_TABS.split(',')
-            if (tabPref != null) {
-                val list = tabPref.split(',').filter { item ->
-                    defaultTabs.find { it.first() == item.first() } != null
-                }.toMutableList()
-                defaultTabs.forEachIndexed { index, item ->
-                    if (list.find { it.first() == item.first() } == null) {
-                        list.add(index, item)
-                    }
-                }
-                list
-            } else defaultTabs
-        }
-        return tabList.mapNotNull {
-            val split = it.split(':')
-            val key = split[0]
-            val enabled = split[2] != "0"
-            if (enabled) key else null
-        }
+        return parseEnabledTabs(
+            requireContext().prefs().getString(C.UI_CHANNEL_TABS, null),
+            C.DEFAULT_CHANNEL_TABS,
+        )
     }
 
     private fun computeInitialTab(): Int {
-        val tabList = requireContext().prefs().getString(C.UI_CHANNEL_TABS, null)?.split(',') ?: C.DEFAULT_CHANNEL_TABS.split(',')
-        val defaultItem = tabList.find { it.split(':')[1] != "0" }?.split(':')?.get(0) ?: "1"
-        return tabs.indexOf(defaultItem).takeIf { it != -1 } ?: tabs.indexOf("1").takeIf { it != -1 } ?: 0
+        return defaultTabIndex(
+            tabs,
+            requireContext().prefs().getString(C.UI_CHANNEL_TABS, null),
+            C.DEFAULT_CHANNEL_TABS,
+            "1",
+        )
     }
 
     private fun initializeVideosTab() {
