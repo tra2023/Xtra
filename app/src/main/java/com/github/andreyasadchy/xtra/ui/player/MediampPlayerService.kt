@@ -79,6 +79,7 @@ class MediampPlayerService : BasePlaybackService() {
     private var bitmapLoadJob: Job? = null
     private var showStreamNotificationSeekbar = true
     private var wasPlaying = false
+    private var qualitiesLoaded = false
 
     private lateinit var sleepTimer: SleepTimer
     private var savePositionTimer: Timer? = null
@@ -222,8 +223,12 @@ class MediampPlayerService : BasePlaybackService() {
                     wasPlaying = state.isPlaying
                     updateSaveTimer(state.isPlaying)
                 }
-                if (!loaded && (state.mediaStatus is MediaStatus.Ready || state.mediaStatus is MediaStatus.Ended)) {
+                val ready = state.mediaStatus is MediaStatus.Ready || state.mediaStatus is MediaStatus.Ended
+                if (!loaded && ready) {
                     playerController.onTracksChanged(true)
+                }
+                if (ready) {
+                    ensureQualities()
                 }
             }
         }
@@ -232,6 +237,7 @@ class MediampPlayerService : BasePlaybackService() {
                 updatePlaybackState()
                 updateMetadata()
                 updateNotification()
+                ensureQualities()
             }
         }
         lifecycleScope.launch {
@@ -242,6 +248,34 @@ class MediampPlayerService : BasePlaybackService() {
                     else -> {}
                 }
             }
+        }
+    }
+
+    private fun ensureQualities() {
+        if (qualitiesLoaded) {
+            return
+        }
+        if (!qualities.isNullOrEmpty()) {
+            qualitiesLoaded = true
+            return
+        }
+        // The Android ExoPlayer backend exposes the HLS multivariant playlist through
+        // PlatformPlayerControls, so the shared quality list can be rebuilt.
+        val variants = engine.videoRenditions() ?: return
+        if (variants.isEmpty()) {
+            return
+        }
+        playerController.onTimelineChanged(
+            variants = variants,
+            playlistChanged = true,
+            timelineEmpty = false,
+            sourceUpdate = false,
+            isAd = null,
+            hideAds = prefs().getBoolean(C.PLAYER_HIDE_ADS, false),
+        )
+        qualitiesLoaded = true
+        if (loaded) {
+            playerController.onTracksChanged(true)
         }
     }
 

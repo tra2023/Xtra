@@ -70,12 +70,16 @@ class MediampPlaybackEngine(
     }
 
     override fun resetVideoTracks() {
+        controls.selectRendition(VideoQuality(VideoQuality.AUTO_QUALITY))
         controls.setVideoEnabled(true)
     }
 
     override fun selectQuality(quality: VideoQuality) {
-        // Adaptive quality is selected by the backend.
+        controls.selectRendition(quality)
     }
+
+    /** Video renditions parsed from the HLS multivariant playlist, if the platform exposes them. */
+    fun videoRenditions(): List<VideoQuality>? = controls.videoRenditions()
 
     override fun setSubtitlesEnabled(enabled: Boolean) {
         val group = player.features[MediaMetadata]?.subtitleTracks ?: return

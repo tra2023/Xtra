@@ -27,9 +27,10 @@ kotlin {
         }
         androidMain.dependencies {
             // The Android mediamp backend is ExoPlayer; used for the platform-only
-            // escape hatches (volume, disabling the video track) that are not part of
-            // mediamp's common API.
+            // escape hatches (volume, disabling the video track, HLS rendition
+            // selection) that are not part of mediamp's common API.
             implementation(libs.media3.exoplayer)
+            implementation(libs.media3.exoplayer.hls)
         }
         // Desktop playback additionally needs a bundled MPV runtime at runtime, e.g.:
         //   jvmRuntimeOnly("org.openani.mediamp:mediamp-mpv-runtime-windows-x64:0.5.0")
