@@ -135,7 +135,6 @@ object ChatParser {
             color = message.tags["color"],
             emotes = emotes,
             badges = badges,
-            gif = message.tags["gifs"]?.substringAfterLast('|'),
             isAction = isAction,
             isFirst = message.tags["first-msg"] == "1",
             bits = message.tags["bits"]?.toIntOrNull(),

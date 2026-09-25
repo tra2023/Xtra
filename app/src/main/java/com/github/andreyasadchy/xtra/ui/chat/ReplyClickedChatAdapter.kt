@@ -66,8 +66,6 @@ class ReplyClickedChatAdapter(
     private val messageTextSize: Float,
     private val emoteSize: Int,
     private val badgeSize: Int,
-    private val gifSize: Int,
-    private val showGifMessages: Boolean,
     private val emoteQuality: String,
     private val animateGifs: Boolean,
     private val enableOverlayEmotes: Boolean,
@@ -105,7 +103,7 @@ class ReplyClickedChatAdapter(
             chatMessage, fragment.requireContext(), holder.textView, enableTimestamps, timestampFormat, firstMsgVisibility, firstChatMsg,
             redeemedChatMsg, redeemedNoMsg, rewardChatMsg, replyMessage, { url, name, format, isAnimated, source, thirdParty, emoteId -> imageClick(url, name, format, isAnimated, source, thirdParty, emoteId) },
             useRandomColors, random, useReadableColors, isLightTheme, nameDisplay, useBoldNames, showNamePaints, namePaints, showSTVBadges,
-            stvBadges, showGifMessages, showPersonalEmotes, personalEmoteSets, stvUsers, showSystemMessageEmotes, enableOverlayEmotes, loggedInUser, chatUrl,
+            stvBadges, showPersonalEmotes, personalEmoteSets, stvUsers, showSystemMessageEmotes, enableOverlayEmotes, loggedInUser, chatUrl,
             getEmoteBytes, userColors, savedColors, localTwitchEmotes,
             thirdPartyEmotes, globalBadges, channelBadges, cheerEmotes, savedLocalTwitchEmotes, savedLocalBadges, savedLocalCheerEmotes, savedLocalEmotes
         )
@@ -115,7 +113,7 @@ class ReplyClickedChatAdapter(
         holder.bind(chatMessage, result.builder)
         ChatAdapterUtils.loadImages(
             fragment, holder.textView, { holder.bind(chatMessage, it) }, result.images, result.imagePaint, result.userName, result.userNameStartIndex,
-            backgroundColor, result.builder, emoteSize, badgeSize, gifSize, emoteQuality, animateGifs
+            backgroundColor, result.builder, emoteSize, badgeSize, emoteQuality, animateGifs
         )
     }
 

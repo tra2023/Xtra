@@ -17,8 +17,6 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import coil3.decode.BitmapFactoryDecoder
-import coil3.gif.AnimatedImageDecoder
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
@@ -70,16 +68,8 @@ class ImageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val args = requireArguments()
-        val prefs = requireContext().prefs()
-        val animated = args.getBoolean(IMAGE_ANIMATED) && prefs.getBoolean(C.ANIMATED_EMOTES, true)
         val request = ImageRequest.Builder(requireContext()).apply {
             data(args.getString(IMAGE_URL))
-            memoryCacheKeyExtra("image_clicked_animation", animated.toString())
-            if (animated) {
-                decoderFactory(AnimatedImageDecoder.Factory())
-            } else {
-                decoderFactory(BitmapFactoryDecoder.Factory())
-            }
             if (args.getBoolean(IMAGE_THIRD_PARTY)) {
                 httpHeaders(NetworkHeaders.Builder().apply {
                     add("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)

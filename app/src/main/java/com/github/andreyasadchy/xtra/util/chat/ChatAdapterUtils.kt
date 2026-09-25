@@ -17,6 +17,7 @@ import android.text.style.URLSpan
 import android.util.Patterns
 import android.view.View
 import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.toColorInt
 import androidx.fragment.app.Fragment
 import coil3.asDrawable
 import coil3.imageLoader
@@ -42,7 +43,6 @@ import java.text.NumberFormat
 import java.util.Random
 import kotlin.math.floor
 import kotlin.math.pow
-import androidx.core.graphics.toColorInt
 
 object ChatAdapterUtils {
 
@@ -53,7 +53,7 @@ object ChatAdapterUtils {
     private const val PI_DEGREES = 180f
     private const val TWO_PI_DEGREES = 360f
 
-    fun prepareChatMessage(chatMessage: ChatMessage, context: Context, itemView: View, enableTimestamps: Boolean, timestampFormat: String?, firstMsgVisibility: Int, firstChatMsg: String, redeemedChatMsg: String, redeemedNoMsg: String, rewardChatMsg: String, replyMessage: String, imageClick: ((String?, String?, String?, Boolean?, Int?, Boolean?, String?) -> Unit)?, useRandomColors: Boolean, random: Random, useReadableColors: Boolean, isLightTheme: Boolean, nameDisplay: String?, useBoldNames: Boolean, showNamePaints: Boolean, namePaints: List<NamePaint>, showSTVBadges: Boolean, stvBadges: List<STVBadge>, showGifMessages: Boolean, showPersonalEmotes: Boolean, personalEmoteSets: Map<String, List<Emote>>, stvUsers: List<STVUser>, enableOverlayEmotes: Boolean, showSystemMessageEmotes: Boolean, loggedInUser: String?, chatUrl: String?, getEmoteBytes: ((String, Pair<Long, Int>) -> ByteArray?)?, userColors: HashMap<String, Int>, savedColors: HashMap<String, Int>, localTwitchEmotes: List<TwitchEmote>, thirdPartyEmotes: List<Emote>, globalBadges: List<TwitchBadge>, channelBadges: List<TwitchBadge>, cheerEmotes: List<CheerEmote>, savedLocalTwitchEmotes: MutableMap<String, ByteArray>, savedLocalBadges: MutableMap<String, ByteArray>, savedLocalCheerEmotes: MutableMap<String, ByteArray>, savedLocalEmotes: MutableMap<String, ByteArray>): MessageResult {
+    fun prepareChatMessage(chatMessage: ChatMessage, context: Context, itemView: View, enableTimestamps: Boolean, timestampFormat: String?, firstMsgVisibility: Int, firstChatMsg: String, redeemedChatMsg: String, redeemedNoMsg: String, rewardChatMsg: String, replyMessage: String, imageClick: ((String?, String?, String?, Boolean?, Int?, Boolean?, String?) -> Unit)?, useRandomColors: Boolean, random: Random, useReadableColors: Boolean, isLightTheme: Boolean, nameDisplay: String?, useBoldNames: Boolean, showNamePaints: Boolean, namePaints: List<NamePaint>, showSTVBadges: Boolean, stvBadges: List<STVBadge>, showPersonalEmotes: Boolean, personalEmoteSets: Map<String, List<Emote>>, stvUsers: List<STVUser>, enableOverlayEmotes: Boolean, showSystemMessageEmotes: Boolean, loggedInUser: String?, chatUrl: String?, getEmoteBytes: ((String, Pair<Long, Int>) -> ByteArray?)?, userColors: HashMap<String, Int>, savedColors: HashMap<String, Int>, localTwitchEmotes: List<TwitchEmote>, thirdPartyEmotes: List<Emote>, globalBadges: List<TwitchBadge>, channelBadges: List<TwitchBadge>, cheerEmotes: List<CheerEmote>, savedLocalTwitchEmotes: MutableMap<String, ByteArray>, savedLocalBadges: MutableMap<String, ByteArray>, savedLocalCheerEmotes: MutableMap<String, ByteArray>, savedLocalEmotes: MutableMap<String, ByteArray>): MessageResult {
         val builder = SpannableStringBuilder()
         val images = ArrayList<Image>()
         var imagePaint: NamePaint? = null
@@ -351,41 +351,14 @@ object ChatAdapterUtils {
                         builderIndex += 1
                     }
                 }
-                if (showGifMessages && !chatMessage.gif.isNullOrBlank()) {
-                    builder.append("\n")
-                    builderIndex += 1
-                    builder.append(".")
-                    builder.setSpan(ForegroundColorSpan(Color.TRANSPARENT), builderIndex, builderIndex + 1, SPAN_EXCLUSIVE_EXCLUSIVE)
-                    if (imageClick != null) {
-                        builder.setSpan(object : ClickableSpan() {
-                            override fun onClick(widget: View) {
-                                imageClick(chatMessage.gif, chatMessage.message?.removeSurrounding("[", "]"), "gif", true, null, false, null)
-                            }
-
-                            override fun updateDrawState(ds: TextPaint) {}
-                        }, builderIndex, builderIndex + 1, SPAN_EXCLUSIVE_EXCLUSIVE)
+                val chatMessageText = chatMessage.message
+                if (chatMessageText != null) {
+                    builder.append(chatMessageText)
+                    if (chatMessage.isAction) {
+                        builder.setSpan(ForegroundColorSpan(color), builderIndex, builderIndex + chatMessageText.length, SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
-                    images.add(Image(
-                        url1x = chatMessage.gif,
-                        url2x = chatMessage.gif,
-                        url3x = chatMessage.gif,
-                        url4x = chatMessage.gif,
-                        format = "gif",
-                        isAnimated = true,
-                        size = Image.IMAGE_SIZE_GIF,
-                        start = builderIndex,
-                        end = builderIndex + 1
-                    ))
-                } else {
-                    val chatMessageText = chatMessage.message
-                    if (chatMessageText != null) {
-                        builder.append(chatMessageText)
-                        if (chatMessage.isAction) {
-                            builder.setSpan(ForegroundColorSpan(color), builderIndex, builderIndex + chatMessageText.length, SPAN_EXCLUSIVE_EXCLUSIVE)
-                        }
-                        val result = prepareEmotes(chatMessage, chatMessageText, builder, builderIndex, images, imageClick, useReadableColors, isLightTheme, enableOverlayEmotes, useBoldNames, loggedInUser, chatUrl, getEmoteBytes, savedColors, localTwitchEmotes, showPersonalEmotes, personalEmoteSets, stvUser, thirdPartyEmotes, cheerEmotes, savedLocalTwitchEmotes, savedLocalCheerEmotes, savedLocalEmotes)
-                        wasMentioned = result
-                    }
+                    val result = prepareEmotes(chatMessage, chatMessageText, builder, builderIndex, images, imageClick, useReadableColors, isLightTheme, enableOverlayEmotes, useBoldNames, loggedInUser, chatUrl, getEmoteBytes, savedColors, localTwitchEmotes, showPersonalEmotes, personalEmoteSets, stvUser, thirdPartyEmotes, cheerEmotes, savedLocalTwitchEmotes, savedLocalCheerEmotes, savedLocalEmotes)
+                    wasMentioned = result
                 }
                 when {
                     chatMessage.isFirst && firstMsgVisibility < 2 -> itemView.setBackgroundResource(R.color.chatMessageFirst)
@@ -680,7 +653,7 @@ object ChatAdapterUtils {
         }
     }
 
-    fun loadImages(fragment: Fragment, itemView: View, bind: (SpannableStringBuilder) -> Unit, images: List<Image>, imagePaint: NamePaint?, userName: String?, userNameStartIndex: Int?, backgroundColor: Int, builder: SpannableStringBuilder, emoteSize: Int, badgeSize: Int, gifSize: Int, emoteQuality: String, animateGifs: Boolean) {
+    fun loadImages(fragment: Fragment, itemView: View, bind: (SpannableStringBuilder) -> Unit, images: List<Image>, imagePaint: NamePaint?, userName: String?, userNameStartIndex: Int?, backgroundColor: Int, builder: SpannableStringBuilder, emoteSize: Int, badgeSize: Int, emoteQuality: String, animateGifs: Boolean) {
         if (imagePaint != null) {
             fragment.requireContext().imageLoader.enqueue(
                 ImageRequest.Builder(fragment.requireContext()).apply {
@@ -733,7 +706,6 @@ object ChatAdapterUtils {
             loadImage(fragment, image, emoteQuality) { result ->
                 val imageSize = when (image.size) {
                     Image.IMAGE_SIZE_EMOTE -> emoteSize
-                    Image.IMAGE_SIZE_GIF -> gifSize
                     else -> badgeSize
                 }
                 val widthRatio = result.intrinsicWidth.toFloat() / result.intrinsicHeight.toFloat()

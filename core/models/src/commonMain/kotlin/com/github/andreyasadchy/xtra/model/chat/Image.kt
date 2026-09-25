@@ -17,6 +17,5 @@ class Image(
     companion object {
         const val IMAGE_SIZE_EMOTE = "emote"
         const val IMAGE_SIZE_BADGE = "badge"
-        const val IMAGE_SIZE_GIF = "gif"
     }
 }

@@ -39,8 +39,6 @@ fun ChatSettingsScreen(
         settingsTextPref(C.CHAT_TEXT_SIZE, "14", strings)
         settingsTextPref(C.CHAT_EMOTE_SIZE, "29.5", strings)
         settingsTextPref(C.CHAT_BADGE_SIZE, "18.5", strings)
-        settingsBooleanPref(C.CHAT_SHOW_GIF_MESSAGES, true, strings)
-        settingsTextPref(C.CHAT_GIF_SIZE, "79.5", strings)
         settingsSliderPref("chatWidth", 30, 0..100, strings, onCommitted = {
             onAction(SettingsAction.ChatWidthChanged(it))
             onAction(SettingsAction.ResultChanged)

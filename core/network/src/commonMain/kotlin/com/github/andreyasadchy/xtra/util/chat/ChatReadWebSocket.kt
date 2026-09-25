@@ -12,7 +12,6 @@ import kotlinx.coroutines.withContext
 
 class ChatReadWebSocket(
     private val channelLogin: String,
-    private val showGifMessages: Boolean,
     private val listener: Listener,
 ) {
     private var webSocket: WebSocket? = null
@@ -25,9 +24,7 @@ class ChatReadWebSocket(
         webSocket = WebSocket(
             url = "wss://irc-ws.chat.twitch.tv",
             listener = WebSocketListener(),
-            headers = if (showGifMessages) {
-                mapOf("Cookie" to "experiment_overrides={%22experiments%22:{}%2C%22disabled%22:[]}")
-            } else null,
+            headers = mapOf("Cookie" to "experiment_overrides={%22experiments%22:{}%2C%22disabled%22:[]}"),
         )
         return coroutineScope.launch(Dispatchers.IO) {
             webSocket?.start()

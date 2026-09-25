@@ -96,7 +96,6 @@ dependencies {
     implementation(libs.media3.session)
 
     implementation(libs.coil)
-    implementation(libs.coil.gif)
     implementation(libs.coil.compose)
     // KMP-ready network fetcher and API transport (Android + JVM desktop via CIO).
     // ExoPlayer data sources continue to use OkHttp.

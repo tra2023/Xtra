@@ -46,8 +46,8 @@ import com.github.andreyasadchy.xtra.util.chat.EventSubParser
 import com.github.andreyasadchy.xtra.util.chat.EventSubWebSocket
 import com.github.andreyasadchy.xtra.util.chat.HermesWebSocket
 import com.github.andreyasadchy.xtra.util.chat.PubSubParser
-import com.github.andreyasadchy.xtra.util.chat.StvParser
 import com.github.andreyasadchy.xtra.util.chat.STVEventApiWebSocket
+import com.github.andreyasadchy.xtra.util.chat.StvParser
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.Dispatchers
@@ -1009,7 +1009,7 @@ class ChatViewModel(
             val gqlToken = gqlHeaders[C.HEADER_TOKEN]?.removePrefix("OAuth ")
             val helixToken = helixHeaders[C.HEADER_TOKEN]?.removePrefix("Bearer ")
             if (applicationContext.prefs().getBoolean(C.CHAT_USE_WEBSOCKET, true)) {
-                chatReadWebSocket = ChatReadWebSocket(channelLogin, applicationContext.prefs().getBoolean(C.CHAT_SHOW_GIF_MESSAGES, true), ChatReadListener(channelLogin, nameDisplay, showUserNotice, showClearMsg, showClearChat, usePubSub, isLoggedIn, accountId, channelId))
+                chatReadWebSocket = ChatReadWebSocket(channelLogin, ChatReadListener(channelLogin, nameDisplay, showUserNotice, showClearMsg, showClearChat, usePubSub, isLoggedIn, accountId, channelId))
                 chatReadJob = chatReadWebSocket?.connect(viewModelScope)
                 if (isLoggedIn && (!gqlToken.isNullOrBlank() || !helixHeaders[C.HEADER_TOKEN].isNullOrBlank() && !useApiChatMessages)) {
                     chatWriteWebSocket = ChatWriteWebSocket(

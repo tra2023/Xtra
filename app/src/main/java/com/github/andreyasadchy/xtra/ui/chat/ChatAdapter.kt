@@ -64,8 +64,6 @@ class ChatAdapter(
     private val messageTextSize: Float,
     private val emoteSize: Int,
     private val badgeSize: Int,
-    private val gifSize: Int,
-    private val showGifMessages: Boolean,
     private val emoteQuality: String,
     private val animateGifs: Boolean,
     private val enableOverlayEmotes: Boolean,
@@ -96,7 +94,7 @@ class ChatAdapter(
         val result = ChatAdapterUtils.prepareChatMessage(
             chatMessage, fragment.requireContext(), holder.textView, enableTimestamps, timestampFormat, firstMsgVisibility, firstChatMsg,
             redeemedChatMsg, redeemedNoMsg, rewardChatMsg, replyMessage, null, useRandomColors, random, useReadableColors, isLightTheme,
-            nameDisplay, useBoldNames, showNamePaints, namePaints, showSTVBadges, stvBadges, showGifMessages, showPersonalEmotes, personalEmoteSets,
+            nameDisplay, useBoldNames, showNamePaints, namePaints, showSTVBadges, stvBadges, showPersonalEmotes, personalEmoteSets,
             stvUsers, enableOverlayEmotes, showSystemMessageEmotes, loggedInUser, chatUrl, getEmoteBytes, userColors, savedColors,
             localTwitchEmotes, thirdPartyEmotes, globalBadges, channelBadges, cheerEmotes,
             savedLocalTwitchEmotes, savedLocalBadges, savedLocalCheerEmotes, savedLocalEmotes
@@ -104,7 +102,7 @@ class ChatAdapter(
         holder.bind(chatMessage, result.builder)
         ChatAdapterUtils.loadImages(
             fragment, holder.textView, { holder.bind(chatMessage, it) }, result.images, result.imagePaint, result.userName, result.userNameStartIndex,
-            backgroundColor, result.builder, emoteSize, badgeSize, gifSize, emoteQuality, animateGifs
+            backgroundColor, result.builder, emoteSize, badgeSize, emoteQuality, animateGifs
         )
     }
 
@@ -116,7 +114,7 @@ class ChatAdapter(
             { url, name, format, isAnimated, source, thirdParty, emoteId -> imageClickListener?.invoke(url, name, format, isAnimated, source, thirdParty, emoteId) },
             useRandomColors, useReadableColors, isLightTheme, nameDisplay, useBoldNames, showNamePaints, showSTVBadges, showPersonalEmotes,
             showSystemMessageEmotes, chatUrl, getEmoteBytes, fragment, dialogBackgroundColor, messageTextSize, emoteSize, badgeSize,
-            gifSize, showGifMessages, emoteQuality, animateGifs, enableOverlayEmotes,
+            emoteQuality, animateGifs, enableOverlayEmotes,
             random, userColors, savedColors, savedLocalTwitchEmotes, savedLocalBadges, savedLocalCheerEmotes, savedLocalEmotes, loggedInUser, selectedMessage
         )
     }
@@ -128,7 +126,7 @@ class ChatAdapter(
             { url, name, format, isAnimated, source, thirdParty, emoteId -> imageClickListener?.invoke(url, name, format, isAnimated, source, thirdParty, emoteId) },
             useRandomColors, useReadableColors, isLightTheme, nameDisplay, useBoldNames, showNamePaints, showSTVBadges, showPersonalEmotes,
             showSystemMessageEmotes, chatUrl, getEmoteBytes, fragment, dialogBackgroundColor, messageTextSize, emoteSize, badgeSize,
-            gifSize, showGifMessages, emoteQuality, animateGifs, enableOverlayEmotes,
+            emoteQuality, animateGifs, enableOverlayEmotes,
             random, userColors, savedColors, savedLocalTwitchEmotes, savedLocalBadges, savedLocalCheerEmotes, savedLocalEmotes, loggedInUser, selectedMessage
         )
     }

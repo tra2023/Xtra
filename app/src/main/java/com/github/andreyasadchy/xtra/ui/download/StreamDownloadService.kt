@@ -918,7 +918,6 @@ class StreamDownloadService : LifecycleService() {
         downloadProgress.chatBytes = position
         downloadJob.chatReadWebSocket = ChatReadWebSocket(
             channelLogin = channelLogin,
-            showGifMessages = prefs().getBoolean(C.CHAT_SHOW_GIF_MESSAGES, true),
             listener = object : ChatReadWebSocket.Listener {
                 override suspend fun onChatMessage(message: ChatUtils.IRCMessage, userNotice: Boolean) {
                     saveMessage(offlineVideo, downloadProgress, message, isShared, fileUri, downloadEmotes, emoteQuality, savedTwitchEmotes, savedBadges, savedEmotes, globalBadgeList, channelBadgeList, cheerEmoteList, emoteList)

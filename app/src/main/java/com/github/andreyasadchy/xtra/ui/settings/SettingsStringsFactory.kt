@@ -89,8 +89,6 @@ fun Context.settingsStrings(): SettingsStrings {
             C.CHAT_TEXT_SIZE to s(R.string.text_size),
             C.CHAT_EMOTE_SIZE to s(R.string.chat_emote_size),
             C.CHAT_BADGE_SIZE to s(R.string.chat_badge_size),
-            C.CHAT_SHOW_GIF_MESSAGES to s(R.string.show_gif_messages),
-            C.CHAT_GIF_SIZE to s(R.string.chat_gif_size),
             "chatWidth" to s(R.string.landscape_chat_width),
             C.CHAT_LIMIT to s(R.string.message_limit),
             C.CHAT_RECENT to s(R.string.recentMsg_enable),

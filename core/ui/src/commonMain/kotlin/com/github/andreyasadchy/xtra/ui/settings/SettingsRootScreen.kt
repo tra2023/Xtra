@@ -205,8 +205,6 @@ val SettingsSearchIndex: List<SettingsSearchEntry> = listOf(
     SettingsSearchEntry(C.CHAT_TEXT_SIZE, SettingsRoute.Chat),
     SettingsSearchEntry(C.CHAT_EMOTE_SIZE, SettingsRoute.Chat),
     SettingsSearchEntry(C.CHAT_BADGE_SIZE, SettingsRoute.Chat),
-    SettingsSearchEntry(C.CHAT_SHOW_GIF_MESSAGES, SettingsRoute.Chat),
-    SettingsSearchEntry(C.CHAT_GIF_SIZE, SettingsRoute.Chat),
     SettingsSearchEntry("chatWidth", SettingsRoute.Chat),
     SettingsSearchEntry(C.CHAT_LIMIT, SettingsRoute.Chat),
     SettingsSearchEntry(C.CHAT_RECENT, SettingsRoute.Chat),
