@@ -25,6 +25,7 @@ import android.os.PowerManager
 import android.util.Base64
 import android.view.KeyEvent
 import android.widget.Toast
+import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -33,8 +34,10 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.Tracks
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.hls.HlsManifest
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.XtraApp
@@ -62,7 +65,6 @@ import org.json.JSONException
 import org.openani.mediamp.MediaStatus
 import org.openani.mediamp.MediampPlayer
 import org.openani.mediamp.PlaybackEvent
-import org.openani.mediamp.PlaybackException
 import org.openani.mediamp.exoplayer.ExoPlayerMediampPlayerFactory
 import org.openani.mediamp.features.PlaybackSpeed
 import org.openani.mediamp.togglePlayWhenReady
@@ -76,6 +78,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * Android playback host. Owns the mediamp player (ExoPlayer backend), the foreground
  * media notification and the shared [PlayerController].
  */
+@OptIn(UnstableApi::class)
 class MediampPlayerService : BasePlaybackService() {
 
     var player: MediampPlayer? = null
@@ -201,12 +204,14 @@ class MediampPlayerService : BasePlaybackService() {
                             prefs().getString(C.PLAYER_BUFFER_PLAYBACK, "2000")?.toIntOrNull() ?: 2000,
                             prefs().getString(C.PLAYER_BUFFER_REBUFFER, "2000")?.toIntOrNull() ?: 2000,
                         )
+                        setBackBuffer(60_000, true)
                     }.build()
                 )
                 builder.setAudioAttributes(AudioAttributes.DEFAULT, prefs().getBoolean(C.PLAYER_AUDIO_FOCUS, false))
                 builder.setHandleAudioBecomingNoisy(prefs().getBoolean(C.PLAYER_HANDLE_AUDIO_BECOMING_NOISY, true))
                 builder.setSeekBackIncrementMs(seekBackMs())
                 builder.setSeekForwardIncrementMs(seekForwardMs())
+                builder.setSeekParameters(SeekParameters.CLOSEST_SYNC)
             },
         )
         this.player = player
@@ -253,7 +258,7 @@ class MediampPlayerService : BasePlaybackService() {
         lifecycleScope.launch {
             player.events.collect { event ->
                 when (event) {
-                    is PlaybackEvent.ErrorOccurred -> onPlayerError(event.error)
+                    is PlaybackEvent.ErrorOccurred -> onPlayerError()
                     is PlaybackEvent.MediaEnded -> updatePlaybackState()
                     else -> {}
                 }
@@ -349,14 +354,14 @@ class MediampPlayerService : BasePlaybackService() {
                 if (value != null) {
                     val bytes = try {
                         Base64.decode(value, Base64.DEFAULT)
-                    } catch (e: IllegalArgumentException) {
+                    } catch (_: IllegalArgumentException) {
                         null
                     }
                     if (bytes != null) {
                         val string = String(bytes)
                         val array = try {
                             JSONArray(string)
-                        } catch (e: JSONException) {
+                        } catch (_: JSONException) {
                             null
                         }
                         if (array != null) {
@@ -780,7 +785,7 @@ class MediampPlayerService : BasePlaybackService() {
         startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
     }
 
-    private fun onPlayerError(error: PlaybackException) {
+    private fun onPlayerError() {
         val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
         val isNetworkAvailable = networkCapabilities != null
@@ -878,7 +883,6 @@ class MediampPlayerService : BasePlaybackService() {
     }
 
     private fun updateSaveTimer(isPlaying: Boolean) {
-        val player = player ?: return
         if (isPlaying) {
             if (savePositionTimer == null && type != STREAM) {
                 savePositionTimer = Timer().apply {
