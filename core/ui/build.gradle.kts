@@ -25,6 +25,7 @@ kotlin {
             implementation(libs.coil.compose)
             implementation(libs.coil.network.cache.control)
             implementation(libs.coil.network.ktor3)
+            implementation(libs.okio)
             implementation(libs.ktor.client.cio)
             implementation(libs.coroutines.core)
         }

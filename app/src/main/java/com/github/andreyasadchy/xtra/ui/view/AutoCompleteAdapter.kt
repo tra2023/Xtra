@@ -17,6 +17,7 @@ import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.Chatter
 import com.github.andreyasadchy.xtra.model.chat.Emote
+import com.github.andreyasadchy.xtra.ui.disableAnimatedEmotes
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.prefs
 import java.util.regex.Pattern
@@ -53,6 +54,7 @@ class AutoCompleteAdapter<T>(
                                     add("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)
                                 }.build())
                             }
+                            disableAnimatedEmotes(!context.prefs().getBoolean(C.ANIMATED_EMOTES, true))
                             crossfade(true)
                             target(it)
                         }.build()

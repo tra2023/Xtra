@@ -26,6 +26,7 @@ import com.github.andreyasadchy.xtra.model.chat.Emote
 import com.github.andreyasadchy.xtra.model.chat.EmoteCard
 import com.github.andreyasadchy.xtra.ui.chat.ImageClickedViewModel.Companion.ImageClickedViewModelFactory
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
+import com.github.andreyasadchy.xtra.ui.disableAnimatedEmotes
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
@@ -70,6 +71,7 @@ class ImageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener
         val args = requireArguments()
         val request = ImageRequest.Builder(requireContext()).apply {
             data(args.getString(IMAGE_URL))
+            disableAnimatedEmotes(!requireContext().prefs().getBoolean(C.ANIMATED_EMOTES, true))
             if (args.getBoolean(IMAGE_THIRD_PARTY)) {
                 httpHeaders(NetworkHeaders.Builder().apply {
                     add("User-Agent", "Xtra/" + BuildConfig.VERSION_NAME)

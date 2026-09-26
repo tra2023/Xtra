@@ -49,6 +49,7 @@ class EmotesFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
         ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            val animate = requireContext().prefs().getBoolean(C.ANIMATED_EMOTES, true)
             setContent {
                 val theme = rememberThemeId()
                 XtraTheme(themeId = theme) {
@@ -57,6 +58,7 @@ class EmotesFragment : Fragment() {
                         imageUrl = ::emoteUrl,
                         onClick = { (parentFragment as? ChatFragment)?.appendEmote(it) },
                         thirdPartyUserAgent = "Xtra/" + BuildConfig.VERSION_NAME,
+                        animate = animate,
                     )
                 }
             }

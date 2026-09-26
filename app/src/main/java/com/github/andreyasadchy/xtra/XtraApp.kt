@@ -4,12 +4,7 @@ import android.app.Application
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
-import coil3.annotation.ExperimentalCoilApi
-import coil3.network.cachecontrol.CacheControlCacheStrategy
-import coil3.network.ktor3.KtorNetworkFetcherFactory
-import coil3.util.DebugLogger
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
+import com.github.andreyasadchy.xtra.ui.createXtraImageLoader
 
 class XtraApp : Application(), SingletonImageLoader.Factory {
 
@@ -25,19 +20,7 @@ class XtraApp : Application(), SingletonImageLoader.Factory {
         xtraModule = XtraModule(this)
     }
 
-    @OptIn(ExperimentalCoilApi::class)
     override fun newImageLoader(context: PlatformContext): ImageLoader {
-        return ImageLoader.Builder(context).apply {
-            if (BuildConfig.DEBUG) {
-                logger(DebugLogger())
-            }
-            components {
-                // Ktor + CIO works on Android and JVM desktop (Compose Multiplatform).
-                add(KtorNetworkFetcherFactory(
-                    httpClient = { HttpClient(CIO) },
-                    cacheStrategy = { CacheControlCacheStrategy() }
-                ))
-            }
-        }.build()
+        return createXtraImageLoader(context, debug = BuildConfig.DEBUG)
     }
 }

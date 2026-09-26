@@ -32,6 +32,7 @@ fun EmoteGrid(
     onClick: (Emote) -> Unit,
     modifier: Modifier = Modifier,
     thirdPartyUserAgent: String? = null,
+    animate: Boolean = true,
 ) {
     val thirdPartyHeaders = remember(thirdPartyUserAgent) {
         thirdPartyUserAgent?.let { agent ->
@@ -57,6 +58,7 @@ fun EmoteGrid(
                         contentScale = ContentScale.Fit,
                         httpHeaders = if (emote.thirdParty) thirdPartyHeaders else null,
                         modifier = Modifier.fillMaxSize(),
+                        animate = animate,
                     )
                 }
             }

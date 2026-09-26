@@ -39,6 +39,7 @@ fun XtraAsyncImage(
     crossfade: Boolean = true,
     httpHeaders: NetworkHeaders? = null,
     diskCache: Boolean = true,
+    animate: Boolean = true,
 ) {
     val context = LocalPlatformContext.current
     val headers = httpHeaders
@@ -46,6 +47,7 @@ fun XtraAsyncImage(
         model = ImageRequest.Builder(context)
             .data(model)
             .diskCachePolicy(if (diskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
+            .disableAnimatedEmotes(!animate)
             .apply {
                 if (crossfade) crossfade(true)
                 headers?.let { httpHeaders(it) }
