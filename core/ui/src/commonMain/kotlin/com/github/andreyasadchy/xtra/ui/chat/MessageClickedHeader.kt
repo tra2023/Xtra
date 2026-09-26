@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
@@ -37,11 +38,11 @@ fun MessageClickedHeader(
 ) {
     if (user != null && (user.bannerImageURL != null || user.profileImage != null || user.name != null || user.createdAt != null || user.followedAt != null)) {
         val hasBanner = user.bannerImageURL != null
-        Column(modifier = modifier.fillMaxSize()) {
+        Box(modifier = modifier.fillMaxWidth()) {
             if (hasBanner) {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .matchParentSize()
                         .clip(MaterialTheme.shapes.extraLarge),
                 ) {
                     XtraAsyncImage(
@@ -60,7 +61,7 @@ fun MessageClickedHeader(
             }
             Row(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .padding(horizontal = 10.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

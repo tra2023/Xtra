@@ -1,7 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
@@ -41,7 +41,7 @@ fun MessageThreadScreen(
     contentPadding: Dp = 8.dp,
     buttons: @Composable (() -> Unit)? = null,
 ) {
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxWidth()) {
         header?.invoke()
         ChatList(
             messages = messages,
@@ -53,7 +53,7 @@ fun MessageThreadScreen(
             onReplyClick = onReplyClick,
             onImageClick = onImageClick,
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .height(listHeight)
                 .padding(horizontal = contentPadding),
         )
@@ -72,7 +72,7 @@ fun MessageThreadButton(
     Button(
         onClick = onClick,
         modifier = modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .padding(horizontal = contentPadding),
     ) {
         Text(label)

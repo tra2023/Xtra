@@ -37,7 +37,7 @@ class ChatRenderCache(
  * whenever one of the collections or preferences changes, because the formatter result is cached
  * per message and generation.
  */
-class ChatRenderOptions(
+data class ChatRenderOptions(
     val strings: ChatMessageStrings,
     val localTwitchEmotes: List<TwitchEmote> = emptyList(),
     val thirdPartyEmotes: List<Emote> = emptyList(),

@@ -33,10 +33,10 @@ fun messageClickedButtons(
         }
     }
     if (selected?.message != null) {
-        buttons.add(context.copyClip to { onCopyClip(selected!!) })
+        buttons.add(context.copyClip to { onCopyClip(selected) })
     }
     if (selected?.fullMsg != null && allowCopyFullMsg) {
-        buttons.add(debugFullMsgButton to { onCopyFullMsg(selected!!) })
+        buttons.add(debugFullMsgButton to { onCopyFullMsg(selected) })
     }
     if (userFailed) {
         buttons.add(context.viewProfile to onViewProfile)

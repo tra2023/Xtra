@@ -1,29 +1,28 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
-import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat.getSystemService
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.github.andreyasadchy.xtra.databinding.DialogChatMessageClickBinding
+import com.github.andreyasadchy.xtra.R
+import com.github.andreyasadchy.xtra.model.chat.ChatImage
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
-import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
 class ReplyClickedDialog : BottomSheetDialogFragment() {
 
     interface OnButtonClickListener {
-        fun onCreateReplyClickedChatAdapter(): ReplyClickedChatAdapter?
+        fun onCreateReplyClickedChatState(): ChatState?
         fun onReplyClicked(replyId: String?, userLogin: String?, userName: String?, message: String?)
         fun onCopyMessageClicked(message: String)
     }
@@ -40,13 +39,8 @@ class ReplyClickedDialog : BottomSheetDialogFragment() {
         }
     }
 
-    private var _binding: DialogChatMessageClickBinding? = null
-    private val binding get() = _binding!!
-
     private lateinit var listener: OnButtonClickListener
-    var adapter: ReplyClickedChatAdapter? = null
-    private var isChatTouched = false
-    private var messageLimit: Int? = null
+    private var chatState: ChatState? = null
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -54,167 +48,72 @@ class ReplyClickedDialog : BottomSheetDialogFragment() {
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = DialogChatMessageClickBinding.inflate(inflater, container, false)
-        return binding.root
+        val state = listener.onCreateReplyClickedChatState().also { chatState = it }
+        val padding = requireContext().obtainStyledAttributes(intArrayOf(R.attr.dialogPadding)).let {
+            val value = it.getDimension(0, 8f * resources.displayMetrics.density) / resources.displayMetrics.density
+            it.recycle()
+            value.dp
+        }
+        val messagingEnabled = requireArguments().getBoolean(KEY_MESSAGING)
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val theme = rememberThemeId()
+                XtraTheme(themeId = theme) {
+                    ReplyClickedScreenContent(
+                        chatState = state,
+                        messagingEnabled = messagingEnabled,
+                        padding = padding,
+                        onReply = ::onReplyButton,
+                        onCopyMessage = ::onCopyMessageButton,
+                        onCopyClip = ::onCopyClipButton,
+                        onCopyFullMsg = ::onCopyFullMsgButton,
+                        onImageClick = ::onImageClick,
+                    )
+                }
+            }
+        }
     }
 
-    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val behavior = BottomSheetBehavior.from(view.parent as View)
         behavior.skipCollapsed = true
         behavior.state = BottomSheetBehavior.STATE_EXPANDED
-        with(binding) {
-            adapter = listener.onCreateReplyClickedChatAdapter()
-            recyclerView.let {
-                it.adapter = adapter
-                it.itemAnimator = null
-                it.layoutManager = LinearLayoutManager(context).apply { stackFromEnd = true }
-                it.setOnTouchListener(object : View.OnTouchListener {
-                    override fun onTouch(v: View, event: MotionEvent): Boolean {
-                        when (event.action) {
-                            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> behavior.isDraggable = false
-                            MotionEvent.ACTION_UP -> behavior.isDraggable = true
-                        }
-                        return false
-                    }
-                })
-                it.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                    override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                        super.onScrollStateChanged(recyclerView, newState)
-                        isChatTouched = newState == RecyclerView.SCROLL_STATE_DRAGGING
-                    }
-                })
-            }
-            adapter?.let { adapter ->
-                adapter.messageClickListener = { selectedMessage, previousSelectedMessage ->
-                    updateButtons(selectedMessage)
-                    previousSelectedMessage?.let {
-                        synchronized(adapter.messages) {
-                            adapter.messages.indexOf(it).takeIf { it != -1 }
-                        }?.let {
-                            (recyclerView.layoutManager?.findViewByPosition(it) as? TextView)?.let {
-                                adapter.updateBackground(previousSelectedMessage, it)
-                            } ?: adapter.notifyItemChanged(it)
-                        }
-                    }
-                }
-                adapter.selectedMessage?.let { selectedMessage ->
-                    updateButtons(selectedMessage)
-                    synchronized(adapter.messages) {
-                        adapter.messages.indexOf(selectedMessage).takeIf { it != -1 }
-                    }?.let {
-                        binding.recyclerView.scrollToPosition(it)
-                    }
-                }
-            }
-            if (requireContext().prefs().getBoolean(C.DEBUG_CHAT_FULL_MSG, false)) {
-                copyFullMsg.visibility = View.VISIBLE
-            }
-        }
     }
 
-    private fun updateButtons(chatMessage: ChatMessage) {
-        with(binding) {
-            if (requireArguments().getBoolean(KEY_MESSAGING) && (!chatMessage.userId.isNullOrBlank() || !chatMessage.userLogin.isNullOrBlank())) {
-                if (!chatMessage.id.isNullOrBlank()) {
-                    reply.visibility = View.VISIBLE
-                    reply.setOnClickListener {
-                        listener.onReplyClicked(chatMessage.id, chatMessage.userLogin, chatMessage.userName, chatMessage.message)
-                        dismiss()
-                    }
-                } else {
-                    reply.visibility = View.GONE
-                }
-                val message = chatMessage.message
-                if (!message.isNullOrBlank()) {
-                    copyMessage.visibility = View.VISIBLE
-                    copyMessage.setOnClickListener {
-                        listener.onCopyMessageClicked(message)
-                        dismiss()
-                    }
-                } else {
-                    copyMessage.visibility = View.GONE
-                }
-            }
-            val clipboard = getSystemService(requireContext(), ClipboardManager::class.java)
-            copyClip.setOnClickListener {
-                clipboard?.setPrimaryClip(ClipData.newPlainText("label", chatMessage.message))
-                dismiss()
-            }
-            copyFullMsg.setOnClickListener {
-                clipboard?.setPrimaryClip(ClipData.newPlainText("label", chatMessage.fullMsg))
-                dismiss()
-            }
-        }
+    private fun onReplyButton(message: ChatMessage) {
+        listener.onReplyClicked(message.id, message.userLogin, message.userName, message.message)
+        dismiss()
     }
 
-    fun updateUserMessages(userId: String) {
-        adapter?.let { adapter ->
-            synchronized(adapter.messages) {
-                adapter.messages.mapIndexedNotNull { index, message ->
-                    if (message.userId != null && message.userId == userId) {
-                        index
-                    } else null
-                }
-            }.forEach {
-                adapter.notifyItemChanged(it)
-            }
-        }
+    private fun onCopyMessageButton(message: ChatMessage) {
+        listener.onCopyMessageClicked(message.message.orEmpty())
+        dismiss()
     }
 
-    fun newMessage(message: ChatMessage) {
-        adapter?.let { adapter ->
-            if ((message.reply?.threadParentId == adapter.threadParentId || message.id == adapter.threadParentId) && message.type != ChatMessage.REPLY_MESSAGE) {
-                synchronized(adapter.messages) {
-                    if (adapter.messages.size >= (messageLimit ?: requireContext().prefs().getInt(C.CHAT_LIMIT, 600).also { messageLimit = it })) {
-                        adapter.messages.removeAt(0)
-                        adapter.notifyItemRemoved(0)
-                    }
-                    adapter.messages.add(message)
-                    val lastIndex = adapter.messages.lastIndex
-                    adapter.notifyItemInserted(lastIndex)
-                    if (!isChatTouched && !shouldShowButton()) {
-                        binding.recyclerView.scrollToPosition(lastIndex)
-                    }
-                }
-            }
-        }
+    private fun onCopyClipButton(message: ChatMessage) {
+        clipboard()?.setPrimaryClip(ClipData.newPlainText("label", message.message))
+        dismiss()
     }
 
-    fun addMessages(messages: List<ChatMessage>) {
-        adapter?.let { adapter ->
-            synchronized(adapter.messages) {
-                val left = (messageLimit ?: requireContext().prefs().getInt(C.CHAT_LIMIT, 600).also { messageLimit = it }) - adapter.messages.size
-                if (left > 0) {
-                    val items = messages.filter { message ->
-                        (message.reply?.threadParentId == adapter.threadParentId || message.id == adapter.threadParentId) && message.type != ChatMessage.REPLY_MESSAGE
-                    }.takeLast(left)
-                    adapter.messages.addAll(0, items)
-                    adapter.notifyItemRangeInserted(0, items.size)
-                    if (!isChatTouched && !shouldShowButton()) {
-                        binding.recyclerView.scrollToPosition(adapter.messages.lastIndex)
-                    }
-                }
-            }
-        }
+    private fun onCopyFullMsgButton(message: ChatMessage) {
+        clipboard()?.setPrimaryClip(ClipData.newPlainText("label", message.fullMsg))
+        dismiss()
     }
 
-    private fun shouldShowButton(): Boolean {
-        with(binding) {
-            val offset = recyclerView.computeVerticalScrollOffset()
-            if (offset < 0) {
-                return false
-            }
-            val extent = recyclerView.computeVerticalScrollExtent()
-            val range = recyclerView.computeVerticalScrollRange()
-            val percentage = (100f * offset / (range - extent).toFloat())
-            return percentage < 100f
-        }
+    private fun onImageClick(image: ChatImage) {
+        val click = image.click
+        ImageClickedDialog.newInstance(
+            image.url4x ?: image.url3x ?: image.url2x ?: image.url1x,
+            click?.name,
+            click?.format,
+            click?.isAnimated ?: image.isAnimated,
+            click?.source,
+            click?.thirdParty ?: image.thirdParty,
+            click?.emoteId,
+        ).show(childFragmentManager, "imageDialog")
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
+    private fun clipboard(): ClipboardManager? = getSystemService(requireContext(), ClipboardManager::class.java)
 }

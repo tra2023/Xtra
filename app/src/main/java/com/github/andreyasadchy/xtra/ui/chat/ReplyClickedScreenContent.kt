@@ -1,7 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -15,46 +13,34 @@ import androidx.compose.ui.unit.dp
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.ChatImage
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
-import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.settings.AndroidXtraSettings
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
-import kotlin.time.Instant
 
 /**
- * Compose content of [MessageClickedDialog], sharing [MessageThreadScreen] with the reply
- * dialog: the inspected-user header, the filtered message list and the action buttons.
- *
- * Selection clicks come from [ChatState.selectedMessage], so the other open dialog and the
- * button rows below stay in sync without the old per-adapter selection bookkeeping.
+ * Compose content of [ReplyClickedDialog], sharing [MessageThreadScreen] with the message dialog:
+ * the reply-thread rows and the reply/copy buttons.
  */
 @Composable
-fun MessageClickedScreenContent(
+fun ReplyClickedScreenContent(
     chatState: ChatState?,
     messagingEnabled: Boolean,
-    inspectedUser: User?,
-    userFailed: Boolean,
     modifier: Modifier = Modifier,
     padding: Dp = 8.dp,
     onReply: (ChatMessage) -> Unit = {},
     onCopyMessage: (ChatMessage) -> Unit = {},
     onCopyClip: (ChatMessage) -> Unit = {},
     onCopyFullMsg: (ChatMessage) -> Unit = {},
-    onViewProfile: (User) -> Unit = {},
     onImageClick: (ChatImage) -> Unit = {},
-    onReplyThread: (ChatMessage) -> Unit = {},
 ) {
     val state = chatState ?: return
     val listState = rememberLazyListState()
     val selected = state.selectedMessage
-    // The clicked message anchors the list; later selections do not change the filtered set.
     val anchor = remember(state) { state.selectedMessage }
     val messages = remember(anchor, state.messages.size, state.generation) {
-        filterMessageDialogMessages(state.messages, anchor)
+        filterReplyDialogMessages(state.messages, anchor)
     }
-    // The old adapter pre-scrolled the list to the selected row on open.
     LaunchedEffect(messages.size) {
         messages.indexOf(selected).takeIf { it != -1 }?.let {
             listState.scrollToItem(it)
@@ -64,42 +50,14 @@ fun MessageClickedScreenContent(
     val settings = remember(context) {
         AndroidXtraSettings(context.applicationContext.prefs(), context.applicationContext.tokenPrefs())
     }
-    val nameDisplay = remember(settings) { settings.getString(C.UI_NAME_DISPLAY, "0") }
-    val roundUserImage = remember(settings) { settings.getBoolean(C.UI_ROUND_USER_IMAGE, true) }
-    val createdAtLabel: (String?) -> String = remember(context) {
-        { value ->
-            val text = value?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { ms -> formatChatDate(ms) } }
-            context.getString(R.string.created_at, text)
-        }
-    }
-    val followedAtLabel: (String?) -> String = remember(context) {
-        { value ->
-            val text = value?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { ms -> formatChatDate(ms) } }
-            context.getString(R.string.followed_at, text)
-        }
-    }
     MessageThreadScreen(
-        header = {
-            if (inspectedUser != null) {
-                MessageClickedHeader(
-                    user = inspectedUser,
-                    userFailed = userFailed,
-                    nameDisplay = nameDisplay,
-                    roundUserImage = roundUserImage,
-                    createdAtLabel = createdAtLabel,
-                    followedAtLabel = followedAtLabel,
-                    onViewProfile = onViewProfile,
-                    modifier = Modifier.fillMaxWidth().padding(),
-                )
-            }
-        },
+        header = null,
         messages = messages,
         options = state.options.copy(generation = state.generation),
         listState = listState,
         style = state.messageStyle,
         selectedMessage = selected,
         onMessageClick = state::select,
-        onReplyClick = onReplyThread,
         onImageClick = onImageClick,
         buttons = {
             val labels = remember(context) {
@@ -116,14 +74,14 @@ fun MessageClickedScreenContent(
                 context = labels,
                 messagingEnabled = messagingEnabled,
                 selected = selected,
-                userFailed = userFailed,
+                userFailed = false,
                 allowCopyFullMsg = allowCopyFullMsg,
                 debugFullMsgButton = labels.copyFullMsg,
                 onReply = onReply,
                 onCopyMessage = onCopyMessage,
                 onCopyClip = onCopyClip,
                 onCopyFullMsg = onCopyFullMsg,
-                onViewProfile = { inspectedUser?.let(onViewProfile) },
+                onViewProfile = {},
             ).forEach { (label, onClick) ->
                 MessageThreadButton(
                     label = label,

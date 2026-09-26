@@ -13,16 +13,18 @@ import com.github.andreyasadchy.xtra.util.chat.ChatRenderOptions
  * shared parse caches and the Compose-visible message lists.
  *
  * The ViewModel still owns the backing [ChatViewModel.chatMessages] list; this holder owns the
- * snapshot copies the Compose lists actually render. `count` is the recomposition trigger, it
- * always matches the size of [messages].
+ * snapshot copies the Compose lists actually render. The lists render directly from the
+ * [messages] snapshot, while [generation] is bumped whenever the parser has to re-run.
  */
 class ChatState(
     val renderCache: ChatRenderCache = ChatRenderCache(),
 ) {
-    var messageStyle: ChatMessageStyle = ChatMessageStyle()
-    var options: ChatRenderOptions = ChatRenderOptions(
-        strings = PlaceholderChatMessageStrings,
-        cache = renderCache,
+    var messageStyle by mutableStateOf(ChatMessageStyle())
+    var options by mutableStateOf(
+        ChatRenderOptions(
+            strings = PlaceholderChatMessageStrings,
+            cache = renderCache,
+        )
     )
     /** Compose-visible row list of the dialog. */
     val messages = mutableStateListOf<ChatMessage>()
@@ -52,11 +54,8 @@ class ChatState(
         messages.addAll(list)
     }
 
-    fun appendMessage(message: ChatMessage, limit: Int) {
+    fun appendMessage(message: ChatMessage) {
         messages.add(message)
-        while (messages.size > limit) {
-            messages.removeAt(0)
-        }
     }
 
     fun prependMessages(list: List<ChatMessage>, limit: Int) {

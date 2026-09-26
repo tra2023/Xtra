@@ -92,8 +92,8 @@ private val ChatMessageSelectedColor = Color(0x80163584)
  *
  * The formatted [ChatMessageContent] is built once per message and
  * [ChatRenderOptions.generation], then rendered as a single [Text] with emotes, badges and reward
- * icons as inline content. Reply rows are limited to two lines and open their parent message
- * instead of themselves.
+ * icons as inline content. Reply rows are limited to two lines and route their click to
+ * [onReplyClick] so the host can open the reply thread.
  */
 @Composable
 fun ChatMessageItem(
@@ -129,7 +129,7 @@ fun ChatMessageItem(
         onImageClick = onImageClick,
     )
     val onClick = when {
-        isReply -> message.replyParent?.let { parent -> onReplyClick?.let { click -> { click(parent) } } }
+        isReply -> onReplyClick?.let { click -> { click(message) } }
         else -> onMessageClick?.let { click -> { click(message) } }
     }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {

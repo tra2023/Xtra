@@ -3,7 +3,6 @@ package com.github.andreyasadchy.xtra.ui.chat
 import android.content.Context
 import android.os.Bundle
 import android.text.format.DateUtils
-import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -12,6 +11,17 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import android.widget.MultiAutoCompleteTextView
 import androidx.activity.OnBackPressedCallback
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.res.use
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -26,8 +36,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import coil3.imageLoader
 import coil3.request.ImageRequest
@@ -35,8 +43,11 @@ import coil3.request.crossfade
 import coil3.request.target
 import coil3.request.transformations
 import coil3.transform.CircleCropTransformation
+import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentChatBinding
+import com.github.andreyasadchy.xtra.model.chat.ChatImage
+import com.github.andreyasadchy.xtra.model.chat.ChatMessage
 import com.github.andreyasadchy.xtra.model.chat.Emote
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
@@ -44,13 +55,16 @@ import com.github.andreyasadchy.xtra.ui.chat.ChatViewModel.Companion.ChatViewMod
 import com.github.andreyasadchy.xtra.ui.common.BaseNetworkFragment
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.player.PlayerFragment
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.ui.view.AutoCompleteAdapter
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.chat.ChatRenderCache
+import com.github.andreyasadchy.xtra.util.chat.ChatRenderOptions
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.reduceDragSensitivity
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.github.andreyasadchy.xtra.util.tokenPrefs
-import com.google.android.material.color.MaterialColors
 import com.google.android.material.tabs.TabLayoutMediator
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -63,7 +77,8 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
     private var _binding: FragmentChatBinding? = null
     private val binding get() = _binding!!
     private val viewModel: ChatViewModel by viewModels { ChatViewModelFactory }
-    private var adapter: ChatAdapter? = null
+    private var chatState: ChatState? = null
+    private val chatListState = LazyListState()
 
     private var isChatTouched = false
     private var showChatStatus = false
@@ -112,104 +127,52 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                 if (isLive || (args.getString(KEY_VIDEO_ID) != null && args.getInt(KEY_START_TIME) != -1) || chatUrl != null) {
                     val enableMessaging = isLive && isLoggedIn
                     val sizeModifier = (requireContext().prefs().getInt(C.CHAT_SIZE_MODIFIER, 100).toFloat() / 100f)
-                    adapter = ChatAdapter(
-                        messages = viewModel.chatMessages,
-                        localTwitchEmotes = viewModel.localTwitchEmotes,
-                        thirdPartyEmotes = viewModel.thirdPartyEmotes,
-                        globalBadges = viewModel.globalBadges,
-                        channelBadges = viewModel.channelBadges,
-                        cheerEmotes = viewModel.cheerEmotes,
-                        namePaints = viewModel.namePaints,
-                        stvBadges = viewModel.stvBadges,
-                        personalEmoteSets = viewModel.personalEmoteSets,
-                        stvUsers = viewModel.stvUsers,
-                        enableTimestamps = requireContext().prefs().getBoolean(C.CHAT_TIMESTAMPS, false),
-                        timestampFormat = requireContext().prefs().getString(C.CHAT_TIMESTAMP_FORMAT, "0"),
-                        firstMsgVisibility = requireContext().prefs().getString(C.CHAT_FIRST_MSG_VISIBILITY, "0")?.toIntOrNull() ?: 0,
-                        firstChatMsg = getString(R.string.chat_first),
-                        redeemedChatMsg = getString(R.string.redeemed),
-                        redeemedNoMsg = getString(R.string.user_redeemed),
-                        rewardChatMsg = getString(R.string.chat_reward),
-                        replyMessage = getString(R.string.replying_to_message),
-                        useRandomColors = requireContext().prefs().getBoolean(C.CHAT_RANDOM_COLOR, true),
-                        useReadableColors = requireContext().prefs().getBoolean(C.CHAT_THEME_ADAPTED_USERNAME_COLOR, true),
-                        isLightTheme = requireContext().obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
-                            it.getBoolean(0, false)
-                        },
-                        nameDisplay = requireContext().prefs().getString(C.UI_NAME_DISPLAY, "0"),
-                        useBoldNames = requireContext().prefs().getBoolean(C.CHAT_BOLD_NAMES, false),
-                        showNamePaints = requireContext().prefs().getBoolean(C.CHAT_SHOW_PAINTS, true),
-                        showSTVBadges = requireContext().prefs().getBoolean(C.CHAT_SHOW_STV_BADGES, true),
-                        showPersonalEmotes = requireContext().prefs().getBoolean(C.CHAT_SHOW_PERSONAL_EMOTES, true),
-                        showSystemMessageEmotes = requireContext().prefs().getBoolean(C.CHAT_SYSTEM_MESSAGE_EMOTES, true),
-                        chatUrl = chatUrl,
-                        getEmoteBytes = viewModel::getEmoteBytes,
-                        fragment = this@ChatFragment,
-                        backgroundColor = MaterialColors.getColor(requireView(), com.google.android.material.R.attr.colorSurface),
-                        dialogBackgroundColor = MaterialColors.getColor(
-                            requireView(),
-                            if (requireContext().prefs().getBoolean(C.UI_THEME_MATERIAL3, true)) {
-                                com.google.android.material.R.attr.colorSurfaceContainerLow
-                            } else {
-                                com.google.android.material.R.attr.colorSurface
-                            }
-                        ),
-                        messageTextSize = (requireContext().prefs().getString(C.CHAT_TEXT_SIZE, "14")?.toFloatOrNull() ?: 14f) * sizeModifier,
-                        emoteSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, (requireContext().prefs().getString(C.CHAT_EMOTE_SIZE, "29.5")?.toFloatOrNull() ?: 29.5f) * sizeModifier, resources.displayMetrics).toInt(),
-                        badgeSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, (requireContext().prefs().getString(C.CHAT_BADGE_SIZE, "18.5")?.toFloatOrNull() ?: 18.5f) * sizeModifier, resources.displayMetrics).toInt(),
-                        emoteQuality = requireContext().prefs().getString(C.CHAT_IMAGE_QUALITY, "4") ?: "4",
-                        animateGifs = requireContext().prefs().getBoolean(C.ANIMATED_EMOTES, true),
-                        enableOverlayEmotes = requireContext().prefs().getBoolean(C.CHAT_ZERO_WIDTH, true),
-                        channelId = channelId,
-                        loggedInUser = if (enableMessaging) accountLogin else null,
-                        messageClickListener = { channelId ->
-                            (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editText.windowToken, 0)
-                            editText.clearFocus()
-                            MessageClickedDialog.newInstance(enableMessaging, channelId).show(this@ChatFragment.childFragmentManager, "messageDialog")
-                        },
-                        replyClickListener = {
-                            (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editText.windowToken, 0)
-                            editText.clearFocus()
-                            ReplyClickedDialog.newInstance(enableMessaging).show(this@ChatFragment.childFragmentManager, "replyDialog")
-                        },
-                        imageClickListener = { url, name, format, isAnimated, source, thirdParty, emoteId ->
-                            (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editText.windowToken, 0)
-                            editText.clearFocus()
-                            ImageClickedDialog.newInstance(url, name, format, isAnimated, source, thirdParty, emoteId).show(this@ChatFragment.childFragmentManager, "imageDialog")
-                        },
-                    )
-                    recyclerView.let {
-                        it.adapter = adapter
-                        it.itemAnimator = null
-                        it.layoutManager = LinearLayoutManager(context).apply { stackFromEnd = true }
-                        it.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                                super.onScrollStateChanged(recyclerView, newState)
-                                isChatTouched = newState == RecyclerView.SCROLL_STATE_DRAGGING
-                                val offset = recyclerView.computeVerticalScrollOffset()
-                                if (offset < 0) {
-                                    btnDown.isVisible = false
-                                } else {
-                                    val extent = recyclerView.computeVerticalScrollExtent()
-                                    val range = recyclerView.computeVerticalScrollRange()
-                                    val percentage = (100f * offset / (range - extent).toFloat())
-                                    btnDown.isVisible = percentage < 100f
+                    val state = ChatState().also { chatState = it }
+                    state.messageStyle = buildChatMessageStyle(sizeModifier)
+                    state.options = buildChatRenderOptions(chatUrl, enableMessaging, accountLogin)
+                    state.setMessages(snapshotChatMessages())
+                    recyclerView.apply {
+                        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+                        setContent {
+                            val theme = rememberThemeId()
+                            XtraTheme(themeId = theme) {
+                                val dragged by chatListState.interactionSource.collectIsDraggedAsState()
+                                LaunchedEffect(dragged) { isChatTouched = dragged }
+                                val canScrollForward by remember { derivedStateOf { chatListState.canScrollForward } }
+                                LaunchedEffect(canScrollForward) {
+                                    btnDown.isVisible = canScrollForward
+                                    if (canScrollForward && showChatStatus && chatStatus.isGone) {
+                                        chatStatus.visibility = View.VISIBLE
+                                        chatStatus.postDelayed({ chatStatus.visibility = View.GONE }, 5000)
+                                    }
                                 }
-                                if (showChatStatus && chatStatus.isGone) {
-                                    chatStatus.visibility = View.VISIBLE
-                                    chatStatus.postDelayed({ chatStatus.visibility = View.GONE }, 5000)
-                                }
+                                ChatList(
+                                    messages = state.messages,
+                                    options = state.options.copy(generation = state.generation),
+                                    style = state.messageStyle,
+                                    listState = chatListState,
+                                    selectedMessage = state.selectedMessage,
+                                    onMessageClick = { message ->
+                                        state.select(message)
+                                        hideKeyboardAndFocus()
+                                        showMessageDialog(enableMessaging, channelId)
+                                    },
+                                    onReplyClick = { message ->
+                                        state.select(message)
+                                        hideKeyboardAndFocus()
+                                        showReplyDialog(enableMessaging)
+                                    },
+                                    onImageClick = { image ->
+                                        hideKeyboardAndFocus()
+                                        showImageDialog(image)
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
                             }
-                        })
+                        }
                     }
                     btnDown.setOnClickListener {
-                        view.post {
-                            val lastIndex = synchronized(viewModel.chatMessages) {
-                                viewModel.chatMessages.lastIndex
-                            }
-                            recyclerView.scrollToPosition(lastIndex)
-                            it.visibility = View.GONE
-                        }
+                        view.post { scrollToBottom() }
                     }
                     if (enableMessaging) {
                         viewModel.loadRecentEmotes()
@@ -364,23 +327,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
                             viewModel.reloadMessages.collectLatest {
                                 if (it) {
-                                    adapter?.let { adapter ->
-                                        val size = synchronized(viewModel.chatMessages) {
-                                            viewModel.chatMessages.size
-                                        }
-                                        adapter.notifyItemRangeChanged(0, size)
-                                    }
-                                    messageDialog?.adapter?.let { adapter ->
-                                        val size = synchronized(adapter.messages) {
-                                            adapter.messages.size
-                                        }
-                                        adapter.notifyItemRangeChanged(0, size)
-                                    }
-                                    replyDialog?.adapter?.let { adapter ->
-                                        val size = synchronized(adapter.messages) {
-                                            adapter.messages.size
-                                        }
-                                        adapter.notifyItemRangeChanged(0, size)
+                                    chatState?.apply {
+                                        options = buildChatRenderOptions(chatUrl, enableMessaging, accountLogin)
+                                        refresh()
                                     }
                                     viewModel.reloadMessages.value = false
                                 }
@@ -690,26 +639,17 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                     }
                     viewLifecycleOwner.lifecycleScope.launch {
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
+                            chatState?.setMessages(snapshotChatMessages())
                             viewModel.newMessage.collect { result ->
                                 val message = result.first
-                                val lastIndex = result.second
                                 val removeCount = result.third
-                                adapter?.let { adapter ->
-                                    adapter.notifyItemInserted(lastIndex)
-                                    if (removeCount > 0) {
-                                        synchronized(viewModel.chatMessages) {
-                                            repeat(removeCount) {
-                                                viewModel.chatMessages.removeAt(0)
-                                            }
-                                        }
-                                        adapter.notifyItemRangeRemoved(0, removeCount)
-                                    }
-                                    if (!isChatTouched && binding.btnDown.isGone) {
-                                        binding.recyclerView.scrollToPosition(lastIndex - removeCount)
-                                    }
+                                chatState?.appendMessage(message)
+                                if (removeCount > 0) {
+                                    chatState?.removeMessages(removeCount)
                                 }
-                                messageDialog?.newMessage(message)
-                                replyDialog?.newMessage(message)
+                                if (!isChatTouched && binding.btnDown.isGone) {
+                                    scrollToBottom()
+                                }
                             }
                         }
                     }
@@ -717,41 +657,24 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
                             viewModel.addMessages.collect { result ->
                                 val messages = result.first
-                                val lastIndex = result.second
-                                adapter?.let { adapter ->
-                                    adapter.notifyItemRangeInserted(0, messages.size)
-                                    if (!isChatTouched && binding.btnDown.isGone) {
-                                        binding.recyclerView.scrollToPosition(lastIndex)
-                                    }
+                                chatState?.prependMessages(messages, messageLimit())
+                                if (!isChatTouched && binding.btnDown.isGone) {
+                                    scrollToBottom()
                                 }
-                                messageDialog?.addMessages(messages)
-                                replyDialog?.addMessages(messages)
                             }
                         }
                     }
                     viewLifecycleOwner.lifecycleScope.launch {
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
                             viewModel.removeMessages.collect { size ->
-                                adapter?.notifyItemRangeRemoved(0, size)
+                                chatState?.removeMessages(size)
                             }
                         }
                     }
                     viewLifecycleOwner.lifecycleScope.launch {
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
-                            viewModel.updateUserMessages.collectLatest { userId ->
-                                adapter?.let { adapter ->
-                                    synchronized(viewModel.chatMessages) {
-                                        viewModel.chatMessages.mapIndexedNotNull { index, message ->
-                                            if (message.userId != null && message.userId == userId) {
-                                                index
-                                            } else null
-                                        }
-                                    }.forEach {
-                                        adapter.notifyItemChanged(it)
-                                    }
-                                }
-                                messageDialog?.updateUserMessages(userId)
-                                replyDialog?.updateUserMessages(userId)
+                            viewModel.updateUserMessages.collectLatest {
+                                chatState?.refresh()
                             }
                         }
                     }
@@ -932,10 +855,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                     useApiChatMessages = requireContext().prefs().getBoolean(C.DEBUG_API_CHAT_MESSAGES, true),
                     enableIntegrity = requireContext().prefs().getBoolean(C.ENABLE_INTEGRITY, false),
                 )
-                val lastIndex = synchronized(viewModel.chatMessages) {
-                    viewModel.chatMessages.lastIndex
-                }
-                recyclerView.scrollToPosition(lastIndex)
+                scrollToBottom()
                 true
             } else {
                 false
@@ -943,12 +863,106 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
         }
     }
 
-    override fun onCreateMessageClickedChatAdapter(): MessageClickedChatAdapter? {
-        return adapter?.createMessageClickedChatAdapter()
+    private fun messageLimit(): Int = requireContext().prefs().getInt(C.CHAT_LIMIT, 600)
+
+    private fun snapshotChatMessages(): List<ChatMessage> = synchronized(viewModel.chatMessages) {
+        viewModel.chatMessages.toList()
     }
 
-    override fun onCreateReplyClickedChatAdapter(): ReplyClickedChatAdapter? {
-        return adapter?.createReplyClickedChatAdapter()
+    private fun buildChatMessageStyle(sizeModifier: Float): ChatMessageStyle {
+        val prefs = requireContext().prefs()
+        return ChatMessageStyle(
+            textSize = ((prefs.getString(C.CHAT_TEXT_SIZE, "14")?.toFloatOrNull() ?: 14f) * sizeModifier).sp,
+            emoteSize = ((prefs.getString(C.CHAT_EMOTE_SIZE, "29.5")?.toFloatOrNull() ?: 29.5f) * sizeModifier).dp,
+            badgeSize = ((prefs.getString(C.CHAT_BADGE_SIZE, "18.5")?.toFloatOrNull() ?: 18.5f) * sizeModifier).dp,
+            animateGifs = prefs.getBoolean(C.ANIMATED_EMOTES, true),
+            thirdPartyUserAgent = "Xtra/" + BuildConfig.VERSION_NAME,
+        )
+    }
+
+    private fun buildChatRenderOptions(chatUrl: String?, messagingEnabled: Boolean, accountLogin: String?): ChatRenderOptions {
+        val prefs = requireContext().prefs()
+        return ChatRenderOptions(
+            strings = requireContext().chatMessageStrings(),
+            localTwitchEmotes = synchronized(viewModel.localTwitchEmotes) { viewModel.localTwitchEmotes.toList() },
+            thirdPartyEmotes = synchronized(viewModel.thirdPartyEmotes) { viewModel.thirdPartyEmotes.toList() },
+            globalBadges = synchronized(viewModel.globalBadges) { viewModel.globalBadges.toList() },
+            channelBadges = synchronized(viewModel.channelBadges) { viewModel.channelBadges.toList() },
+            cheerEmotes = synchronized(viewModel.cheerEmotes) { viewModel.cheerEmotes.toList() },
+            namePaints = synchronized(viewModel.namePaints) { viewModel.namePaints.toList() },
+            stvBadges = synchronized(viewModel.stvBadges) { viewModel.stvBadges.toList() },
+            personalEmoteSets = synchronized(viewModel.personalEmoteSets) { viewModel.personalEmoteSets.toMap() },
+            stvUsers = synchronized(viewModel.stvUsers) { viewModel.stvUsers.toList() },
+            enableTimestamps = prefs.getBoolean(C.CHAT_TIMESTAMPS, false),
+            timestampFormat = prefs.getString(C.CHAT_TIMESTAMP_FORMAT, "0"),
+            firstMsgVisibility = prefs.getString(C.CHAT_FIRST_MSG_VISIBILITY, "0")?.toIntOrNull() ?: 0,
+            nameDisplay = prefs.getString(C.UI_NAME_DISPLAY, "0"),
+            useRandomColors = prefs.getBoolean(C.CHAT_RANDOM_COLOR, true),
+            useReadableColors = prefs.getBoolean(C.CHAT_THEME_ADAPTED_USERNAME_COLOR, true),
+            isLightTheme = requireContext().obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use { it.getBoolean(0, false) },
+            useBoldNames = prefs.getBoolean(C.CHAT_BOLD_NAMES, false),
+            showNamePaints = prefs.getBoolean(C.CHAT_SHOW_PAINTS, true),
+            showSTVBadges = prefs.getBoolean(C.CHAT_SHOW_STV_BADGES, true),
+            showPersonalEmotes = prefs.getBoolean(C.CHAT_SHOW_PERSONAL_EMOTES, true),
+            showSystemMessageEmotes = prefs.getBoolean(C.CHAT_SYSTEM_MESSAGE_EMOTES, true),
+            enableOverlayEmotes = prefs.getBoolean(C.CHAT_ZERO_WIDTH, true),
+            loggedInUser = if (messagingEnabled) accountLogin else null,
+            chatUrl = chatUrl,
+            getEmoteBytes = viewModel::getEmoteBytes,
+            emoteQuality = prefs.getString(C.CHAT_IMAGE_QUALITY, "4") ?: "4",
+            cache = chatState?.renderCache ?: ChatRenderCache(),
+        )
+    }
+
+    private fun showMessageDialog(messagingEnabled: Boolean, channelId: String?) {
+        MessageClickedDialog.newInstance(messagingEnabled, channelId).show(childFragmentManager, "messageDialog")
+    }
+
+    private fun showReplyDialog(messagingEnabled: Boolean) {
+        ReplyClickedDialog.newInstance(messagingEnabled).show(childFragmentManager, "replyDialog")
+    }
+
+    private fun showImageDialog(image: ChatImage) {
+        val click = image.click
+        ImageClickedDialog.newInstance(
+            image.url4x ?: image.url3x ?: image.url2x ?: image.url1x,
+            click?.name,
+            click?.format,
+            click?.isAnimated ?: image.isAnimated,
+            click?.source,
+            click?.thirdParty ?: image.thirdParty,
+            click?.emoteId,
+        ).show(childFragmentManager, "imageDialog")
+    }
+
+    private fun hideKeyboardAndFocus() {
+        (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(binding.editText.windowToken, 0)
+        binding.editText.clearFocus()
+    }
+
+    fun scrollToBottom() {
+        val state = chatState ?: return
+        if (!isAdded) return
+        viewLifecycleOwner.lifecycleScope.launch {
+            val last = state.messages.lastIndex
+            if (last >= 0) {
+                chatListState.scrollToItem(last)
+            }
+        }
+        binding.btnDown.isVisible = false
+    }
+
+    override fun onCreateMessageClickedChatState(): ChatState? {
+        return chatState
+    }
+
+    override fun onCreateReplyClickedChatState(): ChatState? {
+        return chatState
+    }
+
+    override fun onReplyThreadClicked(message: ChatMessage) {
+        chatState?.select(message)
+        showReplyDialog(messagingEnabled)
     }
 
     override fun onReplyClicked(replyId: String?, userLogin: String?, userName: String?, message: String?) {

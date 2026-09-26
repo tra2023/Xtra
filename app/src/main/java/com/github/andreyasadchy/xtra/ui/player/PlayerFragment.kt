@@ -53,7 +53,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.TimeBar
 import androidx.navigation.fragment.findNavController
-import androidx.recyclerview.widget.RecyclerView
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentPlayerBinding
 import com.github.andreyasadchy.xtra.model.VideoQuality
@@ -1189,9 +1188,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     if (isChatOpen) {
                         chatLayout.visibility = View.VISIBLE
                         if (requireView().findViewById<Button>(R.id.btnDown)?.isVisible == false) {
-                            requireView().findViewById<RecyclerView>(R.id.recyclerView)?.let { recyclerView ->
-                                recyclerView.adapter?.itemCount?.let { recyclerView.scrollToPosition(it - 1) }
-                            }
+                            chatFragment?.scrollToBottom()
                         }
                     } else {
                         chatLayout.visibility = View.GONE
@@ -1401,9 +1398,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
         }
         requireContext().prefs().edit { putBoolean(C.KEY_CHAT_OPENED, true) }
         if (requireView().findViewById<Button>(R.id.btnDown)?.isVisible == false) {
-            requireView().findViewById<RecyclerView>(R.id.recyclerView)?.let { recyclerView ->
-                recyclerView.adapter?.itemCount?.let { recyclerView.scrollToPosition(it - 1) }
-            }
+            chatFragment?.scrollToBottom()
         }
     }
 
