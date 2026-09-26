@@ -15,7 +15,6 @@ import android.graphics.Color
 import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.os.SystemClock
-import android.text.format.DateFormat
 import android.text.format.DateUtils
 import android.util.TypedValue
 import android.view.GestureDetector
@@ -78,8 +77,6 @@ import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.color.MaterialColors
-import com.google.android.material.timepicker.MaterialTimePicker
-import com.google.android.material.timepicker.TimeFormat
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -1282,31 +1279,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
     }
 
     fun showSleepTimerDialog() {
-        if (((activity as? MainActivity)?.getSleepTimerTimeLeft() ?: 0) > 0L) {
-            requireContext().getAlertDialogBuilder()
-                .setMessage(getString(R.string.stop_sleep_timer_message))
-                .setPositiveButton(getString(R.string.yes)) { _, _ ->
-                    onSleepTimerChanged(-1L, 0, 0, requireContext().prefs().getBoolean(C.SLEEP_TIMER_LOCK, false))
-                }
-                .setNegativeButton(getString(R.string.no), null)
-                .show()
-        } else {
-            val savedValue = requireContext().prefs().getInt(C.SLEEP_TIMER_TIME, 15)
-            val picker = MaterialTimePicker.Builder()
-                .setTimeFormat(if (DateFormat.is24HourFormat(requireContext())) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
-                .setInputMode(MaterialTimePicker.INPUT_MODE_CLOCK)
-                .setHour(savedValue / 60)
-                .setMinute(savedValue % 60)
-                .build()
-            picker.addOnPositiveButtonClickListener {
-                val minutes = TwitchApiHelper.getMinutesLeft(picker.hour, picker.minute)
-                onSleepTimerChanged(minutes * 60_000L, minutes / 60, minutes % 60, requireContext().prefs().getBoolean(C.SLEEP_TIMER_LOCK, false))
-                requireContext().prefs().edit {
-                    putInt(C.SLEEP_TIMER_TIME, picker.hour * 60 + picker.minute)
-                }
-            }
-            picker.show(childFragmentManager, null)
-        }
+        SleepTimerDialog.newInstance((activity as? MainActivity)?.getSleepTimerTimeLeft() ?: 0).show(childFragmentManager, null)
     }
 
     fun getQualities(): List<Pair<String, VideoQuality>>? {
