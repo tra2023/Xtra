@@ -1,41 +1,34 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
-import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat.getSystemService
-import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
-import coil3.request.transformations
-import coil3.transform.CircleCropTransformation
 import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.databinding.DialogChatMessageClickBinding
-import com.github.andreyasadchy.xtra.model.chat.ChatMessage
 import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.ui.chat.MessageClickedViewModel.Companion.MessageClickedViewModelFactory
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
+import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.flow.collectLatest
@@ -45,7 +38,7 @@ import kotlin.time.Instant
 class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener {
 
     interface OnButtonClickListener {
-        fun onCreateMessageClickedChatAdapter(): MessageClickedChatAdapter?
+        fun onCreateMessageClickedChatState(): ChatState?
         fun onReplyClicked(replyId: String?, userLogin: String?, userName: String?, message: String?)
         fun onCopyMessageClicked(message: String)
         fun onViewProfileClicked(id: String?, login: String?, name: String?, channelImage: String?)
@@ -66,14 +59,13 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
         }
     }
 
-    private var _binding: DialogChatMessageClickBinding? = null
-    private val binding get() = _binding!!
     private val viewModel: MessageClickedViewModel by viewModels { MessageClickedViewModelFactory }
 
     private lateinit var listener: OnButtonClickListener
-    var adapter: MessageClickedChatAdapter? = null
-    private var isChatTouched = false
+    var chatState: ChatState? = null
     private var messageLimit: Int? = null
+    private var inspectedUser by mutableStateOf<User?>(null)
+    private var userFailed by mutableStateOf(false)
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -81,11 +73,37 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = DialogChatMessageClickBinding.inflate(inflater, container, false)
-        return binding.root
+        chatState = listener.onCreateMessageClickedChatState()
+        val padding = requireContext().obtainStyledAttributes(intArrayOf(R.attr.dialogPadding)).let {
+            val value = it.getDimension(0, 8f * resources.displayMetrics.density) / resources.displayMetrics.density
+            it.recycle()
+            value.dp
+        }
+        val messagingEnabled = requireArguments().getBoolean(KEY_MESSAGING)
+        val state = chatState
+        updateUser(state)
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val theme = rememberThemeId()
+                XtraTheme(themeId = theme) {
+                    MessageClickedScreenContent(
+                        chatState = state,
+                        messagingEnabled = messagingEnabled,
+                        inspectedUser = inspectedUser,
+                        userFailed = userFailed,
+                        padding = padding,
+                        onReply = ::onReplyButton,
+                        onCopyMessage = ::onCopyMessageButton,
+                        onCopyClip = ::onCopyClipButton,
+                        onCopyFullMsg = ::onCopyFullMsgButton,
+                        onViewProfile = ::onViewProfileButton,
+                    )
+                }
+            }
+        }
     }
 
-    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val behavior = BottomSheetBehavior.from(view.parent as View)
@@ -98,28 +116,8 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
                 }
             }
         }
-        with(binding) {
-            adapter = listener.onCreateMessageClickedChatAdapter()
-            recyclerView.let {
-                it.adapter = adapter
-                it.itemAnimator = null
-                it.layoutManager = LinearLayoutManager(context).apply { stackFromEnd = true }
-                it.setOnTouchListener(object : View.OnTouchListener {
-                    override fun onTouch(v: View, event: MotionEvent): Boolean {
-                        when (event.action) {
-                            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> behavior.isDraggable = false
-                            MotionEvent.ACTION_UP -> behavior.isDraggable = true
-                        }
-                        return false
-                    }
-                })
-                it.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                    override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                        super.onScrollStateChanged(recyclerView, newState)
-                        isChatTouched = newState == RecyclerView.SCROLL_STATE_DRAGGING
-                    }
-                })
-            }
+    }
+
             adapter?.let { adapter ->
                 adapter.messageClickListener = { selectedMessage, previousSelectedMessage ->
                     updateButtons(selectedMessage)
