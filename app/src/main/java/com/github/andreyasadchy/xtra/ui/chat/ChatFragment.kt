@@ -84,6 +84,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
     private var showChatStatus = false
     private var hasRecentEmotes = false
     private var messagingEnabled = false
+    private val composerState = ChatComposerState()
 
     private var autoCompleteAdapter: AutoCompleteAdapter<Any>? = null
 
@@ -218,7 +219,8 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             editText.text.clear()
                             true
                         }
-                        replyView.visibility = View.GONE
+                        composerState.onSent()
+                        showReplyIndicator(false)
                         send.setOnClickListener { sendMessage() }
                         if ((view.parent?.parent?.parent?.parent as? View)?.id == R.id.slidingLayout && !requireContext().prefs().getBoolean(C.KEY_CHAT_BAR_VISIBLE, true)) {
                             messageView.visibility = View.GONE
@@ -831,12 +833,24 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             }
         }
 
+    /**
+     * Applies the reply indicator's visibility. Every write goes through here so the Views cannot
+     * drift from [composerState].
+     */
+    private fun showReplyIndicator(visible: Boolean) {
+        binding.replyView.visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
     private fun sendMessage(replyId: String? = null): Boolean {
         with(binding) {
             (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editText.windowToken, 0)
             editText.clearFocus()
             toggleEmoteMenu(false)
-            replyView.visibility = View.GONE
+            // A send always ends the reply, whether or not the draft had anything in it.
+
+            composerState.onSent()
+
+            showReplyIndicator(false)
             send.setOnClickListener { sendMessage() }
             editText.setOnKeyListener(sendOnEnterListener { sendMessage() })
             val text = ChatDraft.consume(editText.text.toString())
@@ -966,21 +980,23 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
 
     override fun onReplyClicked(replyId: String?, userLogin: String?, userName: String?, message: String?) {
         with(binding) {
-            if (!replyId.isNullOrBlank()) {
-                messageDialog?.dismiss()
-                replyView.visibility = View.VISIBLE
-                // The indicator shows whenever the id is non-blank; a null message leaves it empty.
-                replyText.text = ReplyIndicator.label(
+            // The state holder owns the reply (and its transition rules); the Views follow it.
+            if (composerState.startReply(
                     replyId = replyId,
                     userName = userName,
                     userLogin = userLogin,
                     message = message,
                     nameDisplay = requireContext().prefs().getString(C.UI_NAME_DISPLAY, "0"),
                     format = { name, text -> getString(R.string.replying_to_message, name, text) },
-                ).orEmpty()
+                )
+            ) {
+                messageDialog?.dismiss()
+                showReplyIndicator(true)
+                replyText.text = composerState.replyLabel.orEmpty()
                 replyClose.setOnClickListener {
                     // Back to a plain message: the reply is cancelled, so send forgets its id.
-                    replyView.visibility = View.GONE
+                    composerState.cancelReply()
+                    showReplyIndicator(false)
                     send.setOnClickListener { sendMessage() }
                     editText.setOnKeyListener(sendOnEnterListener { sendMessage() })
                 }
