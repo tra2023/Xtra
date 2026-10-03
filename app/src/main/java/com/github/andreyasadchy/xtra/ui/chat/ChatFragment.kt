@@ -965,18 +965,15 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             if (!replyId.isNullOrBlank()) {
                 messageDialog?.dismiss()
                 replyView.visibility = View.VISIBLE
-                replyText.text = message?.let {
-                    val name = if (userName != null && userLogin != null && !userLogin.equals(userName, true)) {
-                        when (requireContext().prefs().getString(C.UI_NAME_DISPLAY, "0")) {
-                            "0" -> "${userName}(${userLogin})"
-                            "1" -> userName
-                            else -> userLogin
-                        }
-                    } else {
-                        userName ?: userLogin
-                    }
-                    getString(R.string.replying_to_message, name, message)
-                }
+                // The indicator shows whenever the id is non-blank; a null message leaves it empty.
+                replyText.text = ReplyIndicator.label(
+                    replyId = replyId,
+                    userName = userName,
+                    userLogin = userLogin,
+                    message = message,
+                    nameDisplay = requireContext().prefs().getString(C.UI_NAME_DISPLAY, "0"),
+                    format = { name, text -> getString(R.string.replying_to_message, name, text) },
+                ).orEmpty()
                 replyClose.setOnClickListener {
                     replyView.visibility = View.GONE
                     send.setOnClickListener { sendMessage() }
