@@ -1,31 +1,30 @@
-package com.github.andreyasadchy.xtra.ui.search.games
+package com.github.andreyasadchy.xtra.ui.search.streams
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.RecentSearch
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.RecentSearchesRepository
-import com.github.andreyasadchy.xtra.repository.datasource.SearchGamesDataSource
+import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
+import com.github.andreyasadchy.xtra.repository.datasource.SearchStreamsDataSource
+import com.github.andreyasadchy.xtra.settings.XtraSettings
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
-class GameSearchViewModel(
-    applicationContext: Context,
+/**
+ * Stream search tab. Takes [settings] instead of a `Context`, so the paging setup is identical on
+ * Android and desktop; the Android host keeps its own `ViewModelProvider.Factory`.
+ */
+class StreamSearchViewModel(
+    private val settings: XtraSettings,
     private val recentSearchesRepository: RecentSearchesRepository,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
@@ -33,20 +32,25 @@ class GameSearchViewModel(
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
-    val recentSearches = recentSearchesRepository.getAll(RecentSearch.TYPE_GAME)
+    val recentSearches = recentSearchesRepository.getAll(RecentSearch.TYPE_STREAM)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = _query.flatMapLatest { query ->
+        val config = SharedAuthHeaders.loadConfig(settings)
         Pager(
-            PagingConfig(pageSize = 30, prefetchDistance = 10, initialLoadSize = 30)
+            if (config.compactStreams == "all") {
+                PagingConfig(pageSize = 30, prefetchDistance = 10, initialLoadSize = 30)
+            } else {
+                PagingConfig(pageSize = 30, prefetchDistance = 3, initialLoadSize = 30)
+            }
         ) {
-            SearchGamesDataSource(
+            SearchStreamsDataSource(
                 query = query,
-                helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext),
+                helixHeaders = SharedAuthHeaders.helixHeaders(config),
                 helixRepository = helixRepository,
-                gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext),
+                gqlHeaders = SharedAuthHeaders.gqlHeaders(config),
                 graphQLRepository = graphQLRepository,
-                enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+                enableIntegrity = config.enableIntegrity,
             )
         }.flow
     }.cachedIn(viewModelScope)
@@ -60,10 +64,10 @@ class GameSearchViewModel(
     fun saveRecentSearch(query: String) {
         if (query.isNotBlank()) {
             viewModelScope.launch {
-                recentSearchesRepository.getItem(query, RecentSearch.TYPE_GAME)?.let {
+                recentSearchesRepository.getItem(query, RecentSearch.TYPE_STREAM)?.let {
                     recentSearchesRepository.delete(it)
                 }
-                recentSearchesRepository.save(RecentSearch(query, RecentSearch.TYPE_GAME, System.currentTimeMillis()))
+                recentSearchesRepository.save(RecentSearch(query, RecentSearch.TYPE_STREAM, System.currentTimeMillis()))
             }
         }
     }
@@ -71,16 +75,6 @@ class GameSearchViewModel(
     fun deleteRecentSearch(item: RecentSearch) {
         viewModelScope.launch {
             recentSearchesRepository.delete(item)
-        }
-    }
-
-    companion object {
-        val GameSearchViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                GameSearchViewModel(application.applicationContext, xtraModule.recentSearchesRepository, xtraModule.graphQLRepository, xtraModule.helixRepository)
-            }
         }
     }
 }

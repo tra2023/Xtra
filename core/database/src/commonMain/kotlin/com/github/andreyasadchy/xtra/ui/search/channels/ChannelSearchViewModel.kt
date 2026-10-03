@@ -1,31 +1,26 @@
 package com.github.andreyasadchy.xtra.ui.search.channels
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.RecentSearch
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.RecentSearchesRepository
+import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
 import com.github.andreyasadchy.xtra.repository.datasource.SearchChannelsDataSource
-import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.settings.XtraSettings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
+/** Channel search tab; see [com.github.andreyasadchy.xtra.ui.search.streams.StreamSearchViewModel]. */
 class ChannelSearchViewModel(
-    applicationContext: Context,
+    private val settings: XtraSettings,
     private val recentSearchesRepository: RecentSearchesRepository,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
@@ -37,16 +32,17 @@ class ChannelSearchViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = _query.flatMapLatest { query ->
+        val config = SharedAuthHeaders.loadConfig(settings)
         Pager(
             PagingConfig(pageSize = 15, prefetchDistance = 5, initialLoadSize = 15)
         ) {
             SearchChannelsDataSource(
                 query = query,
-                helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext),
+                helixHeaders = SharedAuthHeaders.helixHeaders(config),
                 helixRepository = helixRepository,
-                gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext),
+                gqlHeaders = SharedAuthHeaders.gqlHeaders(config),
                 graphQLRepository = graphQLRepository,
-                enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+                enableIntegrity = config.enableIntegrity,
             )
         }.flow
     }.cachedIn(viewModelScope)
@@ -71,16 +67,6 @@ class ChannelSearchViewModel(
     fun deleteRecentSearch(item: RecentSearch) {
         viewModelScope.launch {
             recentSearchesRepository.delete(item)
-        }
-    }
-
-    companion object {
-        val ChannelSearchViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                ChannelSearchViewModel(application.applicationContext, xtraModule.recentSearchesRepository, xtraModule.graphQLRepository, xtraModule.helixRepository)
-            }
         }
     }
 }

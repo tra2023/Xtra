@@ -92,13 +92,13 @@ import com.github.andreyasadchy.xtra.ui.games.GamesFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.search.SearchPagerViewModelFactory
 import com.github.andreyasadchy.xtra.ui.search.channels.ChannelSearchViewModel
-import com.github.andreyasadchy.xtra.ui.search.channels.ChannelSearchViewModel.Companion.ChannelSearchViewModelFactory
+import com.github.andreyasadchy.xtra.ui.search.channels.ChannelSearchViewModelFactory
 import com.github.andreyasadchy.xtra.ui.search.games.GameSearchViewModel
-import com.github.andreyasadchy.xtra.ui.search.games.GameSearchViewModel.Companion.GameSearchViewModelFactory
+import com.github.andreyasadchy.xtra.ui.search.games.GameSearchViewModelFactory
 import com.github.andreyasadchy.xtra.ui.search.streams.StreamSearchViewModel
-import com.github.andreyasadchy.xtra.ui.search.streams.StreamSearchViewModel.Companion.StreamSearchViewModelFactory
+import com.github.andreyasadchy.xtra.ui.search.streams.StreamSearchViewModelFactory
 import com.github.andreyasadchy.xtra.ui.search.videos.VideoSearchViewModel
-import com.github.andreyasadchy.xtra.ui.search.videos.VideoSearchViewModel.Companion.VideoSearchViewModelFactory
+import com.github.andreyasadchy.xtra.ui.search.videos.VideoSearchViewModelFactory
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragmentDirections
 import com.github.andreyasadchy.xtra.util.C
