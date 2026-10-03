@@ -1,43 +1,38 @@
 package com.github.andreyasadchy.xtra.ui.channel.clips
 
-import android.content.Context
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.graphql.type.ClipsPeriod
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
 import com.github.andreyasadchy.xtra.model.ui.VideosSort
 import com.github.andreyasadchy.xtra.repository.ChannelSortRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
+import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
 import com.github.andreyasadchy.xtra.repository.datasource.ChannelClipsDataSource
-import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentArgs
-import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.settings.XtraSettings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 
+/**
+ * Channel clips tab. Takes [settings] and the navigation arguments as plain values, so it carries no
+ * Context and no generated `*FragmentArgs` reference; the Android factory reads the arguments.
+ */
 class ChannelClipsViewModel(
-    private val applicationContext: Context,
+    private val settings: XtraSettings,
+    private val channelId: String?,
+    private val channelLogin: String?,
     private val channelSortRepository: ChannelSortRepository,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
-    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val args = ChannelPagerFragmentArgs.fromSavedStateHandle(savedStateHandle)
     val filter = MutableStateFlow<Filter?>(null)
     val sortText = MutableStateFlow<CharSequence?>(null)
 
@@ -46,6 +41,7 @@ class ChannelClipsViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {
+        val config = SharedAuthHeaders.loadConfig(settings)
         Pager(
             PagingConfig(pageSize = 20, prefetchDistance = 3, initialLoadSize = 20)
         ) {
@@ -80,17 +76,17 @@ class ChannelClipsViewModel(
                 else -> "LAST_WEEK"
             }
             ChannelClipsDataSource(
-                channelId = args.channelId,
-                channelLogin = args.channelLogin,
+                channelId = channelId,
+                channelLogin = channelLogin,
                 gqlQueryPeriod = gqlQueryPeriod,
                 gqlPeriod = gqlPeriod,
                 startedAt = started,
                 endedAt = ended,
-                gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext),
+                gqlHeaders = SharedAuthHeaders.gqlHeaders(config),
                 graphQLRepository = graphQLRepository,
-                helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext),
+                helixHeaders = SharedAuthHeaders.helixHeaders(config),
                 helixRepository = helixRepository,
-                enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+                enableIntegrity = config.enableIntegrity,
             )
         }.flow
     }.cachedIn(viewModelScope)
@@ -114,15 +110,4 @@ class ChannelClipsViewModel(
     class Filter(
         val period: String?,
     )
-
-    companion object {
-        val ChannelClipsViewModelFactory = viewModelFactory {
-            initializer {
-                val savedStateHandle = createSavedStateHandle()
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                ChannelClipsViewModel(application.applicationContext, xtraModule.channelSortRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, savedStateHandle)
-            }
-        }
-    }
 }

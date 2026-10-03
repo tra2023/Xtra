@@ -74,9 +74,9 @@ import com.github.andreyasadchy.xtra.ui.common.xtraBottomInset
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
 import com.github.andreyasadchy.xtra.ui.game.GamePagerViewModel.Companion.GamePagerViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsViewModel
-import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsViewModel.Companion.GameClipsViewModelFactory
+import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.streams.GameStreamsViewModel
-import com.github.andreyasadchy.xtra.ui.game.streams.GameStreamsViewModel.Companion.GameStreamsViewModelFactory
+import com.github.andreyasadchy.xtra.ui.game.streams.GameStreamsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.videos.GameVideosViewModel
 import com.github.andreyasadchy.xtra.ui.game.videos.GameVideosViewModel.Companion.GameVideosViewModelFactory
 import com.github.andreyasadchy.xtra.ui.games.GamesFragmentDirections
