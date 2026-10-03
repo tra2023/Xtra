@@ -443,9 +443,12 @@ class SearchPagerFragment : BaseNetworkFragment(), IntegrityDialog.Listener {
         if (currentQuery.isBlank() && requireContext().prefs().getBoolean(C.UI_STORE_RECENT_SEARCHES, true)) {
             val recents by recentSearches.collectAsState(initial = emptyList())
             RecentSearchList(
-                searches = recents,
+                queries = recents.map { it.query },
                 onSelect = { applyQuery(it) },
-                onDelete = onDeleteRecent,
+                onDelete = { query -> recents.find { it.query == query }?.let(onDeleteRecent) },
+                historyIcon = painterResource(R.drawable.baseline_history_black_24),
+                deleteIcon = painterResource(R.drawable.baseline_delete_black_24),
+                deleteLabel = stringResource(R.string.delete),
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
