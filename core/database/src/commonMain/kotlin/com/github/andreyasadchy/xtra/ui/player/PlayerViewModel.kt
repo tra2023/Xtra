@@ -1,11 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.player
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.NotificationUser
 import com.github.andreyasadchy.xtra.model.ShownNotification
 import com.github.andreyasadchy.xtra.model.VideoQuality
@@ -23,7 +19,7 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.repository.saved.VideoBookmarker
 import com.github.andreyasadchy.xtra.repository.XtraHttpClient
 import com.github.andreyasadchy.xtra.repository.getStringOrNull
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.TwitchApiDefaults
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -186,7 +182,7 @@ class PlayerViewModel(
                     val messageDigest = MessageDigest.getInstance("SHA-1")
                     messageDigest.update(data.toByteArray())
                     val hash = messageDigest.digest().toHexString().take(20)
-                    for (domain in TwitchApiHelper.vodDomains.reversed()) {
+                    for (domain in TwitchApiDefaults.vodDomains.reversed()) {
                         semaphore.acquire()
                         if (result.value != null) {
                             break
@@ -417,13 +413,4 @@ class PlayerViewModel(
         }
     }
 
-    companion object {
-        val PlayerViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                PlayerViewModel(xtraModule.videoBookmarker, xtraModule.xtraHttpClient, xtraModule.json, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.localChannelFollowsRepository, xtraModule.notificationsRepository)
-            }
-        }
-    }
 }

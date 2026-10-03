@@ -17,7 +17,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.model.chat.Emote
 import com.github.andreyasadchy.xtra.model.chat.RecentEmote
-import com.github.andreyasadchy.xtra.ui.chat.ChatViewModel.Companion.ChatViewModelFactory
+import com.github.andreyasadchy.xtra.ui.chat.ChatViewModelFactory
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.prefs

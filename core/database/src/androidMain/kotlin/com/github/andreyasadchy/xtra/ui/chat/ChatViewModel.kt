@@ -1,23 +1,21 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
 import android.content.ContentResolver
-import android.content.Context
 import android.util.Base64
 import android.util.JsonReader
 import android.util.JsonToken
-import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.github.andreyasadchy.xtra.BuildConfig
-import com.github.andreyasadchy.xtra.R
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.chat.Badge
 import com.github.andreyasadchy.xtra.model.chat.ChannelPointReward
+import android.net.Uri
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
+import com.github.andreyasadchy.xtra.model.chat.ChatSystemStrings
+import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
+import com.github.andreyasadchy.xtra.settings.AuthConfig
+import com.github.andreyasadchy.xtra.settings.XtraSettings
+import com.github.andreyasadchy.xtra.util.TwitchFormats
+import java.io.InputStream
 import com.github.andreyasadchy.xtra.model.chat.Chatter
 import com.github.andreyasadchy.xtra.model.chat.CheerEmote
 import com.github.andreyasadchy.xtra.model.chat.Emote
@@ -36,7 +34,6 @@ import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.chat.ChatReadIRCSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatReadWebSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatReplayManager
@@ -50,8 +47,6 @@ import com.github.andreyasadchy.xtra.util.chat.HermesWebSocket
 import com.github.andreyasadchy.xtra.util.chat.PubSubParser
 import com.github.andreyasadchy.xtra.util.chat.STVEventApiWebSocket
 import com.github.andreyasadchy.xtra.util.chat.StvParser
-import com.github.andreyasadchy.xtra.util.prefs
-import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -73,7 +68,12 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 class ChatViewModel(
-    private val applicationContext: Context,
+    private val settings: XtraSettings,
+    private val authConfig: AuthConfig,
+    private val strings: ChatSystemStrings,
+    private val cacheDir: String,
+    private val userAgent: String,
+    private val openChatFile: (Uri) -> InputStream?,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
     private val playerRepository: PlayerRepository,
@@ -161,17 +161,17 @@ class ChatViewModel(
 
     fun startLive(recentMessagesUrl: String?, channelId: String?, channelLogin: String?, channelName: String?, streamId: String?) {
         if (chatReadIRCSocket == null && chatReadWebSocket == null && eventSub == null && channelLogin != null) {
-            messageLimit = applicationContext.prefs().getInt(C.CHAT_LIMIT, 600)
+            messageLimit = settings.getInt(C.CHAT_LIMIT, 600)
             this.streamId = streamId
             startLiveChat(channelId, channelLogin)
             addChatter(channelName)
             loadEmotes(channelId, channelLogin)
-            if (applicationContext.prefs().getBoolean(C.CHAT_RECENT, true)) {
+            if (settings.getBoolean(C.CHAT_RECENT, true)) {
                 loadRecentMessages(recentMessagesUrl, channelLogin)
             }
-            val isLoggedIn = !applicationContext.tokenPrefs().getString(C.USERNAME, null).isNullOrBlank() &&
-                    (!TwitchApiHelper.getGQLHeaders(applicationContext, true)[C.HEADER_TOKEN].isNullOrBlank() ||
-                            !TwitchApiHelper.getHelixHeaders(applicationContext)[C.HEADER_TOKEN].isNullOrBlank())
+            val isLoggedIn = !settings.getString(C.USERNAME, null).isNullOrBlank() &&
+                    (!authConfig.let { SharedAuthHeaders.gqlHeaders(it, includeToken = true)[C.HEADER_TOKEN] }.isNullOrBlank() ||
+                            !SharedAuthHeaders.helixHeaders(authConfig)[C.HEADER_TOKEN].isNullOrBlank())
             if (isLoggedIn) {
                 loadUserEmotes(channelId)
             }
@@ -180,7 +180,7 @@ class ChatViewModel(
 
     fun startReplay(channelId: String?, channelLogin: String?, chatUrl: String? = null, videoId: String? = null, createdAt: String?, startTime: Int = 0, getCurrentPosition: () -> Long?, getCurrentSpeed: () -> Float?) {
         if (chatReplayManager == null && chatReplayManagerLocal == null) {
-            messageLimit = applicationContext.prefs().getInt(C.CHAT_LIMIT, 600)
+            messageLimit = settings.getInt(C.CHAT_LIMIT, 600)
             startReplayChat(videoId, createdAt, startTime, chatUrl, getCurrentPosition, getCurrentSpeed, channelId, channelLogin)
             if (videoId != null) {
                 loadEmotes(channelId, channelLogin)
@@ -211,12 +211,12 @@ class ChatViewModel(
     }
 
     private fun loadEmotes(channelId: String?, channelLogin: String?) {
-        val helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext)
-        val gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext, true)
-        val emoteQuality = applicationContext.prefs().getString(C.CHAT_IMAGE_QUALITY, "4") ?: "4"
-        val animateGifs = applicationContext.prefs().getBoolean(C.ANIMATED_EMOTES, true)
-        val useWebp = applicationContext.prefs().getBoolean(C.CHAT_USE_WEBP, true)
-        val enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false)
+        val helixHeaders = SharedAuthHeaders.helixHeaders(authConfig)
+        val gqlHeaders = SharedAuthHeaders.gqlHeaders(authConfig, includeToken = true)
+        val emoteQuality = settings.getString(C.CHAT_IMAGE_QUALITY, "4") ?: "4"
+        val animateGifs = settings.getBoolean(C.ANIMATED_EMOTES, true)
+        val useWebp = settings.getBoolean(C.CHAT_USE_WEBP, true)
+        val enableIntegrity = settings.getBoolean(C.ENABLE_INTEGRITY, false)
         synchronized(thirdPartyEmotes) {
             thirdPartyEmotes.clear()
         }
@@ -250,7 +250,7 @@ class ChatViewModel(
                 }
             }
         }
-        if (applicationContext.prefs().getBoolean(C.CHAT_ENABLE_STV, true)) {
+        if (settings.getBoolean(C.CHAT_ENABLE_STV, true)) {
             val saved = savedGlobalSTVEmotes
             if (!saved.isNullOrEmpty()) {
                 synchronized(thirdPartyEmotes) {
@@ -275,7 +275,7 @@ class ChatViewModel(
                         playerRepository.loadGlobalSTVEmoteSetResponse() to true
                     } catch (e: Exception) {
                         try {
-                            val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/global.stv").use {
+                            val compressedBytes = FileInputStream("${cacheDir}/emote_responses/global.stv").use {
                                 it.readBytes()
                             }
                             val decompressedStream = ByteArrayOutputStream()
@@ -309,14 +309,14 @@ class ChatViewModel(
                                     allEmotes.addAll(emotes.filter { it.name !in allEmotes }.mapNotNull { it.name })
                                 }
                                 if (online) {
-                                    val directory = File(applicationContext.cacheDir, "emote_responses")
+                                    val directory = File(cacheDir, "emote_responses")
                                     directory.mkdir()
                                     val compressedStream = ByteArrayOutputStream()
                                     DeflaterOutputStream(compressedStream).use {
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/global.stv").use {
+                                    FileOutputStream("${cacheDir}/emote_responses/global.stv").use {
                                         it.write(compressedBytes)
                                     }
                                 }
@@ -355,7 +355,7 @@ class ChatViewModel(
                         }
                     } catch (e: Exception) {
                         try {
-                            val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.stv").use {
+                            val compressedBytes = FileInputStream("${cacheDir}/emote_responses/${channelId}.stv").use {
                                 it.readBytes()
                             }
                             val decompressedStream = ByteArrayOutputStream()
@@ -398,7 +398,7 @@ class ChatViewModel(
                                     allEmotes.addAll(emotes.filter { it.name !in allEmotes }.mapNotNull { it.name })
                                 }
                                 if (online) {
-                                    val directory = File(applicationContext.cacheDir, "emote_responses")
+                                    val directory = File(cacheDir, "emote_responses")
                                     directory.mkdir()
                                     val files = directory.listFiles()
                                     if (files != null && files.size >= 100) {
@@ -409,15 +409,15 @@ class ChatViewModel(
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.stv").use {
+                                    FileOutputStream("${cacheDir}/emote_responses/${channelId}.stv").use {
                                         it.write(compressedBytes)
                                     }
                                 } else {
-                                    onMessage(ChatMessage(systemMsg = ContextCompat.getString(applicationContext, R.string.loaded_cached_stv_emotes)))
+                                    onMessage(ChatMessage(systemMsg = strings.loadedCachedStvEmotes))
                                 }
                             } else {
                                 if (online) {
-                                    File("${applicationContext.cacheDir}/emote_responses/${channelId}.stv").delete()
+                                    File("${cacheDir}/emote_responses/${channelId}.stv").delete()
                                 }
                             }
                         } catch (e: Exception) {
@@ -427,7 +427,7 @@ class ChatViewModel(
                 }
             }
         }
-        if (applicationContext.prefs().getBoolean(C.CHAT_ENABLE_BTTV, true)) {
+        if (settings.getBoolean(C.CHAT_ENABLE_BTTV, true)) {
             val saved = savedGlobalBTTVEmotes
             if (!saved.isNullOrEmpty()) {
                 synchronized(thirdPartyEmotes) {
@@ -452,7 +452,7 @@ class ChatViewModel(
                         playerRepository.loadGlobalBTTVEmotesResponse() to true
                     } catch (e: Exception) {
                         try {
-                            val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/global.bttv").use {
+                            val compressedBytes = FileInputStream("${cacheDir}/emote_responses/global.bttv").use {
                                 it.readBytes()
                             }
                             val decompressedStream = ByteArrayOutputStream()
@@ -486,18 +486,18 @@ class ChatViewModel(
                                     allEmotes.addAll(emotes.filter { it.name !in allEmotes }.mapNotNull { it.name })
                                 }
                                 if (online) {
-                                    val directory = File(applicationContext.cacheDir, "emote_responses")
+                                    val directory = File(cacheDir, "emote_responses")
                                     directory.mkdir()
                                     val compressedStream = ByteArrayOutputStream()
                                     DeflaterOutputStream(compressedStream).use {
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/global.bttv").use {
+                                    FileOutputStream("${cacheDir}/emote_responses/global.bttv").use {
                                         it.write(compressedBytes)
                                     }
                                 } else {
-                                    onMessage(ChatMessage(systemMsg = ContextCompat.getString(applicationContext, R.string.loaded_cached_bttv_emotes)))
+                                    onMessage(ChatMessage(systemMsg = strings.loadedCachedBttvEmotes))
                                 }
                             }
                         } catch (e: Exception) {
@@ -512,7 +512,7 @@ class ChatViewModel(
                         playerRepository.loadBTTVEmotesResponse(channelId) to true
                     } catch (e: Exception) {
                         try {
-                            val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.bttv").use {
+                            val compressedBytes = FileInputStream("${cacheDir}/emote_responses/${channelId}.bttv").use {
                                 it.readBytes()
                             }
                             val decompressedStream = ByteArrayOutputStream()
@@ -545,7 +545,7 @@ class ChatViewModel(
                                     allEmotes.addAll(emotes.filter { it.name !in allEmotes }.mapNotNull { it.name })
                                 }
                                 if (online) {
-                                    val directory = File(applicationContext.cacheDir, "emote_responses")
+                                    val directory = File(cacheDir, "emote_responses")
                                     directory.mkdir()
                                     val files = directory.listFiles()
                                     if (files != null && files.size >= 100) {
@@ -556,15 +556,15 @@ class ChatViewModel(
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.bttv").use {
+                                    FileOutputStream("${cacheDir}/emote_responses/${channelId}.bttv").use {
                                         it.write(compressedBytes)
                                     }
                                 } else {
-                                    onMessage(ChatMessage(systemMsg = ContextCompat.getString(applicationContext, R.string.loaded_cached_ffz_emotes)))
+                                    onMessage(ChatMessage(systemMsg = strings.loadedCachedFfzEmotes))
                                 }
                             } else {
                                 if (online) {
-                                    File("${applicationContext.cacheDir}/emote_responses/${channelId}.bttv").delete()
+                                    File("${cacheDir}/emote_responses/${channelId}.bttv").delete()
                                 }
                             }
                         } catch (e: Exception) {
@@ -574,7 +574,7 @@ class ChatViewModel(
                 }
             }
         }
-        if (applicationContext.prefs().getBoolean(C.CHAT_ENABLE_FFZ, true)) {
+        if (settings.getBoolean(C.CHAT_ENABLE_FFZ, true)) {
             val saved = savedGlobalFFZEmotes
             if (!saved.isNullOrEmpty()) {
                 synchronized(thirdPartyEmotes) {
@@ -599,7 +599,7 @@ class ChatViewModel(
                         playerRepository.loadGlobalFFZEmotesResponse() to true
                     } catch (e: Exception) {
                         try {
-                            val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/global.ffz").use {
+                            val compressedBytes = FileInputStream("${cacheDir}/emote_responses/global.ffz").use {
                                 it.readBytes()
                             }
                             val decompressedStream = ByteArrayOutputStream()
@@ -633,14 +633,14 @@ class ChatViewModel(
                                     allEmotes.addAll(emotes.filter { it.name !in allEmotes }.mapNotNull { it.name })
                                 }
                                 if (online) {
-                                    val directory = File(applicationContext.cacheDir, "emote_responses")
+                                    val directory = File(cacheDir, "emote_responses")
                                     directory.mkdir()
                                     val compressedStream = ByteArrayOutputStream()
                                     DeflaterOutputStream(compressedStream).use {
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/global.ffz").use {
+                                    FileOutputStream("${cacheDir}/emote_responses/global.ffz").use {
                                         it.write(compressedBytes)
                                     }
                                 }
@@ -657,7 +657,7 @@ class ChatViewModel(
                         playerRepository.loadFFZEmotesResponse(channelId) to true
                     } catch (e: Exception) {
                         try {
-                            val compressedBytes = FileInputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.ffz").use {
+                            val compressedBytes = FileInputStream("${cacheDir}/emote_responses/${channelId}.ffz").use {
                                 it.readBytes()
                             }
                             val decompressedStream = ByteArrayOutputStream()
@@ -690,7 +690,7 @@ class ChatViewModel(
                                     allEmotes.addAll(emotes.filter { it.name !in allEmotes }.mapNotNull { it.name })
                                 }
                                 if (online) {
-                                    val directory = File(applicationContext.cacheDir, "emote_responses")
+                                    val directory = File(cacheDir, "emote_responses")
                                     directory.mkdir()
                                     val files = directory.listFiles()
                                     if (files != null && files.size >= 100) {
@@ -701,13 +701,13 @@ class ChatViewModel(
                                         it.write(response.toByteArray())
                                     }
                                     val compressedBytes = compressedStream.toByteArray()
-                                    FileOutputStream("${applicationContext.cacheDir}/emote_responses/${channelId}.ffz").use {
+                                    FileOutputStream("${cacheDir}/emote_responses/${channelId}.ffz").use {
                                         it.write(compressedBytes)
                                     }
                                 }
                             } else {
                                 if (online) {
-                                    File("${applicationContext.cacheDir}/emote_responses/${channelId}.ffz").delete()
+                                    File("${cacheDir}/emote_responses/${channelId}.ffz").delete()
                                 }
                             }
                         } catch (e: Exception) {
@@ -794,14 +794,14 @@ class ChatViewModel(
                 allEmotes.addAll(saved.filter { it.name !in allEmotes }.mapNotNull { it.name })
             }
         } else {
-            val helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext)
-            val gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext, true)
+            val helixHeaders = SharedAuthHeaders.helixHeaders(authConfig)
+            val gqlHeaders = SharedAuthHeaders.gqlHeaders(authConfig, includeToken = true)
             if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() || !helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                 viewModelScope.launch {
                     try {
-                        val accountId = applicationContext.tokenPrefs().getString(C.USER_ID, null)
-                        val animateGifs =  applicationContext.prefs().getBoolean(C.ANIMATED_EMOTES, true)
-                        val enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false)
+                        val accountId = settings.getString(C.USER_ID, null)
+                        val animateGifs =  settings.getBoolean(C.ANIMATED_EMOTES, true)
+                        val enableIntegrity = settings.getBoolean(C.ENABLE_INTEGRITY, false)
                         val emotes = playerRepository.loadUserEmotes(helixHeaders, gqlHeaders, channelId, accountId, animateGifs, enableIntegrity)
                         if (emotes.isNotEmpty()) {
                             val sorted = emotes.sortedByDescending { it.setId }
@@ -855,9 +855,9 @@ class ChatViewModel(
     }
 
     fun getEmoteBytes(chatUrl: String, localData: Pair<Long, Int>): ByteArray? {
-        val uri = chatUrl.toUri()
+        val uri = Uri.parse(chatUrl)
         return if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
-            applicationContext.contentResolver.openInputStream(uri)?.bufferedReader()
+            openChatFile(uri)?.bufferedReader()
         } else {
             FileInputStream(File(chatUrl)).bufferedReader()
         }?.use { fileReader ->
@@ -881,27 +881,31 @@ class ChatViewModel(
             viewModelScope.launch {
                 try {
                     val list = mutableListOf<ChatMessage>()
-                    playerRepository.loadRecentMessages(recentMessagesUrl, channelLogin, applicationContext.prefs().getInt(C.CHAT_RECENT_LIMIT, 100).toString()).messages.forEach { message ->
+                    playerRepository.loadRecentMessages(recentMessagesUrl, channelLogin, settings.getInt(C.CHAT_RECENT_LIMIT, 100).toString()).messages.forEach { message ->
                         val ircMessage = ChatUtils.parseIRCMessage(message)
                         when (ircMessage.command) {
                             "PRIVMSG" -> ChatUtils.parseChatMessage(ircMessage)
                             "USERNOTICE" -> {
-                                if (applicationContext.prefs().getBoolean(C.CHAT_SHOW_USER_NOTICE, true)) {
+                                if (settings.getBoolean(C.CHAT_SHOW_USER_NOTICE, true)) {
                                     ChatUtils.parseChatMessage(ircMessage)
                                 } else null
                             }
                             "CLEARMSG" -> {
-                                if (applicationContext.prefs().getBoolean(C.CHAT_SHOW_CLEAR_MSG, true)) {
+                                if (settings.getBoolean(C.CHAT_SHOW_CLEAR_MSG, true)) {
                                     val chatMessage = ChatUtils.parseClearMessage(ircMessage)
                                     val deletedMessage = chatMessage.targetMsgId?.let { targetId ->
                                         list.findLast { it.id == targetId }
                                     }
-                                    getClearMessage(chatMessage, deletedMessage, applicationContext.prefs().getString(C.UI_NAME_DISPLAY, "0"))
+                                    getClearMessage(chatMessage, deletedMessage, settings.getString(C.UI_NAME_DISPLAY, "0"))
                                 } else null
                             }
                             "CLEARCHAT" -> {
-                                if (applicationContext.prefs().getBoolean(C.CHAT_SHOW_CLEAR_CHAT, true)) {
-                                    ChatUtils.parseClearChat(ircMessage, TwitchApiHelper.getClearChatStrings(applicationContext)) { TwitchApiHelper.getDurationFromSeconds(applicationContext, it.toString()) ?: "" }
+                                if (settings.getBoolean(C.CHAT_SHOW_CLEAR_CHAT, true)) {
+                                    ChatUtils.parseClearChat(ircMessage, ChatUtils.ClearChatStrings(
+        timeoutFormat = strings.chatTimeout,
+        banFormat = strings.chatBan,
+        clearText = strings.chatCleared,
+    )) { TwitchFormats.formatDurationFromSeconds(it.toString().toIntOrNull() ?: 0, strings.days, strings.hours, strings.minutes, strings.seconds) ?: "" }
                                 } else null
                             }
                             "NOTICE" -> ChatUtils.parseNotice(ircMessage)
@@ -949,7 +953,7 @@ class ChatViewModel(
         } else {
             deletedMessage?.userName ?: login
         }
-        val message = ContextCompat.getString(applicationContext, R.string.chat_clearmsg).format(userName, deletedMessage?.message ?: chatMessage.message)
+        val message = strings.clearedMessage(userName, deletedMessage?.message ?: chatMessage.message)
         val messageIndex = message.indexOf(": ") + 2
         return ChatMessage(
             type = ChatMessage.USER_MESSAGE,
@@ -991,26 +995,26 @@ class ChatViewModel(
     fun startLiveChat(channelId: String?, channelLogin: String) {
         stopLiveChat()
         started = true
-        val gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext, true)
-        val helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext)
-        val enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false)
-        val accountId = applicationContext.tokenPrefs().getString(C.USER_ID, null)
-        val accountLogin = applicationContext.tokenPrefs().getString(C.USERNAME, null)
+        val gqlHeaders = SharedAuthHeaders.gqlHeaders(authConfig, includeToken = true)
+        val helixHeaders = SharedAuthHeaders.helixHeaders(authConfig)
+        val enableIntegrity = settings.getBoolean(C.ENABLE_INTEGRITY, false)
+        val accountId = settings.getString(C.USER_ID, null)
+        val accountLogin = settings.getString(C.USERNAME, null)
         val isLoggedIn = !accountLogin.isNullOrBlank() && (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() || !helixHeaders[C.HEADER_TOKEN].isNullOrBlank())
-        val usePubSub = applicationContext.prefs().getBoolean(C.CHAT_PUB_SUB_ENABLED, true)
-        val showUserNotice = applicationContext.prefs().getBoolean(C.CHAT_SHOW_USER_NOTICE, true)
-        val showClearMsg = applicationContext.prefs().getBoolean(C.CHAT_SHOW_CLEAR_MSG, true)
-        val showClearChat = applicationContext.prefs().getBoolean(C.CHAT_SHOW_CLEAR_CHAT, true)
-        val nameDisplay = applicationContext.prefs().getString(C.UI_NAME_DISPLAY, "0")
-        val useApiChatMessages = applicationContext.prefs().getBoolean(C.DEBUG_API_CHAT_MESSAGES, true)
-        val showWebSocketDebugInfo = applicationContext.prefs().getBoolean(C.DEBUG_WEBSOCKET_INFO, false)
-        if (applicationContext.prefs().getBoolean(C.DEBUG_EVENT_SUB_CHAT, false) && !helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
+        val usePubSub = settings.getBoolean(C.CHAT_PUB_SUB_ENABLED, true)
+        val showUserNotice = settings.getBoolean(C.CHAT_SHOW_USER_NOTICE, true)
+        val showClearMsg = settings.getBoolean(C.CHAT_SHOW_CLEAR_MSG, true)
+        val showClearChat = settings.getBoolean(C.CHAT_SHOW_CLEAR_CHAT, true)
+        val nameDisplay = settings.getString(C.UI_NAME_DISPLAY, "0")
+        val useApiChatMessages = settings.getBoolean(C.DEBUG_API_CHAT_MESSAGES, true)
+        val showWebSocketDebugInfo = settings.getBoolean(C.DEBUG_WEBSOCKET_INFO, false)
+        if (settings.getBoolean(C.DEBUG_EVENT_SUB_CHAT, false) && !helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
             eventSub = EventSubWebSocket(EventSubListener(helixHeaders, channelLogin, showUserNotice, showClearChat, usePubSub, isLoggedIn, accountId, channelId))
             chatReadJob = eventSub?.connect(viewModelScope)
         } else {
             val gqlToken = gqlHeaders[C.HEADER_TOKEN]?.removePrefix("OAuth ")
             val helixToken = helixHeaders[C.HEADER_TOKEN]?.removePrefix("Bearer ")
-            if (applicationContext.prefs().getBoolean(C.CHAT_USE_WEBSOCKET, true)) {
+            if (settings.getBoolean(C.CHAT_USE_WEBSOCKET, true)) {
                 chatReadWebSocket = ChatReadWebSocket(channelLogin, ChatReadListener(channelLogin, nameDisplay, showUserNotice, showClearMsg, showClearChat, usePubSub, isLoggedIn, accountId, channelId))
                 chatReadJob = chatReadWebSocket?.connect(viewModelScope)
                 if (isLoggedIn && (!gqlToken.isNullOrBlank() || !helixHeaders[C.HEADER_TOKEN].isNullOrBlank() && !useApiChatMessages)) {
@@ -1023,7 +1027,7 @@ class ChatViewModel(
                     chatWriteJob = chatWriteWebSocket?.connect(viewModelScope)
                 }
             } else {
-                val useSSL = applicationContext.prefs().getBoolean(C.CHAT_USE_SSL, true)
+                val useSSL = settings.getBoolean(C.CHAT_USE_SSL, true)
                 chatReadIRCSocket = ChatReadIRCSocket(useSSL, channelLogin, ChatReadListener(channelLogin, nameDisplay, showUserNotice, showClearMsg, showClearChat, usePubSub, isLoggedIn, accountId, channelId))
                 chatReadJob = viewModelScope.launch(Dispatchers.IO) {
                     chatReadIRCSocket?.start()
@@ -1043,13 +1047,13 @@ class ChatViewModel(
             }
         }
         if (usePubSub && !channelId.isNullOrBlank()) {
-            val collectPoints = applicationContext.prefs().getBoolean(C.CHAT_POINTS_COLLECT, true)
-            val gqlWebClientId = applicationContext.prefs().getString(C.GQL_CLIENT_ID_WEB, "kimne78kx3ncx6brgo4mv6wki5h1ko")
-            val gqlWebToken = applicationContext.tokenPrefs().getString(C.GQL_TOKEN_WEB, null)
-            val notifyPoints = applicationContext.prefs().getBoolean(C.CHAT_POINTS_NOTIFY, false)
-            val showRaids = applicationContext.prefs().getBoolean(C.CHAT_RAIDS_SHOW, true)
-            val showPolls = applicationContext.prefs().getBoolean(C.CHAT_POLLS_SHOW, true)
-            val showPredictions = applicationContext.prefs().getBoolean(C.CHAT_PREDICTIONS_SHOW, true)
+            val collectPoints = settings.getBoolean(C.CHAT_POINTS_COLLECT, true)
+            val gqlWebClientId = settings.getString(C.GQL_CLIENT_ID_WEB, "kimne78kx3ncx6brgo4mv6wki5h1ko")
+            val gqlWebToken = settings.getString(C.GQL_TOKEN_WEB, null)
+            val notifyPoints = settings.getBoolean(C.CHAT_POINTS_NOTIFY, false)
+            val showRaids = settings.getBoolean(C.CHAT_RAIDS_SHOW, true)
+            val showPolls = settings.getBoolean(C.CHAT_POLLS_SHOW, true)
+            val showPredictions = settings.getBoolean(C.CHAT_PREDICTIONS_SHOW, true)
             hermesWebSocket = HermesWebSocket(
                 channelId = channelId,
                 userId = accountId,
@@ -1066,22 +1070,22 @@ class ChatViewModel(
                     } else null
                 },
                 collectPoints = collectPoints,
-                showRaids = applicationContext.prefs().getBoolean(C.CHAT_RAIDS_SHOW, true),
-                showPolls = applicationContext.prefs().getBoolean(C.CHAT_POLLS_SHOW, true),
-                showPredictions = applicationContext.prefs().getBoolean(C.CHAT_PREDICTIONS_SHOW, true),
+                showRaids = settings.getBoolean(C.CHAT_RAIDS_SHOW, true),
+                showPolls = settings.getBoolean(C.CHAT_POLLS_SHOW, true),
+                showPredictions = settings.getBoolean(C.CHAT_PREDICTIONS_SHOW, true),
                 listener = PubSubListener(channelLogin, collectPoints, notifyPoints, showRaids, showPolls, showPredictions, gqlHeaders, isLoggedIn, accountId, channelId, enableIntegrity, showWebSocketDebugInfo)
             )
             pubSubJob = hermesWebSocket?.connect(viewModelScope)
         }
-        val showNamePaints = applicationContext.prefs().getBoolean(C.CHAT_SHOW_PAINTS, true)
-        val showSTVBadges = applicationContext.prefs().getBoolean(C.CHAT_SHOW_STV_BADGES, true)
-        val showPersonalEmotes = applicationContext.prefs().getBoolean(C.CHAT_SHOW_PERSONAL_EMOTES, true)
-        val stvLiveUpdates = applicationContext.prefs().getBoolean(C.CHAT_STV_LIVE_UPDATES, true)
+        val showNamePaints = settings.getBoolean(C.CHAT_SHOW_PAINTS, true)
+        val showSTVBadges = settings.getBoolean(C.CHAT_SHOW_STV_BADGES, true)
+        val showPersonalEmotes = settings.getBoolean(C.CHAT_SHOW_PERSONAL_EMOTES, true)
+        val stvLiveUpdates = settings.getBoolean(C.CHAT_STV_LIVE_UPDATES, true)
         if ((showNamePaints || showSTVBadges || showPersonalEmotes || stvLiveUpdates) && !channelId.isNullOrBlank()) {
-            val useWebp = applicationContext.prefs().getBoolean(C.CHAT_USE_WEBP, true)
+            val useWebp = settings.getBoolean(C.CHAT_USE_WEBP, true)
             stvEventApi = STVEventApiWebSocket(
                 channelId = channelId,
-                userAgent = "Xtra/" + BuildConfig.VERSION_NAME,
+                userAgent = userAgent,
                 listener = STVEventApiListener(useWebp, showNamePaints, showSTVBadges, showPersonalEmotes, stvLiveUpdates, isLoggedIn, accountId, channelId, showWebSocketDebugInfo)
             )
             stvEventApiJob = stvEventApi?.connect(viewModelScope)
@@ -1165,7 +1169,7 @@ class ChatViewModel(
             }.let {
                 removeMessages.emit(it)
             }
-            onMessage(ChatMessage(systemMsg = ContextCompat.getString(applicationContext, R.string.disconnected)))
+            onMessage(ChatMessage(systemMsg = strings.disconnected))
         }
         if (!hideRaid.value) {
             hideRaid.value = true
@@ -1192,7 +1196,7 @@ class ChatViewModel(
         private val channelId: String?,
     ) : ChatReadWebSocket.Listener {
         override suspend fun onConnect() {
-            onMessage(ChatMessage(systemMsg = ContextCompat.getString(applicationContext, R.string.chat_join).format(channelLogin)))
+            onMessage(ChatMessage(systemMsg = strings.joinedChannel(channelLogin)))
         }
 
         override suspend fun onChatMessage(message: ChatUtils.IRCMessage, userNotice: Boolean) {
@@ -1234,7 +1238,11 @@ class ChatViewModel(
 
         override suspend fun onClearChat(message: ChatUtils.IRCMessage) {
             if (showClearChat) {
-                onMessage(ChatUtils.parseClearChat(message, TwitchApiHelper.getClearChatStrings(applicationContext)) { TwitchApiHelper.getDurationFromSeconds(applicationContext, it.toString()) ?: "" })
+                onMessage(ChatUtils.parseClearChat(message, ChatUtils.ClearChatStrings(
+        timeoutFormat = strings.chatTimeout,
+        banFormat = strings.chatBan,
+        clearText = strings.chatCleared,
+    )) { TwitchFormats.formatDurationFromSeconds(it.toString().toIntOrNull() ?: 0, strings.days, strings.hours, strings.minutes, strings.seconds) ?: "" })
             }
         }
 
@@ -1256,7 +1264,7 @@ class ChatViewModel(
 
         override suspend fun onDisconnect(message: String, fullMsg: String?) {
             onMessage(ChatMessage(
-                systemMsg = ContextCompat.getString(applicationContext, R.string.chat_disconnect).format(channelLogin, message),
+                systemMsg = strings.disconnectedFromChannel(channelLogin, message),
                 fullMsg = fullMsg
             ))
         }
@@ -1268,7 +1276,7 @@ class ChatViewModel(
     ) : ChatReadWebSocket.Listener {
         override suspend fun onConnect() {
             if (showWebSocketDebugInfo) {
-                onMessage(ChatMessage(systemMsg = ContextCompat.getString(applicationContext, R.string.websocket_connected).format("Chat write socket")))
+                onMessage(ChatMessage(systemMsg = strings.websocketConnected("Chat write socket")))
             }
         }
 
@@ -1289,7 +1297,7 @@ class ChatViewModel(
         override suspend fun onDisconnect(message: String, fullMsg: String?) {
             if (showWebSocketDebugInfo) {
                 onMessage(ChatMessage(
-                    systemMsg = ContextCompat.getString(applicationContext, R.string.websocket_disconnected).format("Chat write socket", message),
+                    systemMsg = strings.websocketDisconnected("Chat write socket", message),
                     fullMsg = fullMsg
                 ))
             }
@@ -1307,7 +1315,7 @@ class ChatViewModel(
         private val channelId: String?,
     ) : EventSubWebSocket.Listener {
         override suspend fun onConnect() {
-            onMessage(ChatMessage(systemMsg = ContextCompat.getString(applicationContext, R.string.chat_join).format(channelLogin)))
+            onMessage(ChatMessage(systemMsg = strings.joinedChannel(channelLogin)))
         }
 
         override suspend fun onWelcomeMessage(sessionId: String) {
@@ -1349,7 +1357,7 @@ class ChatViewModel(
             if (showClearChat) {
                 onMessage(ChatMessage(
                     type = ChatMessage.NOTICE_MESSAGE,
-                    systemMsg = applicationContext.getString(R.string.chat_clear),
+                    systemMsg = strings.chatCleared,
                     timestamp = timestamp?.let { EventSubParser.parseTimestamp(it) },
                     fullMsg = event
                 ))
@@ -1362,7 +1370,7 @@ class ChatViewModel(
 
         override suspend fun onDisconnect(message: String, fullMsg: String?) {
             onMessage(ChatMessage(
-                systemMsg = ContextCompat.getString(applicationContext, R.string.chat_disconnect).format(channelLogin, message),
+                systemMsg = strings.disconnectedFromChannel(channelLogin, message),
                 fullMsg = fullMsg
             ))
         }
@@ -1384,7 +1392,7 @@ class ChatViewModel(
     ) : HermesWebSocket.Listener {
         override suspend fun onConnect() {
             if (showWebSocketDebugInfo) {
-                onMessage(ChatMessage(systemMsg = ContextCompat.getString(applicationContext, R.string.websocket_connected).format("PubSub")))
+                onMessage(ChatMessage(systemMsg = strings.websocketConnected("PubSub")))
             }
         }
 
@@ -1395,12 +1403,12 @@ class ChatViewModel(
                     if (it) {
                         onMessage(ChatMessage(
                             type = ChatMessage.NOTICE_MESSAGE,
-                            systemMsg = ContextCompat.getString(applicationContext, R.string.stream_live).format(channelLogin),
+                            systemMsg = strings.streamLive(channelLogin),
                         ))
                     } else {
                         onMessage(ChatMessage(
                             type = ChatMessage.NOTICE_MESSAGE,
-                            systemMsg = ContextCompat.getString(applicationContext, R.string.stream_offline).format(channelLogin),
+                            systemMsg = strings.streamOffline(channelLogin),
                         ))
                     }
                 }
@@ -1429,7 +1437,7 @@ class ChatViewModel(
                 if (channelId == messageChannelId) {
                     onMessage(ChatMessage(
                         type = ChatMessage.NOTICE_MESSAGE,
-                        systemMsg = ContextCompat.getString(applicationContext, R.string.points_earned).format(points.pointsGained),
+                        systemMsg = strings.pointsEarned(points.pointsGained),
                         timestamp = points.timestamp,
                         fullMsg = points.fullMsg
                     ))
@@ -1579,7 +1587,7 @@ class ChatViewModel(
         override suspend fun onDisconnect(message: String, fullMsg: String?) {
             if (showWebSocketDebugInfo) {
                 onMessage(ChatMessage(
-                    systemMsg = ContextCompat.getString(applicationContext, R.string.websocket_disconnected).format("PubSub", message),
+                    systemMsg = strings.websocketDisconnected("PubSub", message),
                     fullMsg = fullMsg
                 ))
             }
@@ -1599,7 +1607,7 @@ class ChatViewModel(
     ) : STVEventApiWebSocket.Listener {
         override suspend fun onConnect() {
             if (showWebSocketDebugInfo) {
-                onMessage(ChatMessage(systemMsg = ContextCompat.getString(applicationContext, R.string.websocket_connected).format("7TV Event API")))
+                onMessage(ChatMessage(systemMsg = strings.websocketConnected("7TV Event API")))
             }
         }
 
@@ -1758,7 +1766,7 @@ class ChatViewModel(
         override suspend fun onDisconnect(message: String, fullMsg: String?) {
             if (showWebSocketDebugInfo) {
                 onMessage(ChatMessage(
-                    systemMsg = ContextCompat.getString(applicationContext, R.string.websocket_disconnected).format("7TV Event API", message),
+                    systemMsg = strings.websocketDisconnected("7TV Event API", message),
                     fullMsg = fullMsg
                 ))
             }
@@ -1848,11 +1856,11 @@ class ChatViewModel(
     }
 
     private fun loadEmoteSets(channelId: String?) {
-        val helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext)
+        val helixHeaders = SharedAuthHeaders.helixHeaders(authConfig)
         if (!savedEmoteSets.isNullOrEmpty() && !helixHeaders[C.HEADER_CLIENT_ID].isNullOrBlank() && !helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
             viewModelScope.launch {
                 try {
-                    val animateGifs =  applicationContext.prefs().getBoolean(C.ANIMATED_EMOTES, true)
+                    val animateGifs =  settings.getBoolean(C.ANIMATED_EMOTES, true)
                     val emotes = mutableListOf<TwitchEmote>()
                     savedEmoteSets?.chunked(25)?.forEach { list ->
                         playerRepository.loadEmotesFromSet(helixHeaders, list, animateGifs).let { emotes.addAll(it) }
@@ -2635,10 +2643,10 @@ class ChatViewModel(
         } else {
             if (!videoId.isNullOrBlank()) {
                 chatReplayManager = ChatReplayManager(
-                    gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext, true),
+                    gqlHeaders = SharedAuthHeaders.gqlHeaders(authConfig, includeToken = true),
                     graphQLRepository = graphQLRepository,
                     json = json,
-                    enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+                    enableIntegrity = settings.getBoolean(C.ENABLE_INTEGRITY, false),
                     videoId = videoId,
                     createdAt = createdAt?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 } },
                     startTime = startTime.times(1000L),
@@ -2690,7 +2698,7 @@ class ChatViewModel(
     private fun readChatFile(url: String, channelId: String?, channelLogin: String?) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val nameDisplay = applicationContext.prefs().getString(C.UI_NAME_DISPLAY, "0")
+                val nameDisplay = settings.getString(C.UI_NAME_DISPLAY, "0")
                 val liveMessages = mutableListOf<ChatMessage>()
                 val messages = mutableListOf<VideoChatMessage>()
                 var startTimeMs = 0L
@@ -2698,8 +2706,8 @@ class ChatViewModel(
                 val twitchBadges = mutableListOf<TwitchBadge>()
                 val cheerEmotesList = mutableListOf<CheerEmote>()
                 val emotes = mutableListOf<Emote>()
-                if (url.toUri().scheme == ContentResolver.SCHEME_CONTENT) {
-                    applicationContext.contentResolver.openInputStream(url.toUri())?.bufferedReader()
+                if (Uri.parse(url).scheme == ContentResolver.SCHEME_CONTENT) {
+                    openChatFile(Uri.parse(url))?.bufferedReader()
                 } else {
                     FileInputStream(File(url)).bufferedReader()
                 }?.use { fileReader ->
@@ -2745,7 +2753,11 @@ class ChatViewModel(
                                                                     }
                                                                     liveMessages.add(getClearMessage(chatMessage, deletedMessage, nameDisplay))
                                                                 }
-                                                                "CLEARCHAT" -> liveMessages.add(ChatUtils.parseClearChat(ircMessage, TwitchApiHelper.getClearChatStrings(applicationContext)) { TwitchApiHelper.getDurationFromSeconds(applicationContext, it.toString()) ?: "" })
+                                                                "CLEARCHAT" -> liveMessages.add(ChatUtils.parseClearChat(ircMessage, ChatUtils.ClearChatStrings(
+        timeoutFormat = strings.chatTimeout,
+        banFormat = strings.chatBan,
+        clearText = strings.chatCleared,
+    )) { TwitchFormats.formatDurationFromSeconds(it.toString().toIntOrNull() ?: 0, strings.days, strings.hours, strings.minutes, strings.seconds) ?: "" })
                                                                 "NOTICE" -> liveMessages.add(ChatUtils.parseNotice(ircMessage))
                                                             }
                                                             if (reader.peek() != JsonToken.END_ARRAY) {
@@ -3152,19 +3164,12 @@ class ChatViewModel(
     }
 
     companion object {
+        // Cached across view-model instances so re-opening chat does not refetch emotes and badges.
         private var savedEmoteSets: List<String>? = null
         private var savedUserEmotes: List<TwitchEmote>? = null
         private var savedGlobalBadges: List<TwitchBadge>? = null
         private var savedGlobalSTVEmotes: List<Emote>? = null
         private var savedGlobalBTTVEmotes: List<Emote>? = null
         private var savedGlobalFFZEmotes: List<Emote>? = null
-
-        val ChatViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                ChatViewModel(application.applicationContext, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.json)
-            }
-        }
     }
 }
