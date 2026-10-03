@@ -43,5 +43,9 @@ kotlin {
             implementation(libs.ktor.client.cio)
             implementation(libs.coroutines.core)
         }
+        jvmTest.dependencies {
+            // First (and currently only) test source set: the pure chat-composer text rules.
+            implementation(kotlin("test"))
+        }
     }
 }

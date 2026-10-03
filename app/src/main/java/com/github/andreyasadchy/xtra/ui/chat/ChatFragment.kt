@@ -204,13 +204,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             }
                         }
                         editText.addTextChangedListener(onTextChanged = { text, _, _, _ ->
-                            if (text?.isNotBlank() == true) {
-                                send.visibility = View.VISIBLE
-                                clear.visibility = View.VISIBLE
-                            } else {
-                                send.visibility = View.GONE
-                                clear.visibility = View.GONE
-                            }
+                            val visible = if (ChatInput.shouldShowSend(text?.toString())) View.VISIBLE else View.GONE
+                            send.visibility = visible
+                            clear.visibility = visible
                         })
                         editText.setTokenizer(SpaceTokenizer())
                         editText.setOnKeyListener { _, keyCode, event ->
@@ -221,8 +217,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             }
                         }
                         clear.setOnClickListener {
-                            val text = editText.text.toString().trimEnd()
-                            editText.setText(text.substring(0, max(text.lastIndexOf(' '), 0)))
+                            editText.setText(ChatInput.textAfterDeletingLastWord(editText.text.toString()))
                             editText.setSelection(editText.length())
                         }
                         clear.setOnLongClickListener {
