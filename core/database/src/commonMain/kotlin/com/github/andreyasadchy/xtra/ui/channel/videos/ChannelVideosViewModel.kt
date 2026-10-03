@@ -1,17 +1,10 @@
 package com.github.andreyasadchy.xtra.ui.channel.videos
 
-import android.content.Context
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.graphql.type.BroadcastType
 import com.github.andreyasadchy.xtra.graphql.type.VideoSort
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
@@ -22,28 +15,30 @@ import com.github.andreyasadchy.xtra.repository.ChannelSortRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
-import com.github.andreyasadchy.xtra.repository.saved.VideoBookmarker
+import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
 import com.github.andreyasadchy.xtra.repository.datasource.ChannelVideosDataSource
-import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentArgs
-import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.repository.saved.VideoBookmarker
+import com.github.andreyasadchy.xtra.settings.XtraSettings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 
+/**
+ * Channel videos tab. Takes [settings] and the navigation arguments as plain values, so it carries no
+ * Context and no generated `*FragmentArgs` reference; the Android factory reads the arguments.
+ */
 class ChannelVideosViewModel(
-    private val applicationContext: Context,
+    private val settings: XtraSettings,
+    private val channelId: String?,
+    private val channelLogin: String?,
     private val channelSortRepository: ChannelSortRepository,
     playerRepository: PlayerRepository,
     private val bookmarksRepository: BookmarksRepository,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
     private val videoBookmarker: VideoBookmarker,
-    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val args = ChannelPagerFragmentArgs.fromSavedStateHandle(savedStateHandle)
     val filter = MutableStateFlow<Filter?>(null)
     val sortText = MutableStateFlow<CharSequence?>(null)
     val positions = playerRepository.loadVideoPositions()
@@ -58,12 +53,13 @@ class ChannelVideosViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {
+        val config = SharedAuthHeaders.loadConfig(settings)
         Pager(
             PagingConfig(pageSize = 30, prefetchDistance = 3, initialLoadSize = 30)
         ) {
             ChannelVideosDataSource(
-                channelId = args.channelId,
-                channelLogin = args.channelLogin,
+                channelId = channelId,
+                channelLogin = channelLogin,
                 gqlQueryType = when (type) {
                     VideosSort.VIDEO_TYPE_ALL -> null
                     VideosSort.VIDEO_TYPE_ARCHIVE -> BroadcastType.ARCHIVE
@@ -107,11 +103,11 @@ class ChannelVideosViewModel(
                     VideosSort.SORT_VIEWS -> "views"
                     else -> "time"
                 },
-                gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext),
+                gqlHeaders = SharedAuthHeaders.gqlHeaders(config),
                 graphQLRepository = graphQLRepository,
-                helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext),
+                helixHeaders = SharedAuthHeaders.helixHeaders(config),
                 helixRepository = helixRepository,
-                enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+                enableIntegrity = config.enableIntegrity,
             )
         }.flow
     }.cachedIn(viewModelScope)
@@ -145,16 +141,5 @@ class ChannelVideosViewModel(
             gqlHeaders = gqlHeaders,
             helixHeaders = helixHeaders,
         )
-    }
-
-    companion object {
-        val ChannelVideosViewModelFactory = viewModelFactory {
-            initializer {
-                val savedStateHandle = createSavedStateHandle()
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                ChannelVideosViewModel(application.applicationContext, xtraModule.channelSortRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.videoBookmarker, savedStateHandle)
-            }
-        }
     }
 }

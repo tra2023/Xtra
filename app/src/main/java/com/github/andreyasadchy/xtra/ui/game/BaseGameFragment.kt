@@ -78,7 +78,7 @@ import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.streams.GameStreamsViewModel
 import com.github.andreyasadchy.xtra.ui.game.streams.GameStreamsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.videos.GameVideosViewModel
-import com.github.andreyasadchy.xtra.ui.game.videos.GameVideosViewModel.Companion.GameVideosViewModelFactory
+import com.github.andreyasadchy.xtra.ui.game.videos.GameVideosViewModelFactory
 import com.github.andreyasadchy.xtra.ui.games.GamesFragmentDirections
 import com.github.andreyasadchy.xtra.ui.login.LoginActivity
 import com.github.andreyasadchy.xtra.ui.main.MainActivity

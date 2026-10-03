@@ -1,15 +1,10 @@
 package com.github.andreyasadchy.xtra.ui.following.videos
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.graphql.type.BroadcastType
 import com.github.andreyasadchy.xtra.graphql.type.VideoSort
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
@@ -20,17 +15,22 @@ import com.github.andreyasadchy.xtra.repository.ChannelSortRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
-import com.github.andreyasadchy.xtra.repository.saved.VideoBookmarker
+import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
 import com.github.andreyasadchy.xtra.repository.datasource.FollowedVideosDataSource
-import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.repository.saved.VideoBookmarker
+import com.github.andreyasadchy.xtra.settings.XtraSettings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 
+/**
+ * Followed videos tab. Takes [settings] instead of a Context, so the paging setup is identical on
+ * Android and desktop; the Android factory supplies the settings bridge.
+ *
+ * The followed-videos query is viewer-scoped, so the headers include the token.
+ */
 class FollowedVideosViewModel(
-    private val applicationContext: Context,
+    private val settings: XtraSettings,
     private val channelSortRepository: ChannelSortRepository,
     playerRepository: PlayerRepository,
     private val bookmarksRepository: BookmarksRepository,
@@ -53,6 +53,7 @@ class FollowedVideosViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {
+        val config = SharedAuthHeaders.loadConfig(settings)
         Pager(
             PagingConfig(pageSize = 30, prefetchDistance = 3, initialLoadSize = 30)
         ) {
@@ -69,9 +70,9 @@ class FollowedVideosViewModel(
                     VideosSort.SORT_VIEWS -> VideoSort.VIEWS
                     else -> VideoSort.TIME
                 },
-                gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext, true),
+                gqlHeaders = SharedAuthHeaders.gqlHeaders(config, includeToken = true),
                 graphQLRepository = graphQLRepository,
-                enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+                enableIntegrity = config.enableIntegrity,
             )
         }.flow
     }.cachedIn(viewModelScope)
@@ -101,15 +102,5 @@ class FollowedVideosViewModel(
             gqlHeaders = gqlHeaders,
             helixHeaders = helixHeaders,
         )
-    }
-
-    companion object {
-        val FollowedVideosViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                FollowedVideosViewModel(application.applicationContext, xtraModule.channelSortRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.videoBookmarker)
-            }
-        }
     }
 }

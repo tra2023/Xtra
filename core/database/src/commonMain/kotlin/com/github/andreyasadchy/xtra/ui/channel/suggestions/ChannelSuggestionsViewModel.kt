@@ -26,7 +26,7 @@ class ChannelSuggestionsViewModel(
         val config = SharedAuthHeaders.loadConfig(settings)
         ChannelSuggestionsDataSource(
             channelLogin = channelLogin,
-            gqlHeaders = SharedAuthHeaders.gqlHeaders(config),
+            gqlHeaders = SharedAuthHeaders.gqlHeaders(config, includeToken = true),
             graphQLRepository = graphQLRepository,
             enableIntegrity = config.enableIntegrity,
         )

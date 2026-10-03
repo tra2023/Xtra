@@ -25,12 +25,18 @@ object SharedAuthHeaders {
         )
     }
 
-    fun gqlHeaders(config: AuthConfig): Map<String, String> =
+    /**
+     * GQL headers. [includeToken] mirrors `TwitchApiHelper.getGQLHeaders(context, includeToken)`:
+     * the app asks for the token on the screens whose queries need the viewer ("followed",
+     * "suggestions") and leaves it out on the public browse queries.
+     */
+    fun gqlHeaders(config: AuthConfig, includeToken: Boolean = false): Map<String, String> =
         TwitchAuthHeaders.getGqlHeaders(
             enableIntegrity = config.enableIntegrity,
             integrityHeadersJson = config.gqlHeadersJson,
             gqlClientId = config.gqlClientId,
             gqlToken = config.gqlToken,
+            includeToken = includeToken,
         )
 
     fun helixHeaders(config: AuthConfig): Map<String, String> =

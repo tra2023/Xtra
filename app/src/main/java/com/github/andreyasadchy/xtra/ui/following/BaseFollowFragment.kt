@@ -74,7 +74,7 @@ import com.github.andreyasadchy.xtra.ui.following.games.FollowedGamesViewModel.C
 import com.github.andreyasadchy.xtra.ui.following.streams.FollowedStreamsViewModel
 import com.github.andreyasadchy.xtra.ui.following.streams.FollowedStreamsViewModel.Companion.FollowedStreamsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.following.videos.FollowedVideosViewModel
-import com.github.andreyasadchy.xtra.ui.following.videos.FollowedVideosViewModel.Companion.FollowedVideosViewModelFactory
+import com.github.andreyasadchy.xtra.ui.following.videos.FollowedVideosViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.games.GamesFragmentDirections
