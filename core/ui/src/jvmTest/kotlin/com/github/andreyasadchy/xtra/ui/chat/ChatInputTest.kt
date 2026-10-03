@@ -42,4 +42,21 @@ class ChatInputTest {
         assertFalse(ChatInput.shouldShowSend("   "))
         assertFalse(ChatInput.shouldShowSend(null))
     }
+
+    // Android's KeyEvent.ACTION_DOWN / KEYCODE_ENTER values, so the test does not need the framework.
+    private val actionDown = 0
+    private val enter = 66
+
+    @Test
+    fun enterKeyDownSends() {
+        assertTrue(ChatInput.shouldSendOnKey(actionDown, enter, actionDown, enter))
+    }
+
+    @Test
+    fun otherKeysAndKeyUpDoNotSend() {
+        // ACTION_UP (1) must not send, or every message would go twice.
+        assertFalse(ChatInput.shouldSendOnKey(1, enter, actionDown, enter))
+        assertFalse(ChatInput.shouldSendOnKey(actionDown, 67, actionDown, enter))
+        assertFalse(ChatInput.shouldSendOnKey(1, 67, actionDown, enter))
+    }
 }

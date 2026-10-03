@@ -29,4 +29,14 @@ object ChatInput {
 
     /** Send and clear are only offered once the composer holds something other than whitespace. */
     fun shouldShowSend(text: String?): Boolean = !text.isNullOrBlank()
+
+    /**
+     * Whether a key press should send the message: an Enter key-down.
+     *
+     * The editor's `setOnKeyListener` blocks in `ChatFragment` all ran this same test and then called
+     * send, so the predicate is kept here next to [shouldShowSend] rather than repeated four times.
+     * Callers pass the event's action and key code, which keeps this free of Android types.
+     */
+    fun shouldSendOnKey(keyAction: Int, keyCode: Int, actionDown: Int, enterKeyCode: Int): Boolean =
+        keyAction == actionDown && keyCode == enterKeyCode
 }

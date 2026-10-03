@@ -210,7 +210,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         })
                         editText.setTokenizer(SpaceTokenizer())
                         editText.setOnKeyListener { _, keyCode, event ->
-                            if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
+                            if (ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) {
                                 sendMessage()
                             } else {
                                 false
@@ -829,12 +829,12 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             replyView.visibility = View.GONE
             send.setOnClickListener { sendMessage() }
             editText.setOnKeyListener { _, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
-                    sendMessage()
-                } else {
-                    false
-                }
-            }
+                            if (ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) {
+                                sendMessage()
+                            } else {
+                                false
+                            }
+                        }
             val text = editText.text.trim()
             editText.text.clear()
             return if (text.isNotEmpty()) {
@@ -978,21 +978,21 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                     replyView.visibility = View.GONE
                     send.setOnClickListener { sendMessage() }
                     editText.setOnKeyListener { _, keyCode, event ->
-                        if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
-                            sendMessage()
-                        } else {
-                            false
+                            if (ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) {
+                                sendMessage()
+                            } else {
+                                false
+                            }
                         }
-                    }
                 }
                 send.setOnClickListener { sendMessage(replyId) }
                 editText.setOnKeyListener { _, keyCode, event ->
-                    if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
-                        sendMessage(replyId)
-                    } else {
-                        false
-                    }
-                }
+                            if (ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) {
+                                sendMessage(replyId)
+                            } else {
+                                false
+                            }
+                        }
             }
             editText.apply {
                 requestFocus()
