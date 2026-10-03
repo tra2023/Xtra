@@ -5,16 +5,30 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
+import com.github.andreyasadchy.xtra.model.chat.ChatMessageStrings
 import com.github.andreyasadchy.xtra.util.chat.ChatRenderCache
 import com.github.andreyasadchy.xtra.util.chat.ChatRenderOptions
 
 /**
- * Chat rows state shared by [ChatFragment] and the message dialogs: the loaded collections, the
+ * Fallback used until the host replaces [ChatState.options] `.strings` with the real
+ * platform resources. Keeps the shared chat UI renderable without a Context.
+ */
+val PlaceholderChatMessageStrings = ChatMessageStrings(
+    firstChatMsg = "First time chat",
+    rewardChatMsg = "Channel point redemption",
+    redeemedChatMsg = { "Redeemed $it" },
+    redeemedNoMsg = { userName, rewardTitle -> "$userName redeemed $rewardTitle" },
+    replyMessage = { userName, _ -> "Replying to $userName: " },
+    messageIdLabel = { it },
+)
+
+/**
+ * Chat rows state shared by the chat screen and the message dialogs: the loaded collections, the
  * shared parse caches and the Compose-visible message lists.
  *
- * The ViewModel still owns the backing [ChatViewModel.chatMessages] list; this holder owns the
- * snapshot copies the Compose lists actually render. The lists render directly from the
- * [messages] snapshot, while [generation] is bumped whenever the parser has to re-run.
+ * The host owns the backing list; this holder owns the snapshot copies the Compose lists actually
+ * render. The lists render directly from the [messages] snapshot, while [generation] is bumped
+ * whenever the parser has to re-run.
  */
 class ChatState(
     val renderCache: ChatRenderCache = ChatRenderCache(),

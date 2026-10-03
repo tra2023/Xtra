@@ -5,27 +5,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.ChatImage
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
-import com.github.andreyasadchy.xtra.settings.AndroidXtraSettings
+import com.github.andreyasadchy.xtra.ui.common.rememberNestedScrollModifier
+import com.github.andreyasadchy.xtra.ui.settings.LocalXtraSettings
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.prefs
-import com.github.andreyasadchy.xtra.util.tokenPrefs
 
 /**
- * Compose content of [ReplyClickedDialog], sharing [MessageThreadScreen] with the message dialog:
- * the reply-thread rows and the reply/copy buttons.
+ * Compose content of the reply dialog, sharing [MessageThreadScreen] with the message dialog:
+ * the reply-thread rows and the reply/copy buttons. Platform strings arrive through [labels].
  */
 @Composable
 fun ReplyClickedScreenContent(
     chatState: ChatState?,
     messagingEnabled: Boolean,
+    labels: ButtonLabelContext,
     modifier: Modifier = Modifier,
     padding: Dp = 8.dp,
     onReply: (ChatMessage) -> Unit = {},
@@ -46,10 +42,8 @@ fun ReplyClickedScreenContent(
             listState.scrollToItem(it)
         }
     }
-    val context = LocalContext.current
-    val settings = remember(context) {
-        AndroidXtraSettings(context.applicationContext.prefs(), context.applicationContext.tokenPrefs())
-    }
+    val settings = LocalXtraSettings.current
+    val allowCopyFullMsg = remember(settings) { settings.getBoolean(C.DEBUG_CHAT_FULL_MSG, false) }
     MessageThreadScreen(
         header = null,
         messages = messages,
@@ -60,16 +54,6 @@ fun ReplyClickedScreenContent(
         onMessageClick = state::select,
         onImageClick = onImageClick,
         buttons = {
-            val labels = remember(context) {
-                ButtonLabelContext(
-                    reply = context.getString(R.string.reply),
-                    copyMessage = context.getString(R.string.copy_message),
-                    copyClip = context.getString(R.string.copy_clip),
-                    copyFullMsg = context.getString(R.string.copy_fullmsg),
-                    viewProfile = context.getString(R.string.view_profile),
-                )
-            }
-            val allowCopyFullMsg = remember(settings) { settings.getBoolean(C.DEBUG_CHAT_FULL_MSG, false) }
             messageClickedButtons(
                 context = labels,
                 messagingEnabled = messagingEnabled,
@@ -90,7 +74,7 @@ fun ReplyClickedScreenContent(
                 )
             }
         },
-        modifier = modifier.nestedScroll(rememberNestedScrollInteropConnection()),
+        modifier = modifier.then(rememberNestedScrollModifier()),
         contentPadding = padding,
     )
 }

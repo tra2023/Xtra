@@ -39,6 +39,8 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.chat.ChatReadIRCSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatReadWebSocket
+import com.github.andreyasadchy.xtra.util.chat.ChatReplayManager
+import com.github.andreyasadchy.xtra.util.chat.ChatReplayManagerLocal
 import com.github.andreyasadchy.xtra.util.chat.ChatUtils
 import com.github.andreyasadchy.xtra.util.chat.ChatWriteIRCSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatWriteWebSocket

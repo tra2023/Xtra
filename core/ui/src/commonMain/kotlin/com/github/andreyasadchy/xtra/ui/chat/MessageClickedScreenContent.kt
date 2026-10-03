@@ -7,28 +7,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.ChatImage
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
 import com.github.andreyasadchy.xtra.model.ui.User
-import com.github.andreyasadchy.xtra.settings.AndroidXtraSettings
+import com.github.andreyasadchy.xtra.ui.common.rememberNestedScrollModifier
+import com.github.andreyasadchy.xtra.ui.settings.LocalXtraSettings
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.formatChatDate
-import com.github.andreyasadchy.xtra.util.prefs
-import com.github.andreyasadchy.xtra.util.tokenPrefs
-import kotlin.time.Instant
 
 /**
- * Compose content of [MessageClickedDialog], sharing [MessageThreadScreen] with the reply
+ * Compose content of the message dialog, sharing [MessageThreadScreen] with the reply
  * dialog: the inspected-user header, the filtered message list and the action buttons.
  *
  * Selection clicks come from [ChatState.selectedMessage], so the other open dialog and the
- * button rows below stay in sync without the old per-adapter selection bookkeeping.
+ * button rows below stay in sync without per-adapter selection bookkeeping.
+ *
+ * Platform strings and date formatting arrive from the host: [createdAtLabel] and
+ * [followedAtLabel] render the header timestamps, [labels] the action buttons.
  */
 @Composable
 fun MessageClickedScreenContent(
@@ -36,6 +32,9 @@ fun MessageClickedScreenContent(
     messagingEnabled: Boolean,
     inspectedUser: User?,
     userFailed: Boolean,
+    labels: ButtonLabelContext,
+    createdAtLabel: (String?) -> String,
+    followedAtLabel: (String?) -> String,
     modifier: Modifier = Modifier,
     padding: Dp = 8.dp,
     onReply: (ChatMessage) -> Unit = {},
@@ -60,24 +59,10 @@ fun MessageClickedScreenContent(
             listState.scrollToItem(it)
         }
     }
-    val context = LocalContext.current
-    val settings = remember(context) {
-        AndroidXtraSettings(context.applicationContext.prefs(), context.applicationContext.tokenPrefs())
-    }
+    val settings = LocalXtraSettings.current
     val nameDisplay = remember(settings) { settings.getString(C.UI_NAME_DISPLAY, "0") }
     val roundUserImage = remember(settings) { settings.getBoolean(C.UI_ROUND_USER_IMAGE, true) }
-    val createdAtLabel: (String?) -> String = remember(context) {
-        { value ->
-            val text = value?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { ms -> formatChatDate(ms) } }
-            context.getString(R.string.created_at, text)
-        }
-    }
-    val followedAtLabel: (String?) -> String = remember(context) {
-        { value ->
-            val text = value?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { ms -> formatChatDate(ms) } }
-            context.getString(R.string.followed_at, text)
-        }
-    }
+    val allowCopyFullMsg = remember(settings) { settings.getBoolean(C.DEBUG_CHAT_FULL_MSG, false) }
     MessageThreadScreen(
         header = {
             if (inspectedUser != null) {
@@ -102,16 +87,6 @@ fun MessageClickedScreenContent(
         onReplyClick = onReplyThread,
         onImageClick = onImageClick,
         buttons = {
-            val labels = remember(context) {
-                ButtonLabelContext(
-                    reply = context.getString(R.string.reply),
-                    copyMessage = context.getString(R.string.copy_message),
-                    copyClip = context.getString(R.string.copy_clip),
-                    copyFullMsg = context.getString(R.string.copy_fullmsg),
-                    viewProfile = context.getString(R.string.view_profile),
-                )
-            }
-            val allowCopyFullMsg = remember(settings) { settings.getBoolean(C.DEBUG_CHAT_FULL_MSG, false) }
             messageClickedButtons(
                 context = labels,
                 messagingEnabled = messagingEnabled,
@@ -132,7 +107,7 @@ fun MessageClickedScreenContent(
                 )
             }
         },
-        modifier = modifier.nestedScroll(rememberNestedScrollInteropConnection()),
+        modifier = modifier.then(rememberNestedScrollModifier()),
         contentPadding = padding,
     )
 }

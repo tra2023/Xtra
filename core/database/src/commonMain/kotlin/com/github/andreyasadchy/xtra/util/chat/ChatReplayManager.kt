@@ -1,4 +1,4 @@
-package com.github.andreyasadchy.xtra.ui.chat
+package com.github.andreyasadchy.xtra.util.chat
 
 import com.github.andreyasadchy.xtra.model.chat.Badge
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage

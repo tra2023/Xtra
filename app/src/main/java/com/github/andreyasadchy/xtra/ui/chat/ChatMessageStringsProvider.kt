@@ -14,13 +14,3 @@ fun Context.chatMessageStrings(): ChatMessageStrings = ChatMessageStrings(
     replyMessage = { userName, _ -> getString(R.string.replying_to_message, userName, "") },
     messageIdLabel = { TwitchApiHelper.getMessageIdString(this, it) ?: it },
 )
-
-/** Fallback used until the fragment replaces [ChatState.options.strings] with the real resources. */
-internal val PlaceholderChatMessageStrings = ChatMessageStrings(
-    firstChatMsg = "First time chat",
-    rewardChatMsg = "Channel point redemption",
-    redeemedChatMsg = { "Redeemed $it" },
-    redeemedNoMsg = { userName, rewardTitle -> "$userName redeemed $rewardTitle" },
-    replyMessage = { userName, _ -> "Replying to $userName: " },
-    messageIdLabel = { it },
-)

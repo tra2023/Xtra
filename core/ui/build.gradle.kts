@@ -14,6 +14,12 @@ kotlin {
     jvm()
 
     sourceSets {
+        androidMain.dependencies {
+            // Android View helpers shared with the Compose hosts (`reduceDragSensitivity`,
+            // `isKeyboardShown`): they poke at ViewPager2/RecyclerView internals.
+            implementation(libs.recyclerview)
+            implementation(libs.viewpager2)
+        }
         commonMain.dependencies {
             implementation(project(":core:models"))
             implementation(compose.runtime)

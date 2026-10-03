@@ -3,6 +3,7 @@ package com.github.andreyasadchy.xtra.repository.browse
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import com.github.andreyasadchy.xtra.graphql.type.Language
 import com.github.andreyasadchy.xtra.graphql.type.StreamSort
 import com.github.andreyasadchy.xtra.model.ui.Stream
@@ -27,7 +28,7 @@ import kotlinx.coroutines.flow.flatMapLatest
  * the Android-only `StreamsSortDialog` (`SORT_VIEWERS`, `SORT_VIEWERS_ASC`, `RECENT`).
  */
 class TopStreamsBrowseController(
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
     private val settings: XtraSettings,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
@@ -77,7 +78,7 @@ class TopStreamsBrowseController(
                 enableIntegrity = config.enableIntegrity,
             )
         }.flow
-    }
+    }.cachedIn(scope)
 
     fun setFilter(sort: String?, tags: Array<String>?, languages: Array<String>?) {
         filter.value = TopStreamsFilter(sort, tags, languages)
@@ -93,9 +94,5 @@ class TopStreamsBrowseController(
         const val SORT_VIEWERS = "viewers"
         const val SORT_VIEWERS_ASC = "viewers_asc"
         const val RECENT = "recent"
-    }
-
-    init {
-        requireNotNull(scope)
     }
 }

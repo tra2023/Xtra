@@ -1,13 +1,12 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
-import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
 
 /**
  * Dialog action buttons of the message dialog, replacing `updateButtons`:
- * reply ([R.string.reply]), copy the message ([R.string.copy_message]), copy the IRC clip
- * ([R.string.copy_clip]), copy the full IRC message ([R.string.copy_fullmsg]) and, when the
- * user lookup failed, view the profile ([R.string.view_profile]).
+ * reply, copy the message, copy the IRC clip, copy the full IRC message and, when the
+ * user lookup failed, view the profile. Labels arrive from the platform through
+ * [ButtonLabelContext].
  */
 fun messageClickedButtons(
     context: ButtonLabelContext,

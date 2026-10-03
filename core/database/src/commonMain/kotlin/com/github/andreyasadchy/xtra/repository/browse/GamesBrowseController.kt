@@ -3,6 +3,7 @@ package com.github.andreyasadchy.xtra.repository.browse
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
@@ -22,12 +23,13 @@ import kotlinx.coroutines.flow.flatMapLatest
  * Differences from the Android version:
  * - No `Context` / `XtraApp` factory. Takes [settings] + repositories directly.
  * - No `androidx.lifecycle.ViewModel` base (so it compiles on JVM desktop without
- *   lifecycle artifacts). Android wraps it: `GamesViewModel` delegates its `flow`
- *   to this controller using `viewModelScope`; desktop passes its own scope.
- * - Paging setup identical: pageSize 30, prefetch 10, same `GamesDataSource`.
+ *   lifecycle artifacts). Android wraps it: `GamesViewModel` delegates to this controller
+ *   with `viewModelScope`; desktop passes its own scope.
+ * - Paging setup identical: pageSize 30, prefetch 10, same `GamesDataSource`, cached in
+ *   [scope] so the pager survives recomposition/config changes.
  */
 class GamesBrowseController(
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
     private val settings: XtraSettings,
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
@@ -50,16 +52,11 @@ class GamesBrowseController(
                 enableIntegrity = config.enableIntegrity,
             )
         }.flow
-    }
+    }.cachedIn(scope)
 
     fun setFilter(tags: Array<Tag>?) {
         filter.value = GamesFilter(tags)
     }
 
     class GamesFilter(val tags: Array<Tag>?)
-
-    // Keep scope referenced so callers pass viewModelScope / desktop scope.
-    init {
-        requireNotNull(scope)
-    }
 }

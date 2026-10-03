@@ -24,16 +24,19 @@ import com.github.andreyasadchy.xtra.model.chat.ChatMessage
 import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.ui.chat.MessageClickedViewModel.Companion.MessageClickedViewModelFactory
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
+import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.formatChatDate
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.time.Instant
 
 class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listener {
 
@@ -95,24 +98,48 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
             setContent {
                 val theme = rememberThemeId()
                 XtraTheme(themeId = theme) {
-                    MessageClickedScreenContent(
-                        chatState = state,
-                        messagingEnabled = messagingEnabled,
-                        inspectedUser = inspectedUser,
-                        userFailed = userFailed,
-                        padding = padding,
-                        onReply = ::onReplyButton,
-                        onCopyMessage = ::onCopyMessageButton,
-                        onCopyClip = ::onCopyClipButton,
-                        onCopyFullMsg = ::onCopyFullMsgButton,
-                        onViewProfile = ::onViewProfileButton,
-                        onReplyThread = { message -> listener.onReplyThreadClicked(message) },
-                        onImageClick = ::onImageClick,
-                    )
+                    ProvideXtraLocals(activity) {
+                        MessageClickedScreenContent(
+                            chatState = state,
+                            messagingEnabled = messagingEnabled,
+                            inspectedUser = inspectedUser,
+                            userFailed = userFailed,
+                            labels = buttonLabels(),
+                            createdAtLabel = createdAtLabel,
+                            followedAtLabel = followedAtLabel,
+                            padding = padding,
+                            onReply = ::onReplyButton,
+                            onCopyMessage = ::onCopyMessageButton,
+                            onCopyClip = ::onCopyClipButton,
+                            onCopyFullMsg = ::onCopyFullMsgButton,
+                            onViewProfile = ::onViewProfileButton,
+                            onReplyThread = { message -> listener.onReplyThreadClicked(message) },
+                            onImageClick = ::onImageClick,
+                        )
+                    }
                 }
             }
         }
     }
+
+    private fun buttonLabels() = ButtonLabelContext(
+        reply = getString(R.string.reply),
+        copyMessage = getString(R.string.copy_message),
+        copyClip = getString(R.string.copy_clip),
+        copyFullMsg = getString(R.string.copy_fullmsg),
+        viewProfile = getString(R.string.view_profile),
+    )
+
+    private val createdAtLabel: (String?) -> String = { value ->
+        getString(R.string.created_at, formatHeaderTimestamp(value))
+    }
+
+    private val followedAtLabel: (String?) -> String = { value ->
+        getString(R.string.followed_at, formatHeaderTimestamp(value))
+    }
+
+    private fun formatHeaderTimestamp(value: String?): String? =
+        value?.let { Instant.parseOrNull(it)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let { ms -> formatChatDate(ms) } }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)

@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat.getSystemService
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.ChatImage
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
+import com.github.andreyasadchy.xtra.ui.common.ProvideXtraLocals
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.rememberThemeId
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -60,20 +61,31 @@ class ReplyClickedDialog : BottomSheetDialogFragment() {
             setContent {
                 val theme = rememberThemeId()
                 XtraTheme(themeId = theme) {
-                    ReplyClickedScreenContent(
-                        chatState = state,
-                        messagingEnabled = messagingEnabled,
-                        padding = padding,
-                        onReply = ::onReplyButton,
-                        onCopyMessage = ::onCopyMessageButton,
-                        onCopyClip = ::onCopyClipButton,
-                        onCopyFullMsg = ::onCopyFullMsgButton,
-                        onImageClick = ::onImageClick,
-                    )
+                    ProvideXtraLocals(activity) {
+                        ReplyClickedScreenContent(
+                            chatState = state,
+                            messagingEnabled = messagingEnabled,
+                            labels = buttonLabels(),
+                            padding = padding,
+                            onReply = ::onReplyButton,
+                            onCopyMessage = ::onCopyMessageButton,
+                            onCopyClip = ::onCopyClipButton,
+                            onCopyFullMsg = ::onCopyFullMsgButton,
+                            onImageClick = ::onImageClick,
+                        )
+                    }
                 }
             }
         }
     }
+
+    private fun buttonLabels() = ButtonLabelContext(
+        reply = getString(R.string.reply),
+        copyMessage = getString(R.string.copy_message),
+        copyClip = getString(R.string.copy_clip),
+        copyFullMsg = getString(R.string.copy_fullmsg),
+        viewProfile = getString(R.string.view_profile),
+    )
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)

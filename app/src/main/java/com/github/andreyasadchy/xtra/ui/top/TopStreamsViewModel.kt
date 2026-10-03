@@ -6,86 +6,53 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.paging.Pager
-import androidx.paging.PagingConfig
-import androidx.paging.cachedIn
 import com.github.andreyasadchy.xtra.XtraApp
-import com.github.andreyasadchy.xtra.graphql.type.Language
-import com.github.andreyasadchy.xtra.graphql.type.StreamSort
 import com.github.andreyasadchy.xtra.model.ui.GameSort
 import com.github.andreyasadchy.xtra.model.ui.SavedFilter
-import com.github.andreyasadchy.xtra.model.ui.StreamsSort
 import com.github.andreyasadchy.xtra.repository.GameSortRepository
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.SavedFiltersRepository
-import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
-import com.github.andreyasadchy.xtra.repository.datasource.StreamsDataSource
+import com.github.andreyasadchy.xtra.repository.browse.TopStreamsBrowseController
 import com.github.andreyasadchy.xtra.settings.AndroidXtraSettings
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
 
+/**
+ * Android shell around the shared [TopStreamsBrowseController]: the paging logic lives in
+ * `:core:database`. The sort/filter repositories stay here because they are only used by the
+ * dialog plumbing in `TopStreamsFragment`.
+ */
 class TopStreamsViewModel(
     applicationContext: Context,
     private val gameSortRepository: GameSortRepository,
     private val savedFiltersRepository: SavedFiltersRepository,
-    private val graphQLRepository: GraphQLRepository,
-    private val helixRepository: HelixRepository,
+    graphQLRepository: GraphQLRepository,
+    helixRepository: HelixRepository,
 ) : ViewModel() {
 
-    val filter = MutableStateFlow<Filter?>(null)
+    private val controller = TopStreamsBrowseController(
+        scope = viewModelScope,
+        settings = AndroidXtraSettings(applicationContext.prefs(), applicationContext.tokenPrefs()),
+        graphQLRepository = graphQLRepository,
+        helixRepository = helixRepository,
+    )
+
+    val flow = controller.flow
+
+    val filter: MutableStateFlow<TopStreamsBrowseController.TopStreamsFilter?>
+        get() = controller.filter
+
     val sortText = MutableStateFlow<CharSequence?>(null)
     val filtersText = MutableStateFlow<CharSequence?>(null)
 
     val sort: String
-        get() = filter.value?.sort ?: StreamsSort.SORT_VIEWERS
+        get() = controller.sort
     val tags: Array<String>
-        get() = filter.value?.tags ?: emptyArray()
+        get() = controller.tags
     val languages: Array<String>
-        get() = filter.value?.languages ?: emptyArray()
-
-    // Shared KMP auth/config path (same headers as TwitchApiHelper, no behavior change).
-    private val sharedSettings = AndroidXtraSettings(applicationContext.prefs(), applicationContext.tokenPrefs())
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val flow = filter.flatMapLatest {
-        val config = SharedAuthHeaders.loadConfig(sharedSettings)
-        Pager(
-            if (config.compactStreams == "all") {
-                PagingConfig(pageSize = 30, prefetchDistance = 10, initialLoadSize = 30)
-            } else {
-                PagingConfig(pageSize = 30, prefetchDistance = 3, initialLoadSize = 30)
-            }
-        ) {
-            StreamsDataSource(
-                gqlQueryLanguages = languages.ifEmpty { null }?.mapNotNull { language ->
-                    Language.entries.find { it.rawValue == language }
-                },
-                gqlQuerySort = when (sort) {
-                    StreamsSort.SORT_VIEWERS -> StreamSort.VIEWER_COUNT
-                    StreamsSort.SORT_VIEWERS_ASC -> StreamSort.VIEWER_COUNT_ASC
-                    StreamsSort.RECENT -> StreamSort.RECENT
-                    else -> StreamSort.VIEWER_COUNT
-                },
-                gqlLanguages = languages.ifEmpty { null }?.toList(),
-                gqlSort = when (sort) {
-                    StreamsSort.SORT_VIEWERS -> "VIEWER_COUNT"
-                    StreamsSort.SORT_VIEWERS_ASC -> "VIEWER_COUNT_ASC"
-                    StreamsSort.RECENT -> "RECENT"
-                    else -> "VIEWER_COUNT"
-                },
-                tags = tags.ifEmpty { null }?.toList(),
-                gqlHeaders = SharedAuthHeaders.gqlHeaders(config),
-                graphQLRepository = graphQLRepository,
-                helixHeaders = SharedAuthHeaders.helixHeaders(config),
-                helixRepository = helixRepository,
-                enableIntegrity = config.enableIntegrity,
-            )
-        }.flow
-    }.cachedIn(viewModelScope)
+        get() = controller.languages
 
     suspend fun getGameSort(id: String): GameSort? {
         return gameSortRepository.getById(id)
@@ -100,14 +67,8 @@ class TopStreamsViewModel(
     }
 
     fun setFilter(sort: String?, tags: Array<String>?, languages: Array<String>?) {
-        filter.value = Filter(sort, tags, languages)
+        controller.setFilter(sort, tags, languages)
     }
-
-    class Filter(
-        val sort: String?,
-        val tags: Array<String>?,
-        val languages: Array<String>?,
-    )
 
     companion object {
         val TopStreamsViewModelFactory = viewModelFactory {
