@@ -209,13 +209,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             clear.visibility = visible
                         })
                         editText.setTokenizer(SpaceTokenizer())
-                        editText.setOnKeyListener { _, keyCode, event ->
-                            if (ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) {
-                                sendMessage()
-                            } else {
-                                false
-                            }
-                        }
+                        editText.setOnKeyListener(sendOnEnterListener { sendMessage() })
                         clear.setOnClickListener {
                             editText.setText(ChatInput.textAfterDeletingLastWord(editText.text.toString()))
                             editText.setSelection(editText.length())
@@ -823,6 +817,20 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
         binding.editText.text.append(ChatDraft.afterAppendEmote("", name))
     }
 
+    /**
+     * The Enter-key listener the composer installs, sharing the predicate with the other three
+     * call sites. `setOnKeyListener` returns the value of its last statement, so the lambda must
+     * yield a Boolean (true when the event was handled).
+     */
+    private fun sendOnEnterListener(onSend: () -> Boolean): View.OnKeyListener =
+        View.OnKeyListener { _, keyCode, event ->
+            if (ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) {
+                onSend()
+            } else {
+                false
+            }
+        }
+
     private fun sendMessage(replyId: String? = null): Boolean {
         with(binding) {
             (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editText.windowToken, 0)
@@ -830,13 +838,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             toggleEmoteMenu(false)
             replyView.visibility = View.GONE
             send.setOnClickListener { sendMessage() }
-            editText.setOnKeyListener { _, keyCode, event ->
-                            if (ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) {
-                                sendMessage()
-                            } else {
-                                false
-                            }
-                        }
+            editText.setOnKeyListener(sendOnEnterListener { sendMessage() })
             val text = ChatDraft.consume(editText.text.toString())
             editText.text.clear()
             return if (text != null) {
@@ -977,24 +979,13 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                     format = { name, text -> getString(R.string.replying_to_message, name, text) },
                 ).orEmpty()
                 replyClose.setOnClickListener {
+                    // Back to a plain message: the reply is cancelled, so send forgets its id.
                     replyView.visibility = View.GONE
                     send.setOnClickListener { sendMessage() }
-                    editText.setOnKeyListener { _, keyCode, event ->
-                            if (ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) {
-                                sendMessage()
-                            } else {
-                                false
-                            }
-                        }
+                    editText.setOnKeyListener(sendOnEnterListener { sendMessage() })
                 }
                 send.setOnClickListener { sendMessage(replyId) }
-                editText.setOnKeyListener { _, keyCode, event ->
-                            if (ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) {
-                                sendMessage(replyId)
-                            } else {
-                                false
-                            }
-                        }
+                editText.setOnKeyListener(sendOnEnterListener { sendMessage(replyId) })
             }
             editText.apply {
                 requestFocus()
