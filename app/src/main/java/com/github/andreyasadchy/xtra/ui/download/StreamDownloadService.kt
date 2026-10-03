@@ -42,6 +42,8 @@ import com.github.andreyasadchy.xtra.util.VideoQualityUtils
 import com.github.andreyasadchy.xtra.util.chat.ChatReadWebSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatUtils
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
+import com.github.andreyasadchy.xtra.util.m3u8.parseMediaPlaylist
+import com.github.andreyasadchy.xtra.util.m3u8.writeMediaPlaylist
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

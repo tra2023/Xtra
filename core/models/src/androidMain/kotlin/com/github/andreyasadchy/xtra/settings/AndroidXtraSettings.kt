@@ -58,6 +58,14 @@ class AndroidXtraSettings(
         }
     }
 
+    override fun getLong(key: String, default: Long): Long {
+        return try {
+            if (key in tokenKeys) tokenPrefs.getLong(key, prefs.getLong(key, default)) else prefs.getLong(key, default)
+        } catch (e: ClassCastException) {
+            getString(key, null)?.toLongOrNull() ?: default
+        }
+    }
+
     override fun putString(key: String, value: String?) {
         if (key in tokenKeys) {
             tokenPrefs.edit().apply {
@@ -76,6 +84,14 @@ class AndroidXtraSettings(
 
     override fun putInt(key: String, value: Int) {
         prefs.edit().putInt(key, value).apply()
+    }
+
+    override fun putLong(key: String, value: Long) {
+        if (key in tokenKeys) {
+            tokenPrefs.edit().putLong(key, value).apply()
+        } else {
+            prefs.edit().putLong(key, value).apply()
+        }
     }
 
     override fun remove(key: String) {

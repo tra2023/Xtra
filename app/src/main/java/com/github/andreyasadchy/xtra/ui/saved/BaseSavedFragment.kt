@@ -45,7 +45,7 @@ import com.github.andreyasadchy.xtra.ui.common.TabDropdown
 import com.github.andreyasadchy.xtra.ui.common.XtraTopBar
 import com.github.andreyasadchy.xtra.ui.login.LoginActivity
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
-import com.github.andreyasadchy.xtra.ui.saved.SavedPagerViewModel.Companion.SavedPagerViewModelFactory
+import com.github.andreyasadchy.xtra.ui.saved.SavedPagerViewModelFactory
 import com.github.andreyasadchy.xtra.ui.saved.bookmarks.BookmarksFragment
 import com.github.andreyasadchy.xtra.ui.saved.downloads.DownloadsFragment
 import com.github.andreyasadchy.xtra.ui.saved.filters.FiltersFragment

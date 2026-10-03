@@ -23,6 +23,9 @@ class JvmXtraSettings(
     override fun getInt(key: String, default: Int): Int =
         prefs.get(key, null)?.toIntOrNull() ?: prefs.getInt(key, default)
 
+    override fun getLong(key: String, default: Long): Long =
+        prefs.get(key, null)?.toLongOrNull() ?: prefs.getLong(key, default)
+
     override fun putString(key: String, value: String?) {
         if (value == null) prefs.remove(key) else prefs.put(key, value)
     }
@@ -33,6 +36,10 @@ class JvmXtraSettings(
 
     override fun putInt(key: String, value: Int) {
         prefs.putInt(key, value)
+    }
+
+    override fun putLong(key: String, value: Long) {
+        prefs.putLong(key, value)
     }
 
     override fun remove(key: String) {

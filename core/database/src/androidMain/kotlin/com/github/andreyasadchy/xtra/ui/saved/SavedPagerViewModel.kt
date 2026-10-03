@@ -1,15 +1,10 @@
 package com.github.andreyasadchy.xtra.ui.saved
 
-import android.content.Context
+import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
-import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.util.chat.parseVideoMetadataFromChatJson
@@ -21,18 +16,30 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
+/**
+ * Import of already-downloaded files into the offline library. Lives in `:core:database`'s Android
+ * source set because enumerating a directory tree needs `DocumentsContract` against a
+ * `ContentResolver`; the Android host supplies the resolver from its Context.
+ */
 class SavedPagerViewModel(
-    private val applicationContext: Context,
+    private val contentResolver: ContentResolver,
     private val offlineVideosRepository: OfflineVideosRepository,
 ) : ViewModel() {
 
+    private fun readText(uri: String): String? =
+        try {
+            contentResolver.openInputStream(Uri.parse(uri))?.bufferedReader()?.use { it.readText() }
+        } catch (e: Exception) {
+            null
+        }
+
     fun saveFolders(url: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val documentId = DocumentsContract.getTreeDocumentId(url.toUri())
-            val directoryUri = DocumentsContract.buildDocumentUriUsingTree(url.toUri(), documentId)
+            val documentId = DocumentsContract.getTreeDocumentId(Uri.parse(url))
+            val directoryUri = DocumentsContract.buildDocumentUriUsingTree(Uri.parse(url), documentId)
             val directoryUris = mutableListOf<Uri>()
             val chatFiles = mutableMapOf<String, String>()
-            applicationContext.contentResolver.query(
+            contentResolver.query(
                 DocumentsContract.buildChildDocumentsUriUsingTree(directoryUri, documentId),
                 arrayOf(
                     DocumentsContract.Document.COLUMN_DOCUMENT_ID,
@@ -56,7 +63,7 @@ class SavedPagerViewModel(
             }
             val playlistFileUris = mutableListOf<Uri>()
             directoryUris.forEach { uri ->
-                applicationContext.contentResolver.query(
+                contentResolver.query(
                     uri,
                     arrayOf(
                         DocumentsContract.Document.COLUMN_DOCUMENT_ID,
@@ -81,23 +88,18 @@ class SavedPagerViewModel(
                 if (existingVideo == null) {
                     val videoDirectoryUri = uri.toString().substringBeforeLast("%2F")
                     val videoDirectoryName = videoDirectoryUri.substringAfterLast("%2F").substringAfterLast("%3A")
-                    val playlist = applicationContext.contentResolver.openInputStream(uri)!!.use {
+                    val playlist = contentResolver.openInputStream(uri)!!.use {
                         PlaylistUtils.parseMediaPlaylist(it)
                     }
                     val totalDuration = DownloadPlaylists.totalDurationMs(playlist.segments)
                     val mapUri = { uri: String -> videoDirectoryUri + "%2F" + DownloadPlaylists.basename(uri) }
                     val segments = DownloadPlaylists.remapSegments(playlist.segments, mapUri)
-                    applicationContext.contentResolver.openOutputStream(uri)!!.use {
+                    contentResolver.openOutputStream(uri)!!.use {
                         PlaylistUtils.writeMediaPlaylist(playlist.copy(initSegmentUri = playlist.initSegmentUri?.let(mapUri), segments = segments), it)
                     }
                     val chatFileUri = chatFiles[videoDirectoryName + uri.toString().substringAfterLast("%2F").removeSuffix(".m3u8")]
                     val metadata = chatFileUri?.let { chatUri ->
-                        try {
-                            applicationContext.contentResolver.openInputStream(chatUri.toUri())?.bufferedReader()?.use { it.readText() }
-                                ?.let { parseVideoMetadataFromChatJson(it) }
-                        } catch (e: Exception) {
-                            null
-                        }
+                        readText(chatUri)?.let { parseVideoMetadataFromChatJson(it) }
                     }
                     offlineVideosRepository.save(OfflineVideo(
                         url = uri.toString(),
@@ -134,14 +136,7 @@ class SavedPagerViewModel(
                 if (existingVideo == null) {
                     val fileName = url.substringAfterLast("%2F").substringAfterLast("%3A").removeSuffix(".mp4").removeSuffix(".ts")
                     val chatFile = chatFiles[fileName]
-                    val metadata = chatFile?.let { uri ->
-                        try {
-                            applicationContext.contentResolver.openInputStream(uri.toUri())?.bufferedReader()?.use { it.readText() }
-                                ?.let { parseVideoMetadataFromChatJson(it) }
-                        } catch (e: Exception) {
-                            null
-                        }
-                    }
+                    val metadata = chatFile?.let { uri -> readText(uri)?.let { parseVideoMetadataFromChatJson(it) } }
                     offlineVideosRepository.save(
                         OfflineVideo(
                             url = url,
@@ -162,16 +157,6 @@ class SavedPagerViewModel(
                         )
                     )
                 }
-            }
-        }
-    }
-
-    companion object {
-        val SavedPagerViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                SavedPagerViewModel(application.applicationContext, xtraModule.offlineVideosRepository)
             }
         }
     }
