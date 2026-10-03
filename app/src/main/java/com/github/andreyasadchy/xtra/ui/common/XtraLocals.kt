@@ -81,6 +81,13 @@ fun Context.xtraStrings(): XtraStrings {
         followers = { count -> resources.getQuantityString(R.plurals.followers, count, TwitchFormats.formatCount(count, truncate)) },
         uptime = { getString(R.string.uptime, it) },
         videoType = { type -> TwitchApiHelper.getType(this, type) },
+        createdAt = { getString(R.string.created_at, it) },
+        lastBroadcastDate = { getString(R.string.last_broadcast_date, it) },
+        openPlayer = getString(R.string.open_player),
+        watchLive = getString(R.string.watch_live),
+        userPartner = getString(R.string.user_partner),
+        userAffiliate = getString(R.string.user_affiliate),
+        userStaff = getString(R.string.user_staff),
     )
 }
 

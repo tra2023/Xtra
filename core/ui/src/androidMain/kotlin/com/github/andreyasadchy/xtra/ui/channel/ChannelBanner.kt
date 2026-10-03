@@ -20,10 +20,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.ui.XtraAsyncImage
@@ -97,7 +95,7 @@ fun ChannelBannerContent(
                     val createdAt = remember(user?.createdAt) { user?.createdAt.toChatDate() }
                     if (createdAt != null) {
                         Text(
-                            text = stringResource(R.string.created_at, createdAt),
+                            text = strings.createdAt(createdAt),
                             style = MaterialTheme.typography.bodyMedium.withBannerShadow(onBanner),
                             color = if (onBanner) Color.LightGray else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -111,12 +109,12 @@ fun ChannelBannerContent(
                         )
                     }
                     val broadcasterType = when (user?.broadcasterType?.lowercase()) {
-                        "partner" -> stringResource(R.string.user_partner)
-                        "affiliate" -> stringResource(R.string.user_affiliate)
+                        "partner" -> strings.userPartner
+                        "affiliate" -> strings.userAffiliate
                         else -> null
                     }
                     val type = when (user?.type?.lowercase()) {
-                        "staff" -> stringResource(R.string.user_staff)
+                        "staff" -> strings.userStaff
                         else -> null
                     }
                     val typeString = if (broadcasterType != null && type != null) "$broadcasterType, $type" else broadcasterType ?: type
@@ -166,7 +164,7 @@ fun ChannelBannerContent(
             val lastBroadcast = remember(user?.lastBroadcast) { user?.lastBroadcast.toChatDate() }
             if (lastBroadcast != null) {
                 Text(
-                    text = stringResource(R.string.last_broadcast_date, lastBroadcast),
+                    text = strings.lastBroadcastDate(lastBroadcast),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
@@ -178,7 +176,7 @@ fun ChannelBannerContent(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = stringResource(if (viewerCount != null) R.string.watch_live else R.string.open_player),
+                text = if (viewerCount != null) strings.watchLive else strings.openPlayer,
                 style = MaterialTheme.typography.titleMedium.copy(textAlign = TextAlign.Center),
             )
         }

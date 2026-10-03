@@ -23,6 +23,14 @@ data class XtraStrings(
     val followers: (Int) -> String,
     val uptime: (String) -> String,
     val videoType: (String?) -> String?,
+    // Channel header (see ChannelBannerContent).
+    val createdAt: (String?) -> String,
+    val lastBroadcastDate: (String?) -> String,
+    val openPlayer: String,
+    val watchLive: String,
+    val userPartner: String,
+    val userAffiliate: String,
+    val userStaff: String,
 )
 
 val LocalXtraStrings = staticCompositionLocalOf<XtraStrings> {
