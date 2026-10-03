@@ -68,11 +68,11 @@ import com.github.andreyasadchy.xtra.ui.common.xtraBottomInset
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
 import com.github.andreyasadchy.xtra.ui.following.channels.FollowedChannelsSortDialog
 import com.github.andreyasadchy.xtra.ui.following.channels.FollowedChannelsViewModel
-import com.github.andreyasadchy.xtra.ui.following.channels.FollowedChannelsViewModel.Companion.FollowedChannelsViewModelFactory
+import com.github.andreyasadchy.xtra.ui.following.channels.FollowedChannelsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.following.games.FollowedGamesViewModel
-import com.github.andreyasadchy.xtra.ui.following.games.FollowedGamesViewModel.Companion.FollowedGamesViewModelFactory
+import com.github.andreyasadchy.xtra.ui.following.games.FollowedGamesViewModelFactory
 import com.github.andreyasadchy.xtra.ui.following.streams.FollowedStreamsViewModel
-import com.github.andreyasadchy.xtra.ui.following.streams.FollowedStreamsViewModel.Companion.FollowedStreamsViewModelFactory
+import com.github.andreyasadchy.xtra.ui.following.streams.FollowedStreamsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.following.videos.FollowedVideosViewModel
 import com.github.andreyasadchy.xtra.ui.following.videos.FollowedVideosViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections

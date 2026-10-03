@@ -1,15 +1,10 @@
 package com.github.andreyasadchy.xtra.ui.following.channels
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.ChannelSort
 import com.github.andreyasadchy.xtra.model.ui.FollowedChannelsSort
 import com.github.andreyasadchy.xtra.repository.BookmarksRepository
@@ -18,17 +13,20 @@ import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
+import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
 import com.github.andreyasadchy.xtra.repository.datasource.FollowedChannelsDataSource
+import com.github.andreyasadchy.xtra.settings.XtraSettings
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import com.github.andreyasadchy.xtra.util.prefs
-import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 
+/**
+ * Followed channels tab. Takes [settings] instead of a Context. The query is viewer-scoped, so the
+ * GQL headers include the token, exactly as the original `TwitchApiHelper.getGQLHeaders(ctx, true)`.
+ */
 class FollowedChannelsViewModel(
-    private val applicationContext: Context,
+    private val settings: XtraSettings,
     private val channelSortRepository: ChannelSortRepository,
     private val localChannelFollowsRepository: LocalChannelFollowsRepository,
     private val offlineVideosRepository: OfflineVideosRepository,
@@ -47,11 +45,12 @@ class FollowedChannelsViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {
+        val config = SharedAuthHeaders.loadConfig(settings)
         Pager(
             PagingConfig(pageSize = 15, prefetchDistance = 5, initialLoadSize = 15)
         ) {
             FollowedChannelsDataSource(
-                userId = applicationContext.tokenPrefs().getString(C.USER_ID, null),
+                userId = settings.getString(C.USER_ID, null),
                 sort = when (sort) {
                     FollowedChannelsSort.SORT_FOLLOWED_AT -> "created_at"
                     FollowedChannelsSort.SORT_ALPHABETICALLY -> "login"
@@ -66,11 +65,11 @@ class FollowedChannelsViewModel(
                 localChannelFollowsRepository = localChannelFollowsRepository,
                 offlineVideosRepository = offlineVideosRepository,
                 bookmarksRepository = bookmarksRepository,
-                gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext, true),
+                gqlHeaders = SharedAuthHeaders.gqlHeaders(config, includeToken = true),
                 graphQLRepository = graphQLRepository,
-                helixHeaders = TwitchApiHelper.getHelixHeaders(applicationContext),
+                helixHeaders = SharedAuthHeaders.helixHeaders(config),
                 helixRepository = helixRepository,
-                enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
+                enableIntegrity = config.enableIntegrity,
             )
         }.flow
     }.cachedIn(viewModelScope)
@@ -91,14 +90,4 @@ class FollowedChannelsViewModel(
         val sort: String?,
         val order: String?,
     )
-
-    companion object {
-        val FollowedChannelsViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                FollowedChannelsViewModel(application.applicationContext, xtraModule.channelSortRepository, xtraModule.localChannelFollowsRepository, xtraModule.offlineVideosRepository, xtraModule.bookmarksRepository, xtraModule.graphQLRepository, xtraModule.helixRepository)
-            }
-        }
-    }
 }
