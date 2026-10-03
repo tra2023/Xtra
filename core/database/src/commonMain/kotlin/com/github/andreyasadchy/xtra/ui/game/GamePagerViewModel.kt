@@ -1,13 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.game
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.LocalGameFollow
 import com.github.andreyasadchy.xtra.model.ui.Tag
@@ -17,7 +11,7 @@ import com.github.andreyasadchy.xtra.repository.LocalGameFollowsRepository
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.repository.XtraHttpClient
 import com.github.andreyasadchy.xtra.repository.getBytesOrNull
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.TwitchImageUrls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,12 +24,12 @@ class GamePagerViewModel(
     private val helixRepository: HelixRepository,
     private val localGameFollowsRepository: LocalGameFollowsRepository,
     private val xtraHttpClient: XtraHttpClient,
-    savedStateHandle: SavedStateHandle,
+    private val gameId: String?,
+    private val gameSlug: String?,
+    private val gameName: String?,
 ) : ViewModel() {
 
     val integrity = MutableSharedFlow<String?>()
-
-    private val args = GamePagerFragmentArgs.fromSavedStateHandle(savedStateHandle)
     private val _isFollowing = MutableStateFlow<Boolean?>(null)
     val isFollowing: StateFlow<Boolean?> = _isFollowing
     val follow = MutableStateFlow<Pair<Boolean, String?>?>(null)
@@ -50,9 +44,9 @@ class GamePagerViewModel(
                 _game.value = try {
                     val response = graphQLRepository.loadQueryGame(
                         headers = gqlHeaders,
-                        id = args.gameId,
-                        slug = args.gameSlug.takeIf { args.gameId.isNullOrBlank() },
-                        name = args.gameName.takeIf { args.gameId.isNullOrBlank() && args.gameSlug.isNullOrBlank() },
+                        id = gameId,
+                        slug = gameSlug.takeIf { gameId.isNullOrBlank() },
+                        name = gameName.takeIf { gameId.isNullOrBlank() && gameSlug.isNullOrBlank() },
                     )
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
@@ -82,8 +76,8 @@ class GamePagerViewModel(
                         try {
                             helixRepository.getGames(
                                 headers = helixHeaders,
-                                ids = args.gameId?.let { listOf(it) },
-                                names = if (args.gameId.isNullOrBlank()) args.gameName?.let { listOf(it) } else null
+                                ids = gameId?.let { listOf(it) },
+                                names = if (gameId.isNullOrBlank()) gameName?.let { listOf(it) } else null
                             ).data.firstOrNull()?.let {
                                 Game(
                                     id = it.id,
@@ -154,7 +148,7 @@ class GamePagerViewModel(
                                             ids = listOf(gameId)
                                         ).data.firstOrNull()?.boxArtURL
                                     } else null
-                                }.takeIf { !it.isNullOrBlank() }?.let { TwitchApiHelper.getGameBoxArt(it) }?.let { url ->
+                                }.takeIf { !it.isNullOrBlank() }?.let { TwitchImageUrls.getGameBoxArt(it) }?.let { url ->
                                     xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                                 }
                             } catch (e: Exception) {
@@ -221,7 +215,7 @@ class GamePagerViewModel(
                                         ids = listOf(gameId)
                                     ).data.firstOrNull()?.boxArtURL
                                 } else null
-                            }.takeIf { !it.isNullOrBlank() }?.let { TwitchApiHelper.getGameBoxArt(it) }?.let { url ->
+                            }.takeIf { !it.isNullOrBlank() }?.let { TwitchImageUrls.getGameBoxArt(it) }?.let { url ->
                                 xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
                             }
                         } catch (e: Exception) {
@@ -239,14 +233,4 @@ class GamePagerViewModel(
         }
     }
 
-    companion object {
-        val GamePagerViewModelFactory = viewModelFactory {
-            initializer {
-                val savedStateHandle = createSavedStateHandle()
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                GamePagerViewModel(xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.localGameFollowsRepository, xtraModule.xtraHttpClient, savedStateHandle)
-            }
-        }
-    }
 }

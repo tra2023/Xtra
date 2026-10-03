@@ -23,7 +23,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.Tag
-import com.github.andreyasadchy.xtra.ui.common.SearchTagsViewModel.Companion.SearchTagsViewModelFactory
+import com.github.andreyasadchy.xtra.ui.common.SearchTagsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.search.TagSearchContent
 import com.github.andreyasadchy.xtra.ui.search.TagSearchLoadState
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme

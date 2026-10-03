@@ -1,13 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.channel
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.NotificationUser
 import com.github.andreyasadchy.xtra.model.ShownNotification
 import com.github.andreyasadchy.xtra.model.ui.LocalChannelFollow
@@ -39,12 +33,11 @@ class ChannelPagerViewModel(
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
     private val xtraHttpClient: XtraHttpClient,
-    savedStateHandle: SavedStateHandle,
+    private val channelId: String?,
+    private val channelLogin: String?,
 ) : ViewModel() {
 
     val integrity = MutableSharedFlow<String?>()
-
-    private val args = ChannelPagerFragmentArgs.fromSavedStateHandle(savedStateHandle)
     private val _notificationsEnabled = MutableStateFlow<Boolean?>(null)
     val notificationsEnabled: StateFlow<Boolean?> = _notificationsEnabled
     val notifications = MutableStateFlow<Pair<Boolean, String?>?>(null)
@@ -62,7 +55,7 @@ class ChannelPagerViewModel(
         if (_stream.value == null) {
             viewModelScope.launch {
                 try {
-                    val response = graphQLRepository.loadQueryUserChannelPage(gqlHeaders, args.channelId, if (args.channelId.isNullOrBlank()) args.channelLogin else null)
+                    val response = graphQLRepository.loadQueryUserChannelPage(gqlHeaders, channelId, if (channelId.isNullOrBlank()) channelLogin else null)
                     if (enableIntegrity) {
                         response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
                             integrity.emit("refresh")
@@ -109,8 +102,8 @@ class ChannelPagerViewModel(
                         try {
                             helixRepository.getStreams(
                                 headers = helixHeaders,
-                                ids = args.channelId?.let { listOf(it) },
-                                logins = if (args.channelId.isNullOrBlank()) args.channelLogin?.let { listOf(it) } else null
+                                ids = channelId?.let { listOf(it) },
+                                logins = if (channelId.isNullOrBlank()) channelLogin?.let { listOf(it) } else null
                             ).data.firstOrNull()?.let {
                                 _stream.value = Stream(
                                     id = it.id,
@@ -128,8 +121,8 @@ class ChannelPagerViewModel(
                             }
                             helixRepository.getUsers(
                                 headers = helixHeaders,
-                                ids = args.channelId?.let { listOf(it) },
-                                logins = if (args.channelId.isNullOrBlank()) args.channelLogin?.let { listOf(it) } else null
+                                ids = channelId?.let { listOf(it) },
+                                logins = if (channelId.isNullOrBlank()) channelLogin?.let { listOf(it) } else null
                             ).data.firstOrNull()?.let {
                                 _user.value = User(
                                     id = it.id,
@@ -385,14 +378,4 @@ class ChannelPagerViewModel(
         }
     }
 
-    companion object {
-        val ChannelPagerViewModelFactory = viewModelFactory {
-            initializer {
-                val savedStateHandle = createSavedStateHandle()
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                ChannelPagerViewModel(xtraModule.localChannelFollowsRepository, xtraModule.offlineVideosRepository, xtraModule.bookmarksRepository, xtraModule.notificationsRepository, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.xtraHttpClient, savedStateHandle)
-            }
-        }
-    }
 }

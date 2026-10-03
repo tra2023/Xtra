@@ -62,7 +62,7 @@ import com.github.andreyasadchy.xtra.model.ui.Clip
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.model.ui.Video
-import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerViewModel.Companion.ChannelPagerViewModelFactory
+import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerViewModelFactory
 import com.github.andreyasadchy.xtra.ui.channel.about.ChannelAboutFragment
 import com.github.andreyasadchy.xtra.ui.channel.clips.ChannelClipsViewModel
 import com.github.andreyasadchy.xtra.ui.channel.clips.ChannelClipsViewModelFactory

@@ -1,11 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.saved.bookmarks
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.Bookmark
 import com.github.andreyasadchy.xtra.model.ui.BookmarkIgnoredUser
 import com.github.andreyasadchy.xtra.model.ui.BookmarksSort
@@ -25,6 +21,12 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+
+/**
+ * Bookmarks screen. Already platform-agnostic (the refresh work lives in
+ * [BookmarksRefreshController]); it moved to `:core:database` because its paging source and file
+ * writes are all repository-level, and the Android host only needs to supply the factory.
+ */
 class BookmarksViewModel(
     graphQLRepository: GraphQLRepository,
     helixRepository: HelixRepository,
@@ -116,14 +118,4 @@ class BookmarksViewModel(
         val sort: String?,
         val order: String?,
     )
-
-    companion object {
-        val BookmarksViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                BookmarksViewModel(xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.bookmarksRepository, xtraModule.channelSortRepository, xtraModule.playerRepository, xtraModule.xtraHttpClient)
-            }
-        }
-    }
 }

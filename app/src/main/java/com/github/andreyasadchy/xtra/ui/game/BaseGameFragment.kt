@@ -72,7 +72,7 @@ import com.github.andreyasadchy.xtra.ui.common.rememberCollapseConnection
 import com.github.andreyasadchy.xtra.ui.common.streamsCompact
 import com.github.andreyasadchy.xtra.ui.common.xtraBottomInset
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
-import com.github.andreyasadchy.xtra.ui.game.GamePagerViewModel.Companion.GamePagerViewModelFactory
+import com.github.andreyasadchy.xtra.ui.game.GamePagerViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsViewModel
 import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.game.streams.GameStreamsViewModel

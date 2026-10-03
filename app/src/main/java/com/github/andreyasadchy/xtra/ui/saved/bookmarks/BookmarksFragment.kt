@@ -48,7 +48,7 @@ import com.github.andreyasadchy.xtra.ui.common.gridColumns
 import com.github.andreyasadchy.xtra.ui.common.rememberXtraCardStyle
 import com.github.andreyasadchy.xtra.ui.download.DownloadDialog
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
-import com.github.andreyasadchy.xtra.ui.saved.bookmarks.BookmarksViewModel.Companion.BookmarksViewModelFactory
+import com.github.andreyasadchy.xtra.ui.saved.bookmarks.BookmarksViewModelFactory
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
