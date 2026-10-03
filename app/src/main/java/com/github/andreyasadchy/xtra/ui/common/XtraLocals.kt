@@ -12,6 +12,7 @@ import com.github.andreyasadchy.xtra.model.VideoPosition
 import com.github.andreyasadchy.xtra.model.ui.Clip
 import com.github.andreyasadchy.xtra.model.ui.Video
 import com.github.andreyasadchy.xtra.settings.AndroidXtraSettings
+import com.github.andreyasadchy.xtra.settings.XtraSettings
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.settings.LocalXtraSettings
 import com.github.andreyasadchy.xtra.util.C
@@ -52,6 +53,13 @@ class AndroidXtraMediaActions(private val activity: Activity?) : XtraMediaAction
 /** Resume position of [videoId] in a loaded position list, if any. */
 fun List<VideoPosition>?.positionFor(videoId: String?): Long? =
     videoId?.toLongOrNull()?.let { id -> this?.find { it.id == id }?.position }
+
+/**
+ * Android settings bridge used by the `viewModelFactory` builders that construct the shared
+ * `:core` view models.
+ */
+fun Context.xtraSettings(): XtraSettings =
+    AndroidXtraSettings(applicationContext.prefs(), applicationContext.tokenPrefs())
 
 /** Android resources backing [XtraStrings]. */
 fun Context.xtraStrings(): XtraStrings {

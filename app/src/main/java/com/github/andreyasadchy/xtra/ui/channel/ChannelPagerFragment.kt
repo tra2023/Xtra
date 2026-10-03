@@ -67,7 +67,7 @@ import com.github.andreyasadchy.xtra.ui.channel.about.ChannelAboutFragment
 import com.github.andreyasadchy.xtra.ui.channel.clips.ChannelClipsViewModel
 import com.github.andreyasadchy.xtra.ui.channel.clips.ChannelClipsViewModel.Companion.ChannelClipsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.channel.suggestions.ChannelSuggestionsViewModel
-import com.github.andreyasadchy.xtra.ui.channel.suggestions.ChannelSuggestionsViewModel.Companion.ChannelSuggestionsViewModelFactory
+import com.github.andreyasadchy.xtra.ui.channel.suggestions.ChannelSuggestionsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.channel.videos.ChannelVideosViewModel
 import com.github.andreyasadchy.xtra.ui.channel.videos.ChannelVideosViewModel.Companion.ChannelVideosViewModelFactory
 import com.github.andreyasadchy.xtra.ui.chat.ChatFragment
