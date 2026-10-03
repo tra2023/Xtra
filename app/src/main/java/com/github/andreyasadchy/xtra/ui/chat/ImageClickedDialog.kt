@@ -24,7 +24,7 @@ import com.github.andreyasadchy.xtra.BuildConfig
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.Emote
 import com.github.andreyasadchy.xtra.model.chat.EmoteCard
-import com.github.andreyasadchy.xtra.ui.chat.ImageClickedViewModel.Companion.ImageClickedViewModelFactory
+import com.github.andreyasadchy.xtra.ui.chat.ImageClickedViewModelFactory
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.disableAnimatedEmotes
 import com.github.andreyasadchy.xtra.ui.main.MainActivity

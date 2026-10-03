@@ -14,6 +14,7 @@ kotlin = "2.4.20"
 ksp = "2.3.11"
 ktor = "3.6.0"
 lifecycle = "2.11.0"
+lifecycle-multiplatform = "2.11.0"
 markwon = "4.6.2"
 material = "1.14.0"
 media3 = "1.11.1"
@@ -48,6 +49,9 @@ fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
 fragment-compose = { module = "androidx.fragment:fragment-compose", version.ref = "fragment" }
 lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", version.ref = "lifecycle" }
 lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
+# Multiplatform ViewModel for the :core modules (Android + JVM desktop), aligned with the
+# lifecycle version Compose Multiplatform 1.12.1 itself ships against.
+lifecycle-viewmodel-kmp = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle-multiplatform" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }

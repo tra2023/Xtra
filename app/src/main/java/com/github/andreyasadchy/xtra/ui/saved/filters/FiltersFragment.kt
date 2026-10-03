@@ -46,7 +46,7 @@ import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.paging.findById
 import com.github.andreyasadchy.xtra.ui.paging.rememberInsertionScroll
 import com.github.andreyasadchy.xtra.ui.paging.rememberPagingSnapshot
-import com.github.andreyasadchy.xtra.ui.saved.filters.FiltersViewModel.Companion.FiltersViewModelFactory
+import com.github.andreyasadchy.xtra.ui.saved.filters.FiltersViewModelFactory
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragmentDirections
 import com.github.andreyasadchy.xtra.util.C

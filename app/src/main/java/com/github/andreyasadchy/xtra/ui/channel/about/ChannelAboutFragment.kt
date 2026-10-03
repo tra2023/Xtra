@@ -43,7 +43,7 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.ui.ChannelPanel
 import com.github.andreyasadchy.xtra.ui.XtraAsyncImage
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentArgs
-import com.github.andreyasadchy.xtra.ui.channel.about.ChannelAboutViewModel.Companion.ChannelAboutViewModelFactory
+import com.github.andreyasadchy.xtra.ui.channel.about.ChannelAboutViewModelFactory
 import com.github.andreyasadchy.xtra.ui.common.BaseNetworkFragment
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
 import com.github.andreyasadchy.xtra.ui.common.MarkdownText

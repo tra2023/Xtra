@@ -23,6 +23,8 @@ kotlin {
             implementation(libs.sqlite.bundled)
             implementation(libs.coroutines.core)
             implementation(libs.paging.common)
+            // Shared ViewModels whose paging source is a repository in this module.
+            implementation(libs.lifecycle.viewmodel.kmp)
             implementation(libs.serialization.json)
             implementation(libs.apollo.api)
         }

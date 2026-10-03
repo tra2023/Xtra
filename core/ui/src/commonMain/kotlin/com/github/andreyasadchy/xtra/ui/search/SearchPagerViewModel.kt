@@ -1,17 +1,17 @@
 package com.github.andreyasadchy.xtra.ui.search
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.util.C
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Resolves a typed search term to a channel ("user result") for the search pager. The Android host
+ * supplies the repository and keeps its own `ViewModelProvider.Factory`.
+ */
 class SearchPagerViewModel(
     private val graphQLRepository: GraphQLRepository,
 ) : ViewModel() {
@@ -68,16 +68,6 @@ class SearchPagerViewModel(
                 } finally {
                     isLoading = false
                 }
-            }
-        }
-    }
-
-    companion object {
-        val SearchPagerViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                SearchPagerViewModel(xtraModule.graphQLRepository)
             }
         }
     }

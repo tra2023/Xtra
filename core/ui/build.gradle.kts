@@ -22,6 +22,11 @@ kotlin {
         }
         commonMain.dependencies {
             implementation(project(":core:models"))
+            implementation(project(":core:network"))
+            // Shared ViewModels of the chat dialogs: multiplatform ViewModel + viewModelScope.
+            implementation(libs.lifecycle.viewmodel.kmp)
+            // Apollo response types are part of the core repository signatures these view models call.
+            implementation(libs.apollo.api)
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)

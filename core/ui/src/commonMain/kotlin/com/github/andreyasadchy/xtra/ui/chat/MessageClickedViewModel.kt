@@ -1,11 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.User
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
@@ -14,6 +10,10 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Loads the user behind a clicked chat message (GraphQL first, Helix fallback). The Android host
+ * supplies the repositories and keeps its own `ViewModelProvider.Factory`.
+ */
 class MessageClickedViewModel(
     private val graphQLRepository: GraphQLRepository,
     private val helixRepository: HelixRepository,
@@ -73,16 +73,6 @@ class MessageClickedViewModel(
                 }
                 user.value = Pair(response, response == null)
                 isLoading = false
-            }
-        }
-    }
-
-    companion object {
-        val MessageClickedViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                MessageClickedViewModel(xtraModule.graphQLRepository, xtraModule.helixRepository)
             }
         }
     }

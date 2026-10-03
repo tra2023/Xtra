@@ -1,11 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.player
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.ChannelViewerList
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.util.C
@@ -15,6 +11,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Loads the chatter list of a channel for the player's viewer sheet. The Android host supplies the
+ * repository and keeps its own `ViewModelProvider.Factory`.
+ */
 class PlayerViewerListViewModel(
     private val graphQLRepository: GraphQLRepository,
 ) : ViewModel() {
@@ -80,16 +80,6 @@ class PlayerViewerListViewModel(
             if (needsIntegrity) {
                 _failed.value = true
                 integrity.emit("refresh")
-            }
-        }
-    }
-
-    companion object {
-        val PlayerViewerListViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                PlayerViewerListViewModel(xtraModule.graphQLRepository)
             }
         }
     }
