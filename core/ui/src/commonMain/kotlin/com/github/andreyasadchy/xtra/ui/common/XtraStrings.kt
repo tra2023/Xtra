@@ -31,6 +31,11 @@ data class XtraStrings(
     val userPartner: String,
     val userAffiliate: String,
     val userStaff: String,
+    // Shared top app bar (see XtraTopBar).
+    val search: String,
+    val settings: String,
+    val logIn: String,
+    val logOut: String,
 )
 
 val LocalXtraStrings = staticCompositionLocalOf<XtraStrings> {

@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.VideoPosition
 import com.github.andreyasadchy.xtra.model.ui.Clip
@@ -88,6 +89,10 @@ fun Context.xtraStrings(): XtraStrings {
         userPartner = getString(R.string.user_partner),
         userAffiliate = getString(R.string.user_affiliate),
         userStaff = getString(R.string.user_staff),
+        search = getString(R.string.search),
+        settings = getString(R.string.settings),
+        logIn = getString(R.string.log_in),
+        logOut = getString(R.string.log_out),
     )
 }
 
@@ -104,10 +109,16 @@ fun ProvideXtraLocals(activity: Activity?, content: @Composable () -> Unit) {
     }
     val strings = remember(context) { context.xtraStrings() }
     val actions = remember(activity) { AndroidXtraMediaActions(activity) }
+    // painterResource is @Composable, so the icons are resolved here rather than in a helper.
+    val topBarIcons = XtraTopBarIcons(
+        back = painterResource(R.drawable.baseline_arrow_back_black_24),
+        search = painterResource(R.drawable.baseline_search_black_24),
+    )
     CompositionLocalProvider(
         LocalXtraSettings provides settings,
         LocalXtraStrings provides strings,
         LocalXtraMediaActions provides actions,
+        LocalXtraTopBarIcons provides topBarIcons,
         content = content,
     )
 }

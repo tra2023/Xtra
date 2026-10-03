@@ -19,11 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.github.andreyasadchy.xtra.R
 
 /**
  * The app bar shared by the full-Compose screens: up affordance, title, an
@@ -45,34 +42,35 @@ fun XtraTopBar(
     actions: @Composable RowScope.() -> Unit = {},
     extraOverflow: List<Pair<String, () -> Unit>> = emptyList(),
 ) {
+    val strings = LocalXtraStrings.current
     var overflowExpanded by remember { mutableStateOf(false) }
     TopAppBar(
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
             if (up != null) {
                 IconButton(onClick = up) {
-                    Icon(painterResource(R.drawable.baseline_arrow_back_black_24), contentDescription = null)
+                    Icon(LocalXtraTopBarIcons.current.back, contentDescription = null)
                 }
             }
         },
         actions = {
             actions()
             IconButton(onClick = onSearch) {
-                Icon(painterResource(R.drawable.baseline_search_black_24), contentDescription = stringResource(R.string.search))
+                Icon(LocalXtraTopBarIcons.current.search, contentDescription = strings.search)
             }
             IconButton(onClick = { overflowExpanded = true }) {
                 OverflowIcon()
             }
             DropdownMenu(expanded = overflowExpanded, onDismissRequest = { overflowExpanded = false }) {
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.settings)) },
+                    text = { Text(strings.settings) },
                     onClick = {
                         overflowExpanded = false
                         onSettings()
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text(stringResource(if (isLoggedIn) R.string.log_out else R.string.log_in)) },
+                    text = { Text(if (isLoggedIn) strings.logOut else strings.logIn) },
                     onClick = {
                         overflowExpanded = false
                         onLogin()
