@@ -18,8 +18,12 @@ import com.github.andreyasadchy.xtra.repository.PlaybackPositionSaver
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.repository.RecentSearchesRepository
 import com.github.andreyasadchy.xtra.repository.SavedFiltersRepository
+import com.github.andreyasadchy.xtra.repository.saved.VideoBookmarker
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
 
 class XtraModule(application: Application) {
@@ -86,6 +90,22 @@ class XtraModule(application: Application) {
 
     val playbackPositionSaver by lazy {
         PlaybackPositionSaver(playerRepository, offlineVideosRepository)
+    }
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Shared video-bookmark writer. The thumbnail/logo downloads outlive the screen that started them,
+     * so it runs on the application scope rather than a view-model scope.
+     */
+    val videoBookmarker by lazy {
+        VideoBookmarker(
+            scope = applicationScope,
+            bookmarksRepository = bookmarksRepository,
+            graphQLRepository = graphQLRepository,
+            helixRepository = helixRepository,
+            xtraHttpClient = xtraHttpClient,
+        )
     }
 
     val recentSearchesRepository by lazy {

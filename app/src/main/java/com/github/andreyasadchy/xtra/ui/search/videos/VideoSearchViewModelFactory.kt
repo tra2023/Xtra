@@ -20,7 +20,7 @@ val VideoSearchViewModelFactory = viewModelFactory {
             bookmarksRepository = xtraModule.bookmarksRepository,
             graphQLRepository = xtraModule.graphQLRepository,
             helixRepository = xtraModule.helixRepository,
-            xtraHttpClient = xtraModule.xtraHttpClient,
+            videoBookmarker = xtraModule.videoBookmarker,
         )
     }
 }

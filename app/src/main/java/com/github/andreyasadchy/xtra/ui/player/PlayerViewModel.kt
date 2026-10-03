@@ -9,7 +9,6 @@ import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.NotificationUser
 import com.github.andreyasadchy.xtra.model.ShownNotification
 import com.github.andreyasadchy.xtra.model.VideoQuality
-import com.github.andreyasadchy.xtra.model.ui.Bookmark
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.LocalChannelFollow
 import com.github.andreyasadchy.xtra.model.ui.Stream
@@ -21,8 +20,8 @@ import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.repository.NotificationsRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.repository.saved.VideoBookmarker
 import com.github.andreyasadchy.xtra.repository.XtraHttpClient
-import com.github.andreyasadchy.xtra.repository.getBytesOrNull
 import com.github.andreyasadchy.xtra.repository.getStringOrNull
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import kotlinx.coroutines.Dispatchers
@@ -39,14 +38,13 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.encodeToJsonElement
-import java.io.File
-import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.CancellationException
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 class PlayerViewModel(
+    private val videoBookmarker: VideoBookmarker,
     private val xtraHttpClient: XtraHttpClient,
     private val json: Json,
     private val graphQLRepository: GraphQLRepository,
@@ -296,101 +294,25 @@ class PlayerViewModel(
     }
 
     fun saveBookmark(filesDir: String, helixHeaders: Map<String, String>, gqlHeaders: Map<String, String>, videoId: String?, title: String?, uploadDate: String?, durationSeconds: Int?, type: String?, animatedPreviewUrl: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?) {
-        viewModelScope.launch {
-            val item = videoId?.let { bookmarksRepository.getByVideoId(it) }
-            if (item != null) {
-                bookmarksRepository.delete(item)
-            } else {
-                val downloadedThumbnail = videoId.takeIf { !it.isNullOrBlank() }?.let { id ->
-                    thumbnail.takeIf { !it.isNullOrBlank() }?.let { url ->
-                        File(filesDir, "thumbnails").mkdir()
-                        val path = filesDir + File.separator + "thumbnails" + File.separator + id
-                        viewModelScope.launch(Dispatchers.IO) {
-                            try {
-                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
-                            } catch (e: Exception) {
-
-                            }
-                        }
-                        path
-                    }
-                }
-                val downloadedLogo = channelId.takeIf { !it.isNullOrBlank() }?.let { id ->
-                    channelImage.takeIf { !it.isNullOrBlank() }?.let { url ->
-                        File(filesDir, "profile_pics").mkdir()
-                        val path = filesDir + File.separator + "profile_pics" + File.separator + id
-                        viewModelScope.launch(Dispatchers.IO) {
-                            try {
-                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
-                            } catch (e: Exception) {
-
-                            }
-                        }
-                        path
-                    }
-                }
-                val userTypes = channelId?.let {
-                    try {
-                        val response = graphQLRepository.loadQueryUsersType(gqlHeaders, listOf(channelId))
-                        response.data!!.users?.firstOrNull()?.let {
-                            User(
-                                id = it.id,
-                                broadcasterType = when {
-                                    it.roles?.isPartner == true -> "partner"
-                                    it.roles?.isAffiliate == true -> "affiliate"
-                                    else -> null
-                                },
-                                type = when {
-                                    it.roles?.isStaff == true -> "staff"
-                                    else -> null
-                                },
-                            )
-                        }
-                    } catch (e: Exception) {
-                        if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
-                            try {
-                                helixRepository.getUsers(
-                                    headers = helixHeaders,
-                                    ids = listOf(channelId)
-                                ).data.firstOrNull()?.let {
-                                    User(
-                                        id = it.id,
-                                        login = it.login,
-                                        name = it.displayName,
-                                        profileImageURL = it.profileImageURL,
-                                        type = it.type,
-                                        broadcasterType = it.broadcasterType,
-                                        createdAt = it.createdAt,
-                                    )
-                                }
-                            } catch (e: Exception) {
-                                null
-                            }
-                        } else null
-                    }
-                }
-                bookmarksRepository.save(
-                    Bookmark(
-                        videoId = videoId,
-                        userId = channelId,
-                        userLogin = channelLogin,
-                        userName = channelName,
-                        userType = userTypes?.type,
-                        userBroadcasterType = userTypes?.broadcasterType,
-                        userLogo = downloadedLogo,
-                        gameId = gameId,
-                        gameSlug = gameSlug,
-                        gameName = gameName,
-                        title = title,
-                        createdAt = uploadDate,
-                        thumbnail = downloadedThumbnail,
-                        type = type,
-                        duration = durationSeconds.toString(),
-                        animatedPreviewURL = animatedPreviewUrl
-                    )
-                )
-            }
-        }
+        videoBookmarker.toggle(
+            filesDir = filesDir,
+            gqlHeaders = gqlHeaders,
+            helixHeaders = helixHeaders,
+            videoId = videoId,
+            title = title,
+            uploadDate = uploadDate,
+            durationSeconds = durationSeconds,
+            type = type,
+            animatedPreviewUrl = animatedPreviewUrl,
+            channelId = channelId,
+            channelLogin = channelLogin,
+            channelName = channelName,
+            channelImage = channelImage,
+            thumbnail = thumbnail,
+            gameId = gameId,
+            gameSlug = gameSlug,
+            gameName = gameName,
+        )
     }
 
     fun isFollowingChannel(userId: String?, channelId: String?, channelLogin: String?, setting: Int, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
@@ -500,7 +422,7 @@ class PlayerViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as XtraApp)
                 val xtraModule = application.xtraModule
-                PlayerViewModel(xtraModule.xtraHttpClient, xtraModule.json, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.localChannelFollowsRepository, xtraModule.notificationsRepository)
+                PlayerViewModel(xtraModule.videoBookmarker, xtraModule.xtraHttpClient, xtraModule.json, xtraModule.graphQLRepository, xtraModule.helixRepository, xtraModule.playerRepository, xtraModule.bookmarksRepository, xtraModule.localChannelFollowsRepository, xtraModule.notificationsRepository)
             }
         }
     }
