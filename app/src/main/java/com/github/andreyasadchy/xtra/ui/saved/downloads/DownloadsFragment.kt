@@ -68,7 +68,7 @@ import com.github.andreyasadchy.xtra.ui.downloads.MoveStorageDialogLabels
 import com.github.andreyasadchy.xtra.ui.paging.findById
 import com.github.andreyasadchy.xtra.ui.paging.rememberInsertionScroll
 import com.github.andreyasadchy.xtra.ui.paging.rememberPagingSnapshot
-import com.github.andreyasadchy.xtra.ui.saved.downloads.DownloadsViewModel.Companion.DownloadsViewModelFactory
+import com.github.andreyasadchy.xtra.ui.saved.downloads.DownloadsViewModelFactory
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder

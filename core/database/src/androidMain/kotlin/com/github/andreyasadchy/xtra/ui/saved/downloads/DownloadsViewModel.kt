@@ -1,19 +1,13 @@
 package com.github.andreyasadchy.xtra.ui.saved.downloads
 
 import android.content.ContentResolver
-import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
-import com.github.andreyasadchy.xtra.XtraApp
 import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
 import com.github.andreyasadchy.xtra.util.chat.parseVideoMetadataFromChatJson
@@ -29,7 +23,7 @@ import java.io.FileOutputStream
 import kotlin.math.max
 
 class DownloadsViewModel(
-    private val applicationContext: Context,
+    private val contentResolver: ContentResolver,
     private val offlineVideosRepository: OfflineVideosRepository,
 ) : ViewModel() {
 
@@ -60,9 +54,9 @@ class DownloadsViewModel(
 
     fun finishDownload(video: OfflineVideo) {
         video.chatUrl?.let { url ->
-            val isShared = url.toUri().scheme == ContentResolver.SCHEME_CONTENT
+            val isShared = Uri.parse(url).scheme == ContentResolver.SCHEME_CONTENT
             if (isShared) {
-                applicationContext.contentResolver.openFileDescriptor(url.toUri(), "rw")!!.use {
+                contentResolver.openFileDescriptor(Uri.parse(url), "rw")!!.use {
                     FileOutputStream(it.fileDescriptor).use { output ->
                         output.channel.truncate(video.chatBytes)
                     }
@@ -73,7 +67,7 @@ class DownloadsViewModel(
                 }
             }
             if (isShared) {
-                applicationContext.contentResolver.openOutputStream(url.toUri(), "wa")!!.bufferedWriter()
+                contentResolver.openOutputStream(Uri.parse(url), "wa")!!.bufferedWriter()
             } else {
                 FileOutputStream(url, true).bufferedWriter()
             }.use { writer ->
@@ -100,10 +94,10 @@ class DownloadsViewModel(
                     maxProgress = 100
                     status = OfflineVideo.STATUS_CONVERTING
                 })
-                if (videoUrl.toUri().scheme == ContentResolver.SCHEME_CONTENT) {
+                if (Uri.parse(videoUrl).scheme == ContentResolver.SCHEME_CONTENT) {
                     val oldVideoDirectoryUri = videoUrl.substringBeforeLast("%2F")
                     val oldDirectoryUri = oldVideoDirectoryUri.substringBeforeLast("%2F", oldVideoDirectoryUri.substringBeforeLast("%3A") + "%3A")
-                    val oldPlaylist = applicationContext.contentResolver.openInputStream(videoUrl.toUri())!!.use {
+                    val oldPlaylist = contentResolver.openInputStream(Uri.parse(videoUrl))!!.use {
                         PlaylistUtils.parseMediaPlaylist(it)
                     }
                     val videoFileName = "${video.videoId ?: ""}${video.quality ?: ""}${video.downloadDate}.${oldPlaylist.segments.first().uri.substringAfterLast(".")}"
@@ -111,14 +105,14 @@ class DownloadsViewModel(
                     val tracksToDelete = DownloadPlaylists.basenames(oldPlaylist.segments).toMutableList()
                     val playlists = offlineVideosRepository.getPlaylists().mapNotNull { video ->
                         video.url?.takeIf {
-                            it.toUri().scheme == ContentResolver.SCHEME_CONTENT
+                            Uri.parse(it).scheme == ContentResolver.SCHEME_CONTENT
                                     && it.substringBeforeLast("%2F") == oldVideoDirectoryUri
                                     && it != videoUrl
                         }
                     }
                     playlists.forEach { uri ->
                         try {
-                            val p = applicationContext.contentResolver.openInputStream(uri.toUri())!!.use {
+                            val p = contentResolver.openInputStream(Uri.parse(uri))!!.use {
                                 PlaylistUtils.parseMediaPlaylist(it)
                             }
                             tracksToDelete.removeAll(DownloadPlaylists.basenames(p.segments))
@@ -127,17 +121,17 @@ class DownloadsViewModel(
                         }
                     }
                     val new = try {
-                        applicationContext.contentResolver.openOutputStream(newVideoFileUri.toUri())!!.close()
+                        contentResolver.openOutputStream(Uri.parse(newVideoFileUri))!!.close()
                         false
                     } catch (e: IllegalArgumentException) {
-                        DocumentsContract.createDocument(applicationContext.contentResolver, oldDirectoryUri.toUri(), "", videoFileName)
+                        DocumentsContract.createDocument(contentResolver, Uri.parse(oldDirectoryUri), "", videoFileName)
                         true
                     }
                     val convertInitSegmentUri = oldPlaylist.initSegmentUri
                     if (convertInitSegmentUri != null && new) {
                         val oldFileUri = convertInitSegmentUri
-                        applicationContext.contentResolver.openOutputStream(newVideoFileUri.toUri(), "wa")!!.use { outputStream ->
-                            applicationContext.contentResolver.openInputStream(oldFileUri.toUri())!!.use { inputStream ->
+                        contentResolver.openOutputStream(Uri.parse(newVideoFileUri), "wa")!!.use { outputStream ->
+                            contentResolver.openInputStream(Uri.parse(oldFileUri))!!.use { inputStream ->
                                 inputStream.copyTo(outputStream)
                             }
                         }
@@ -148,14 +142,14 @@ class DownloadsViewModel(
                     oldPlaylist.segments.forEach { track ->
                         val oldFileUri = track.uri
                         val oldFileName = DownloadPlaylists.basename(oldFileUri)
-                        applicationContext.contentResolver.openOutputStream(newVideoFileUri.toUri(), "wa")!!.use { outputStream ->
-                            applicationContext.contentResolver.openInputStream(oldFileUri.toUri())!!.use { inputStream ->
+                        contentResolver.openOutputStream(Uri.parse(newVideoFileUri), "wa")!!.use { outputStream ->
+                            contentResolver.openInputStream(Uri.parse(oldFileUri))!!.use { inputStream ->
                                 inputStream.copyTo(outputStream)
                             }
                         }
                         if (tracksToDelete.contains(oldFileName)) {
                             try {
-                                DocumentsContract.deleteDocument(applicationContext.contentResolver, oldFileUri.toUri())
+                                DocumentsContract.deleteDocument(contentResolver, Uri.parse(oldFileUri))
                             } catch (e: Exception) {
 
                             }
@@ -174,13 +168,13 @@ class DownloadsViewModel(
                     })
                     if (playlists.isNotEmpty()) {
                         try {
-                            DocumentsContract.deleteDocument(applicationContext.contentResolver, videoUrl.toUri())
+                            DocumentsContract.deleteDocument(contentResolver, Uri.parse(videoUrl))
                         } catch (e: Exception) {
 
                         }
                     } else {
                         try {
-                            DocumentsContract.deleteDocument(applicationContext.contentResolver, oldVideoDirectoryUri.toUri())
+                            DocumentsContract.deleteDocument(contentResolver, Uri.parse(oldVideoDirectoryUri))
                         } catch (e: Exception) {
 
                         }
@@ -278,10 +272,10 @@ class DownloadsViewModel(
                             val newDirectoryUri = DocumentsContract.buildDocumentUriUsingTree(newUri, documentId)
                             val newVideoDirectoryUri = DownloadPlaylists.joinDirectory(newDirectoryUri.toString(), oldVideoDirectory.name)
                             try {
-                                applicationContext.contentResolver.openOutputStream(newVideoDirectoryUri.toUri())!!.close()
+                                contentResolver.openOutputStream(Uri.parse(newVideoDirectoryUri))!!.close()
                             } catch (e: Exception) {
                                 if (e is IllegalArgumentException) {
-                                    DocumentsContract.createDocument(applicationContext.contentResolver, newDirectoryUri, DocumentsContract.Document.MIME_TYPE_DIR, oldVideoDirectory.name)
+                                    DocumentsContract.createDocument(contentResolver, newDirectoryUri, DocumentsContract.Document.MIME_TYPE_DIR, oldVideoDirectory.name)
                                 }
                             }
                             val newPlaylistFileUri = DownloadPlaylists.joinChild(newVideoDirectoryUri, oldPlaylistFile.name)
@@ -291,10 +285,10 @@ class DownloadsViewModel(
                             val mapUri = { uri: String -> DownloadPlaylists.joinChild(newVideoDirectoryUri, DownloadPlaylists.basename(uri)) }
                             val segments = DownloadPlaylists.remapSegments(oldPlaylist.segments, mapUri)
                             try {
-                                applicationContext.contentResolver.openOutputStream(newPlaylistFileUri.toUri())!!
+                                contentResolver.openOutputStream(Uri.parse(newPlaylistFileUri))!!
                             } catch (e: IllegalArgumentException) {
-                                DocumentsContract.createDocument(applicationContext.contentResolver, newVideoDirectoryUri.toUri(), "", oldPlaylistFile.name)
-                                applicationContext.contentResolver.openOutputStream(newPlaylistFileUri.toUri())!!
+                                DocumentsContract.createDocument(contentResolver, Uri.parse(newVideoDirectoryUri), "", oldPlaylistFile.name)
+                                contentResolver.openOutputStream(Uri.parse(newPlaylistFileUri))!!
                             }.use {
                                 PlaylistUtils.writeMediaPlaylist(oldPlaylist.copy(initSegmentUri = oldPlaylist.initSegmentUri?.let(mapUri), segments = segments), it)
                             }
@@ -310,10 +304,10 @@ class DownloadsViewModel(
                                 if (oldFile.exists()) {
                                     val newFileUri = DownloadPlaylists.joinChild(newVideoDirectoryUri, oldFile.name)
                                     try {
-                                        applicationContext.contentResolver.openOutputStream(newFileUri.toUri())!!
+                                        contentResolver.openOutputStream(Uri.parse(newFileUri))!!
                                     } catch (e: IllegalArgumentException) {
-                                        DocumentsContract.createDocument(applicationContext.contentResolver, newVideoDirectoryUri.toUri(), "", oldFile.name)
-                                        applicationContext.contentResolver.openOutputStream(newFileUri.toUri())!!
+                                        DocumentsContract.createDocument(contentResolver, Uri.parse(newVideoDirectoryUri), "", oldFile.name)
+                                        contentResolver.openOutputStream(Uri.parse(newFileUri))!!
                                     }.use { outputStream ->
                                         oldFile.inputStream().use { inputStream ->
                                             inputStream.copyTo(outputStream)
@@ -329,10 +323,10 @@ class DownloadsViewModel(
                                 if (oldFile.exists()) {
                                     val newFileUri = DownloadPlaylists.joinChild(newVideoDirectoryUri, oldFile.name)
                                     try {
-                                        applicationContext.contentResolver.openOutputStream(newFileUri.toUri())!!
+                                        contentResolver.openOutputStream(Uri.parse(newFileUri))!!
                                     } catch (e: IllegalArgumentException) {
-                                        DocumentsContract.createDocument(applicationContext.contentResolver, newVideoDirectoryUri.toUri(), "", oldFile.name)
-                                        applicationContext.contentResolver.openOutputStream(newFileUri.toUri())!!
+                                        DocumentsContract.createDocument(contentResolver, Uri.parse(newVideoDirectoryUri), "", oldFile.name)
+                                        contentResolver.openOutputStream(Uri.parse(newFileUri))!!
                                     }.use { outputStream ->
                                         oldFile.inputStream().use { inputStream ->
                                             inputStream.copyTo(outputStream)
@@ -350,10 +344,10 @@ class DownloadsViewModel(
                             val newChatFileUri = oldChatFile?.let { DownloadPlaylists.joinDirectory(newDirectoryUri.toString(), it.name) }
                             if (newChatFileUri != null) {
                                 try {
-                                    applicationContext.contentResolver.openOutputStream(newChatFileUri.toUri())!!
+                                    contentResolver.openOutputStream(Uri.parse(newChatFileUri))!!
                                 } catch (e: IllegalArgumentException) {
-                                    DocumentsContract.createDocument(applicationContext.contentResolver, newDirectoryUri, "", oldChatFile.name)
-                                    applicationContext.contentResolver.openOutputStream(newChatFileUri.toUri())!!
+                                    DocumentsContract.createDocument(contentResolver, newDirectoryUri, "", oldChatFile.name)
+                                    contentResolver.openOutputStream(Uri.parse(newChatFileUri))!!
                                 }.use { outputStream ->
                                     oldChatFile.inputStream().use { inputStream ->
                                         inputStream.copyTo(outputStream)
@@ -388,10 +382,10 @@ class DownloadsViewModel(
                         val newDirectoryUri = DocumentsContract.buildDocumentUriUsingTree(newUri, documentId)
                         val newFileUri = DownloadPlaylists.joinDirectory(newDirectoryUri.toString(), oldFile.name)
                         try {
-                            applicationContext.contentResolver.openOutputStream(newFileUri.toUri())!!
+                            contentResolver.openOutputStream(Uri.parse(newFileUri))!!
                         } catch (e: IllegalArgumentException) {
-                            DocumentsContract.createDocument(applicationContext.contentResolver, newDirectoryUri, "", oldFile.name)
-                            applicationContext.contentResolver.openOutputStream(newFileUri.toUri())!!
+                            DocumentsContract.createDocument(contentResolver, newDirectoryUri, "", oldFile.name)
+                            contentResolver.openOutputStream(Uri.parse(newFileUri))!!
                         }.use { outputStream ->
                             oldFile.inputStream().use { inputStream ->
                                 inputStream.copyTo(outputStream)
@@ -401,10 +395,10 @@ class DownloadsViewModel(
                         val newChatFileUri = oldChatFile?.let { DownloadPlaylists.joinDirectory(newDirectoryUri.toString(), it.name) }
                         if (newChatFileUri != null) {
                             try {
-                                applicationContext.contentResolver.openOutputStream(newChatFileUri.toUri())!!
+                                contentResolver.openOutputStream(Uri.parse(newChatFileUri))!!
                             } catch (e: IllegalArgumentException) {
-                                DocumentsContract.createDocument(applicationContext.contentResolver, newDirectoryUri, "", oldChatFile.name)
-                                applicationContext.contentResolver.openOutputStream(newChatFileUri.toUri())!!
+                                DocumentsContract.createDocument(contentResolver, newDirectoryUri, "", oldChatFile.name)
+                                contentResolver.openOutputStream(Uri.parse(newChatFileUri))!!
                             }.use { outputStream ->
                                 oldChatFile.inputStream().use { inputStream ->
                                     inputStream.copyTo(outputStream)
@@ -452,7 +446,7 @@ class DownloadsViewModel(
                     val newVideoDirectoryUri = path + File.separator + oldVideoDirectoryName
                     File(newVideoDirectoryUri).mkdir()
                     val newPlaylistFileUri = newVideoDirectoryUri + File.separator + oldPlaylistFileName
-                    val oldPlaylist = applicationContext.contentResolver.openInputStream(videoUrl.toUri())!!.use {
+                    val oldPlaylist = contentResolver.openInputStream(Uri.parse(videoUrl))!!.use {
                         PlaylistUtils.parseMediaPlaylist(it)
                     }
                     val mapUri = { uri: String -> newVideoDirectoryUri + File.separator + DownloadPlaylists.percentDecode(DownloadPlaylists.basename(uri)) }
@@ -463,13 +457,13 @@ class DownloadsViewModel(
                     val tracksToDelete = DownloadPlaylists.basenames(oldPlaylist.segments).toMutableList()
                     val playlists = offlineVideosRepository.getPlaylists().mapNotNull { video ->
                         video.url?.takeIf {
-                            it.toUri().scheme == ContentResolver.SCHEME_CONTENT
+                            Uri.parse(it).scheme == ContentResolver.SCHEME_CONTENT
                                     && DownloadPlaylists.isSiblingPlaylist(it, oldVideoDirectoryUri, videoUrl)
                         }
                     }
                     playlists.forEach { uri ->
                         try {
-                            val p = applicationContext.contentResolver.openInputStream(uri.toUri())!!.use {
+                            val p = contentResolver.openInputStream(Uri.parse(uri))!!.use {
                                 PlaylistUtils.parseMediaPlaylist(it)
                             }
                             tracksToDelete.removeAll(DownloadPlaylists.decodedBasenames(p.segments))
@@ -483,7 +477,7 @@ class DownloadsViewModel(
                         val oldFileUri = DownloadPlaylists.joinChild(oldVideoDirectoryUri, oldFileName)
                         val newFileUri = newVideoDirectoryUri + File.separator + DownloadPlaylists.percentDecode(oldFileName)
                         FileOutputStream(newFileUri).use { outputStream ->
-                            applicationContext.contentResolver.openInputStream(oldFileUri.toUri())!!.use { inputStream ->
+                            contentResolver.openInputStream(Uri.parse(oldFileUri))!!.use { inputStream ->
                                 inputStream.copyTo(outputStream)
                             }
                         }
@@ -496,13 +490,13 @@ class DownloadsViewModel(
                         val oldFileUri = DownloadPlaylists.joinChild(oldVideoDirectoryUri, oldFileName)
                         val newFileUri = newVideoDirectoryUri + File.separator + DownloadPlaylists.percentDecode(oldFileName)
                         FileOutputStream(newFileUri).use { outputStream ->
-                            applicationContext.contentResolver.openInputStream(oldFileUri.toUri())!!.use { inputStream ->
+                            contentResolver.openInputStream(Uri.parse(oldFileUri))!!.use { inputStream ->
                                 inputStream.copyTo(outputStream)
                             }
                         }
                         if (tracksToDelete.contains(DownloadPlaylists.percentDecode(oldFileName))) {
                             try {
-                                DocumentsContract.deleteDocument(applicationContext.contentResolver, oldFileUri.toUri())
+                                DocumentsContract.deleteDocument(contentResolver, Uri.parse(oldFileUri))
                             } catch (e: Exception) {
 
                             }
@@ -516,7 +510,7 @@ class DownloadsViewModel(
                     val newChatFileUri = oldChatFileName?.let { path + File.separator + it }
                     if (oldChatUri != null && newChatFileUri != null) {
                         FileOutputStream(newChatFileUri).use { outputStream ->
-                            applicationContext.contentResolver.openInputStream(oldChatUri.toUri())!!.use { inputStream ->
+                            contentResolver.openInputStream(Uri.parse(oldChatUri))!!.use { inputStream ->
                                 inputStream.copyTo(outputStream)
                             }
                         }
@@ -534,20 +528,20 @@ class DownloadsViewModel(
                     })
                     if (playlists.isNotEmpty()) {
                         try {
-                            DocumentsContract.deleteDocument(applicationContext.contentResolver, videoUrl.toUri())
+                            DocumentsContract.deleteDocument(contentResolver, Uri.parse(videoUrl))
                         } catch (e: Exception) {
 
                         }
                     } else {
                         try {
-                            DocumentsContract.deleteDocument(applicationContext.contentResolver, oldVideoDirectoryUri.toUri())
+                            DocumentsContract.deleteDocument(contentResolver, Uri.parse(oldVideoDirectoryUri))
                         } catch (e: Exception) {
 
                         }
                     }
                     if (oldChatUri != null) {
                         try {
-                            DocumentsContract.deleteDocument(applicationContext.contentResolver, oldChatUri.toUri())
+                            DocumentsContract.deleteDocument(contentResolver, Uri.parse(oldChatUri))
                         } catch (e: Exception) {
 
                         }
@@ -556,7 +550,7 @@ class DownloadsViewModel(
                     val oldFileName = DownloadPlaylists.percentDecode(videoUrl.substringAfterLast("%2F").substringAfterLast("/").substringAfterLast("%3A"))
                     val newFileUri = path + File.separator + oldFileName
                     FileOutputStream(newFileUri).use { outputStream ->
-                        applicationContext.contentResolver.openInputStream(videoUrl.toUri())!!.use { inputStream ->
+                        contentResolver.openInputStream(Uri.parse(videoUrl))!!.use { inputStream ->
                             inputStream.copyTo(outputStream)
                         }
                     }
@@ -565,7 +559,7 @@ class DownloadsViewModel(
                     val newChatFileUri = oldChatFileName?.let { path + File.separator + it }
                     if (oldChatUri != null && newChatFileUri != null) {
                         FileOutputStream(newChatFileUri).use { outputStream ->
-                            applicationContext.contentResolver.openInputStream(oldChatUri.toUri())!!.use { inputStream ->
+                            contentResolver.openInputStream(Uri.parse(oldChatUri))!!.use { inputStream ->
                                 inputStream.copyTo(outputStream)
                             }
                         }
@@ -580,13 +574,13 @@ class DownloadsViewModel(
                         chatUrl = newChatFileUri
                     })
                     try {
-                        DocumentsContract.deleteDocument(applicationContext.contentResolver, videoUrl.toUri())
+                        DocumentsContract.deleteDocument(contentResolver, Uri.parse(videoUrl))
                     } catch (e: Exception) {
 
                     }
                     if (oldChatUri != null) {
                         try {
-                            DocumentsContract.deleteDocument(applicationContext.contentResolver, oldChatUri.toUri())
+                            DocumentsContract.deleteDocument(contentResolver, Uri.parse(oldChatUri))
                         } catch (e: Exception) {
 
                         }
@@ -607,7 +601,7 @@ class DownloadsViewModel(
         if (!videosInUse.contains(video)) {
             viewModelScope.launch(Dispatchers.IO) {
                 val metadata = try {
-                    applicationContext.contentResolver.openInputStream(newUri)?.bufferedReader()?.use { it.readText() }
+                    contentResolver.openInputStream(newUri)?.bufferedReader()?.use { it.readText() }
                         ?.let { parseVideoMetadataFromChatJson(it) }
                 } catch (e: Exception) {
                     null
@@ -639,11 +633,11 @@ class DownloadsViewModel(
                     status = OfflineVideo.STATUS_DELETING
                 })
                 if (videoUrl != null && !keepFiles) {
-                    if (videoUrl.toUri().scheme == ContentResolver.SCHEME_CONTENT) {
+                    if (Uri.parse(videoUrl).scheme == ContentResolver.SCHEME_CONTENT) {
                         if (videoUrl.endsWith(".m3u8")) {
                             val videoDirectoryUri = videoUrl.substringBeforeLast("%2F")
                             val playlist = try {
-                                applicationContext.contentResolver.openInputStream(videoUrl.toUri())!!.use {
+                                contentResolver.openInputStream(Uri.parse(videoUrl))!!.use {
                                     PlaylistUtils.parseMediaPlaylist(it)
                                 }
                             } catch (e: Exception) {
@@ -652,14 +646,14 @@ class DownloadsViewModel(
                             val tracksToDelete = playlist?.segments?.toMutableSet() ?: mutableSetOf()
                             val playlists = offlineVideosRepository.getPlaylists().mapNotNull { video ->
                                 video.url?.takeIf {
-                                    it.toUri().scheme == ContentResolver.SCHEME_CONTENT
+                                    Uri.parse(it).scheme == ContentResolver.SCHEME_CONTENT
                                             && it.substringBeforeLast("%2F") == videoDirectoryUri
                                             && it != videoUrl
                                 }
                             }
                             playlists.forEach { uri ->
                                 try {
-                                    val p = applicationContext.contentResolver.openInputStream(uri.toUri())!!.use {
+                                    val p = contentResolver.openInputStream(Uri.parse(uri))!!.use {
                                         PlaylistUtils.parseMediaPlaylist(it)
                                     }
                                     tracksToDelete.removeAll(p.segments.toSet())
@@ -672,7 +666,7 @@ class DownloadsViewModel(
                             })
                             tracksToDelete.forEach {
                                 try {
-                                    DocumentsContract.deleteDocument(applicationContext.contentResolver, it.uri.toUri())
+                                    DocumentsContract.deleteDocument(contentResolver, Uri.parse(it.uri))
                                 } catch (e: Exception) {
 
                                 }
@@ -681,27 +675,27 @@ class DownloadsViewModel(
                                 })
                             }
                             try {
-                                DocumentsContract.deleteDocument(applicationContext.contentResolver, videoUrl.toUri())
+                                DocumentsContract.deleteDocument(contentResolver, Uri.parse(videoUrl))
                             } catch (e: Exception) {
 
                             }
                             if (playlists.isEmpty()) {
                                 try {
-                                    DocumentsContract.deleteDocument(applicationContext.contentResolver, videoDirectoryUri.toUri())
+                                    DocumentsContract.deleteDocument(contentResolver, Uri.parse(videoDirectoryUri))
                                 } catch (e: Exception) {
 
                                 }
                             }
                         } else {
                             try {
-                                DocumentsContract.deleteDocument(applicationContext.contentResolver, videoUrl.toUri())
+                                DocumentsContract.deleteDocument(contentResolver, Uri.parse(videoUrl))
                             } catch (e: Exception) {
 
                             }
                         }
                         video.chatUrl?.let {
                             try {
-                                DocumentsContract.deleteDocument(applicationContext.contentResolver, it.toUri())
+                                DocumentsContract.deleteDocument(contentResolver, Uri.parse(it))
                             } catch (e: Exception) {
 
                             }
@@ -752,13 +746,4 @@ class DownloadsViewModel(
         }
     }
 
-    companion object {
-        val DownloadsViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                DownloadsViewModel(application.applicationContext, xtraModule.offlineVideosRepository)
-            }
-        }
-    }
 }
