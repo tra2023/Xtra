@@ -834,10 +834,11 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
         }
 
     /**
-     * Applies the reply indicator's visibility. Every write goes through here so the Views cannot
-     * drift from [composerState].
+     * Applies the reply indicator's visibility, and the state with it. Every write goes through
+     * here, so there is exactly one place that can change [composerState]'s `replying`.
      */
     private fun showReplyIndicator(visible: Boolean) {
+        composerState.setReplying(visible)
         binding.replyView.visibility = if (visible) View.VISIBLE else View.GONE
     }
 
@@ -995,7 +996,6 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                 replyText.text = composerState.replyLabel.orEmpty()
                 replyClose.setOnClickListener {
                     // Back to a plain message: the reply is cancelled, so send forgets its id.
-                    composerState.cancelReply()
                     showReplyIndicator(false)
                     send.setOnClickListener { sendMessage() }
                     editText.setOnKeyListener(sendOnEnterListener { sendMessage() })

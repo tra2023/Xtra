@@ -18,47 +18,52 @@ class ChatComposerStateTest {
     }
 
     @Test
-    fun startReplyShowsTheIndicatorWithItsLabel() {
+    fun startReplyRecordsTheLabelAndIsAppliedBySetReplying() {
         val state = ChatComposerState()
         assertTrue(state.startReply("1", "name", "login", "hello", "0", format))
-        assertTrue(state.replying)
         assertEquals("Replying to name(login): hello", state.replyLabel)
+        // Visibility is applied separately, so the state cannot disagree with the View mid-update.
+        assertFalse(state.replying)
+        state.setReplying(true)
+        assertTrue(state.replying)
     }
 
     @Test
     fun startReplyWithABlankIdChangesNothing() {
         val state = ChatComposerState()
         assertFalse(state.startReply(null, "name", "login", "hello", "0", format))
-        assertFalse(state.replying)
         assertNull(state.replyLabel)
         assertFalse(state.startReply("   ", "name", "login", "hello", "0", format))
-        assertFalse(state.replying)
+        assertNull(state.replyLabel)
     }
 
     @Test
-    fun startReplyWithoutAMessageStillShowsTheIndicator() {
+    fun startReplyWithoutAMessageLeavesTheIndicatorTextEmpty() {
         // The original set the indicator VISIBLE and only skipped the text when message was null.
         val state = ChatComposerState()
         assertTrue(state.startReply("1", "name", "login", null, "0", format))
+        assertNull(state.replyLabel)
+        state.setReplying(true)
         assertTrue(state.replying)
-        assertNull(state.replyLabel)
     }
 
     @Test
-    fun cancelReplyHidesTheIndicator() {
+    fun cancellingHidesTheIndicatorAndDropsTheLabel() {
         val state = ChatComposerState()
         state.startReply("1", "name", "login", "hello", "0", format)
-        state.cancelReply()
-        assertFalse(state.replying)
-        assertNull(state.replyLabel)
-    }
-
-    @Test
-    fun sendingClearsTheReply() {
-        val state = ChatComposerState()
-        state.startReply("1", "name", "login", "hello", "0", format)
+        state.setReplying(true)
+        state.setReplying(false)
         state.onSent()
         assertFalse(state.replying)
+        assertNull(state.replyLabel)
+    }
+
+    @Test
+    fun sendingClearsTheLabel() {
+        val state = ChatComposerState()
+        state.startReply("1", "name", "login", "hello", "0", format)
+        state.setReplying(true)
+        state.onSent()
         assertNull(state.replyLabel)
     }
 
