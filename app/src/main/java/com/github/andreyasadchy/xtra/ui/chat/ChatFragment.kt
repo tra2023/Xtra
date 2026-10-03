@@ -818,7 +818,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
     }
 
     fun appendEmote(emote: Emote) {
-        binding.editText.text.append(emote.name).append(' ')
+        // Shared rule: the name plus one separating space, appended at the end.
+        val name = emote.name ?: return
+        binding.editText.text.append(ChatDraft.afterAppendEmote("", name))
     }
 
     private fun sendMessage(replyId: String? = null): Boolean {
@@ -835,9 +837,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                 false
                             }
                         }
-            val text = editText.text.trim()
+            val text = ChatDraft.consume(editText.text.toString())
             editText.text.clear()
-            return if (text.isNotEmpty()) {
+            return if (text != null) {
                 viewModel.send(
                     message = text,
                     replyId = replyId,
