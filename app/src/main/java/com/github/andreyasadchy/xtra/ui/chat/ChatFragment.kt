@@ -51,7 +51,6 @@ import com.github.andreyasadchy.xtra.model.chat.ChatMessage
 import com.github.andreyasadchy.xtra.model.chat.Emote
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
-import com.github.andreyasadchy.xtra.ui.chat.ChatViewModelFactory
 import com.github.andreyasadchy.xtra.ui.common.BaseNetworkFragment
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.player.PlayerFragment
@@ -84,6 +83,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
     private var showChatStatus = false
     private var hasRecentEmotes = false
     private var messagingEnabled = false
+    // Set when a message arrives while the list is at the bottom; the Compose side performs the
+    // actual scroll once the new row is part of the list, so it does not race the update.
+    private var shouldAutoScroll = false
     private val composerState = ChatComposerState()
 
     private var autoCompleteAdapter: AutoCompleteAdapter<Any>? = null
@@ -131,7 +133,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                     val state = ChatState().also { chatState = it }
                     state.messageStyle = buildChatMessageStyle(sizeModifier)
                     state.options = buildChatRenderOptions(chatUrl, enableMessaging, accountLogin)
-                    state.setMessages(snapshotChatMessages())
+                    state.replaceMessages(snapshotChatMessages())
                     recyclerView.apply {
                         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
                         setContent {
@@ -139,34 +141,56 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             XtraTheme(themeId = theme) {
                                 val dragged by chatListState.interactionSource.collectIsDraggedAsState()
                                 LaunchedEffect(dragged) { isChatTouched = dragged }
-                                val canScrollForward by remember { derivedStateOf { chatListState.canScrollForward } }
-                                LaunchedEffect(canScrollForward) {
-                                    btnDown.isVisible = canScrollForward
-                                    if (canScrollForward && showChatStatus && chatStatus.isGone) {
+                                // The list is reversed (newest at the bottom), so there are newer
+                                // messages below while the user can still scroll backwards.
+                                val canScrollDown by remember { derivedStateOf { chatListState.canScrollBackward } }
+                                LaunchedEffect(canScrollDown) {
+                                    btnDown.isVisible = canScrollDown
+                                    if (canScrollDown && showChatStatus && chatStatus.isGone) {
                                         chatStatus.visibility = View.VISIBLE
                                         chatStatus.postDelayed({ chatStatus.visibility = View.GONE }, 5000)
                                     }
                                 }
-                                ChatList(
-                                    messages = state.messages,
-                                    options = state.options.copy(generation = state.generation),
-                                    style = state.messageStyle,
-                                    listState = chatListState,
-                                    selectedMessage = state.selectedMessage,
-                                    onMessageClick = { message ->
+                                // Scroll to the newest row only after it is part of the list.
+                                LaunchedEffect(state.messages) {
+                                    if (shouldAutoScroll) {
+                                        shouldAutoScroll = false
+                                        chatListState.scrollToItem(0)
+                                    }
+                                }
+                                // Stable row callbacks: recreating them on every message would
+                                // invalidate every row's cached formatted text and force the whole
+                                // visible list to rebuild its AnnotatedString and emote images.
+                                val onMessageClick = remember(state, enableMessaging, channelId) {
+                                    { message: ChatMessage ->
                                         state.select(message)
                                         hideKeyboardAndFocus()
                                         showMessageDialog(enableMessaging, channelId)
-                                    },
-                                    onReplyClick = { message ->
+                                    }
+                                }
+                                val onReplyClick = remember(state, enableMessaging) {
+                                    { message: ChatMessage ->
                                         state.select(message)
                                         hideKeyboardAndFocus()
                                         showReplyDialog(enableMessaging)
-                                    },
-                                    onImageClick = { image ->
+                                    }
+                                }
+                                val onImageClick = remember {
+                                    { image: ChatImage ->
                                         hideKeyboardAndFocus()
                                         showImageDialog(image)
-                                    },
+                                    }
+                                }
+                                ChatList(
+                                    messages = state.messages,
+                                    options = state.options,
+                                    generation = state.generation,
+                                    style = state.messageStyle,
+                                    listState = chatListState,
+                                    selectedMessage = state.selectedMessage,
+                                    onMessageClick = onMessageClick,
+                                    onReplyClick = onReplyClick,
+                                    onImageClick = onImageClick,
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -630,16 +654,17 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                     }
                     viewLifecycleOwner.lifecycleScope.launch {
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
-                            chatState?.setMessages(snapshotChatMessages())
+                            chatState?.replaceMessages(snapshotChatMessages())
                             viewModel.newMessage.collect { result ->
                                 val message = result.first
                                 val removeCount = result.third
+                                val atBottom = !isChatTouched && !chatListState.canScrollBackward
                                 chatState?.appendMessage(message)
                                 if (removeCount > 0) {
                                     chatState?.removeMessages(removeCount)
                                 }
-                                if (!isChatTouched && binding.btnDown.isGone) {
-                                    scrollToBottom()
+                                if (atBottom) {
+                                    shouldAutoScroll = true
                                 }
                             }
                         }
@@ -648,9 +673,10 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
                             viewModel.addMessages.collect { result ->
                                 val messages = result.first
+                                val atBottom = !isChatTouched && !chatListState.canScrollBackward
                                 chatState?.prependMessages(messages, messageLimit())
-                                if (!isChatTouched && binding.btnDown.isGone) {
-                                    scrollToBottom()
+                                if (atBottom) {
+                                    shouldAutoScroll = true
                                 }
                             }
                         }
@@ -958,9 +984,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
         val state = chatState ?: return
         if (!isAdded) return
         viewLifecycleOwner.lifecycleScope.launch {
-            val last = state.messages.lastIndex
-            if (last >= 0) {
-                chatListState.scrollToItem(last)
+            if (state.messages.isNotEmpty()) {
+                // The list is reversed, so index 0 is the newest message at the bottom.
+                chatListState.scrollToItem(0)
             }
         }
         binding.btnDown.isVisible = false

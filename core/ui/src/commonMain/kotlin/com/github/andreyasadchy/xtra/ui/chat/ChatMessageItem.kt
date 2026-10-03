@@ -44,6 +44,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
@@ -101,33 +102,60 @@ fun ChatMessageItem(
     options: ChatRenderOptions,
     modifier: Modifier = Modifier,
     style: ChatMessageStyle = ChatMessageStyle(),
+    generation: Int = options.generation,
     selected: Boolean = false,
     onMessageClick: ((ChatMessage) -> Unit)? = null,
     onReplyClick: ((ChatMessage) -> Unit)? = null,
     onImageClick: ((ChatImage) -> Unit)? = null,
 ) {
-    val content = remember(message, options.generation) {
-        ChatMessageFormatter.format(message, options)
+    val content = remember(message, generation) {
+        options.cache.messageContents.getOrPut(message.key) {
+            ChatMessageFormatter.format(message, options)
+        }
     }
     val isReply = message.type == ChatMessage.REPLY_MESSAGE
     val backgroundColor = chatMessageColor(content.background, selected)
-    val textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = style.textSize)
+    val textStyle = MaterialTheme.typography.bodyMedium.copy(
+        fontSize = style.textSize,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
     val thirdPartyHeaders = remember(style.thirdPartyUserAgent) {
         style.thirdPartyUserAgent?.let { agent ->
             NetworkHeaders.Builder().apply { add("User-Agent", agent) }.build()
         }
     }
-    val formatted = buildChatMessageText(
-        content = content,
-        options = options,
-        textStyle = textStyle,
-        maskBackground = backgroundColor ?: Color.Transparent,
-        linkColor = MaterialTheme.colorScheme.primary,
-        style = style,
-        thirdPartyHeaders = thirdPartyHeaders,
-        linkify = !isReply,
-        onImageClick = onImageClick,
-    )
+    val linkColor = MaterialTheme.colorScheme.primary
+    val maskBackground = backgroundColor ?: Color.Transparent
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    // The annotated string and the inline-content map only depend on the formatted content and the
+    // row styling. Remembering them keeps a recomposition (e.g. when the list shifts and Compose
+    // re-invokes every visible row) from rebuilding the text and re-issuing the emote images.
+    val formatted = remember(
+        content,
+        textStyle,
+        maskBackground,
+        linkColor,
+        style,
+        thirdPartyHeaders,
+        onImageClick,
+        textMeasurer,
+        density,
+    ) {
+        buildChatMessageText(
+            content = content,
+            options = options,
+            textStyle = textStyle,
+            maskBackground = maskBackground,
+            linkColor = linkColor,
+            style = style,
+            thirdPartyHeaders = thirdPartyHeaders,
+            linkify = !isReply,
+            onImageClick = onImageClick,
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+    }
     val onClick = when {
         isReply -> onReplyClick?.let { click -> { click(message) } }
         else -> onMessageClick?.let { click -> { click(message) } }
@@ -172,7 +200,6 @@ private class ChatMessageText(
  * Emotes/badges become inline images, painted names become measured inline content and links get a
  * [LinkAnnotation] (skipped for reply rows, which are not link clickable in the old renderer).
  */
-@Composable
 private fun buildChatMessageText(
     content: ChatMessageContent,
     options: ChatRenderOptions,
@@ -183,8 +210,9 @@ private fun buildChatMessageText(
     thirdPartyHeaders: NetworkHeaders?,
     linkify: Boolean,
     onImageClick: ((ChatImage) -> Unit)?,
+    textMeasurer: TextMeasurer,
+    density: Density,
 ): ChatMessageText {
-    val textMeasurer = rememberTextMeasurer()
     val inlineContent = mutableMapOf<String, InlineTextContent>()
     val text = buildAnnotatedString {
         content.tokens.forEach { token ->
@@ -223,7 +251,7 @@ private fun buildChatMessageText(
                 }
                 is ChatToken.PaintedName -> {
                     val id = "paint${inlineContent.size}"
-                    inlineContent[id] = inlinePaintedName(token, textStyle, maskBackground, textMeasurer, thirdPartyHeaders)
+                    inlineContent[id] = inlinePaintedName(token, textStyle, maskBackground, textMeasurer, density, thirdPartyHeaders)
                     appendInlineContent(id, token.text)
                 }
             }
@@ -232,7 +260,6 @@ private fun buildChatMessageText(
     return ChatMessageText(text, inlineContent)
 }
 
-@Composable
 private fun inlineChatImage(
     image: ChatImage,
     options: ChatRenderOptions,
@@ -282,12 +309,12 @@ private fun chatImageLayers(
  * glyphs (the `PorterDuff.SRC` text mask `NamePaintImageSpan` drew) and the shadows of the paint
  * are drawn as extra text layers underneath, all like the View spans did.
  */
-@Composable
 private fun inlinePaintedName(
     token: ChatToken.PaintedName,
     textStyle: TextStyle,
     maskBackground: Color,
     textMeasurer: TextMeasurer,
+    density: Density,
     thirdPartyHeaders: NetworkHeaders?,
 ): InlineTextContent {
     val style = textStyle.copy(
@@ -295,7 +322,6 @@ private fun inlinePaintedName(
         fontWeight = if (token.bold) FontWeight.Bold else null,
     )
     val layout = textMeasurer.measure(token.text, style)
-    val density = LocalDensity.current
     return InlineTextContent(
         placeholder = Placeholder(
             width = with(density) { layout.size.width.toSp() },

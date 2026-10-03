@@ -2,6 +2,7 @@ package com.github.andreyasadchy.xtra.ui
 
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -43,8 +44,10 @@ fun XtraAsyncImage(
 ) {
     val context = LocalPlatformContext.current
     val headers = httpHeaders
-    AsyncImage(
-        model = ImageRequest.Builder(context)
+    // Rebuilding the request on every composition would invalidate Coil's remembered painter and
+    // churn allocations, which is very visible while scrolling a chat full of emotes.
+    val request = remember(context, model, crossfade, headers, diskCache, animate) {
+        ImageRequest.Builder(context)
             .data(model)
             .diskCachePolicy(if (diskCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
             .disableAnimatedEmotes(!animate)
@@ -52,7 +55,10 @@ fun XtraAsyncImage(
                 if (crossfade) crossfade(true)
                 headers?.let { httpHeaders(it) }
             }
-            .build(),
+            .build()
+    }
+    AsyncImage(
+        model = request,
         contentDescription = contentDescription,
         modifier = if (circleCrop) modifier.clip(CircleShape) else modifier,
         contentScale = contentScale,

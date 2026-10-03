@@ -1,5 +1,7 @@
 package com.github.andreyasadchy.xtra.model.chat
 
+import kotlin.random.Random
+
 class ChatMessage(
     val type: Int = SYSTEM_MESSAGE,
     val id: String? = null,
@@ -21,6 +23,12 @@ class ChatMessage(
     val replyParent: ChatMessage? = null,
     val timestamp: Long? = null,
     val fullMsg: String? = null,
+    /**
+     * Stable per-instance identity used as the Compose list key. Not part of the message content;
+     * it only lets the chat list keep existing rows when messages are added or trimmed so it does
+     * not re-render (and re-format) the whole visible list.
+     */
+    val key: Long = Random.nextLong(),
 ) {
     companion object {
         const val SYSTEM_MESSAGE = 0

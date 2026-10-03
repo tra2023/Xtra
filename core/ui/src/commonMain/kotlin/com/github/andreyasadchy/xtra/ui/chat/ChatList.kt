@@ -1,6 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -12,15 +11,21 @@ import com.github.andreyasadchy.xtra.util.chat.ChatRenderOptions
 
 /**
  * The scrolling chat message list, the Compose replacement for the `RecyclerView` +
- * `ChatAdapter` pair. Messages are stacked from the end (`Arrangement.Bottom`), which is what
- * `LinearLayoutManager(stackFromEnd = true)` did, so a partially filled list sits at the bottom.
+ * `ChatAdapter` pair.
+ *
+ * The list is reversed ([LazyColumn] `reverseLayout`): the newest message ([messages.last]) is at
+ * layout index 0 and sits at the bottom, exactly like `LinearLayoutManager(stackFromEnd = true)`
+ * did. This anchors the list to the end on first composition and keeps new messages at the
+ * bottom, so "jump to newest" is `scrollToItem(0)` and the scroll-down indicator is driven by
+ * `canScrollBackward`. It also avoids shifting every visible index when the message limit trims
+ * the oldest rows.
  *
  * The caller owns [listState], so it can keep the old "only auto scroll while the user is at the
- * bottom" behavior (`listState.canScrollForward` is the equivalent of
- * `computeVerticalScrollRange()`-percentage checks) and jump to the newest message.
+ * bottom" behavior and jump to the newest message.
  *
- * Items are not keyed: [ChatMessage] has no stable identity (ids are optional) and index keys
- * would not survive a message limit trim any better.
+ * Items are keyed by [ChatMessage.key]. A stable key lets the list keep the existing rows when
+ * messages are appended or trimmed from the front, instead of re-composing and re-formatting the
+ * whole visible list on every update (which is what the granular `notifyItem*` calls did before).
  */
 @Composable
 fun ChatList(
@@ -28,6 +33,7 @@ fun ChatList(
     options: ChatRenderOptions,
     modifier: Modifier = Modifier,
     style: ChatMessageStyle = ChatMessageStyle(),
+    generation: Int = options.generation,
     listState: LazyListState = rememberLazyListState(),
     selectedMessage: ChatMessage? = null,
     onMessageClick: ((ChatMessage) -> Unit)? = null,
@@ -37,15 +43,19 @@ fun ChatList(
     LazyColumn(
         state = listState,
         modifier = modifier,
-        verticalArrangement = Arrangement.Bottom,
+        reverseLayout = true,
     ) {
-        items(count = messages.size) { index ->
-            val message = messages.getOrNull(index)
+        items(
+            count = messages.size,
+            key = { index -> messages[messages.lastIndex - index].key },
+        ) { index ->
+            val message = messages.getOrNull(messages.lastIndex - index)
             if (message != null) {
                 ChatMessageItem(
                     message = message,
                     options = options,
                     style = style,
+                    generation = generation,
                     selected = message === selectedMessage,
                     onMessageClick = onMessageClick,
                     onReplyClick = onReplyClick,

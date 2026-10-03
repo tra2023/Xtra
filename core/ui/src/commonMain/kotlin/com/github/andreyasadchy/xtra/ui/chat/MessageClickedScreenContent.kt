@@ -53,10 +53,11 @@ fun MessageClickedScreenContent(
     val messages = remember(anchor, state.messages.size, state.generation) {
         filterMessageDialogMessages(state.messages, anchor)
     }
-    // The old adapter pre-scrolled the list to the selected row on open.
+    // The old adapter pre-scrolled the list to the selected row on open. The chat list is
+    // reversed (newest first), so the layout index is mirrored.
     LaunchedEffect(messages.size) {
         messages.indexOf(selected).takeIf { it != -1 }?.let {
-            listState.scrollToItem(it)
+            listState.scrollToItem(messages.lastIndex - it)
         }
     }
     val settings = LocalXtraSettings.current
@@ -79,7 +80,8 @@ fun MessageClickedScreenContent(
             }
         },
         messages = messages,
-        options = state.options.copy(generation = state.generation),
+        options = state.options,
+        generation = state.generation,
         listState = listState,
         style = state.messageStyle,
         selectedMessage = selected,

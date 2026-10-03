@@ -1,5 +1,6 @@
 package com.github.andreyasadchy.xtra.util.chat
 
+import com.github.andreyasadchy.xtra.model.chat.ChatMessageContent
 import com.github.andreyasadchy.xtra.model.chat.ChatMessageStrings
 import com.github.andreyasadchy.xtra.model.chat.CheerEmote
 import com.github.andreyasadchy.xtra.model.chat.Emote
@@ -27,6 +28,13 @@ class ChatRenderCache(
     val savedLocalBadges = HashMap<String, ByteArray>()
     val savedLocalCheerEmotes = HashMap<String, ByteArray>()
     val savedLocalEmotes = HashMap<String, ByteArray>()
+
+    /**
+     * Formatted payloads keyed by [com.github.andreyasadchy.xtra.model.chat.ChatMessage.key]. Lets
+     * a row that scrolled out and back in reuse its formatted text instead of re-running the
+     * formatter. Cleared whenever the emote collections change and trimmed with the message window.
+     */
+    val messageContents = HashMap<Long, ChatMessageContent>()
 }
 
 /**
@@ -67,4 +75,66 @@ data class ChatRenderOptions(
     val emoteQuality: String = "4",
     val cache: ChatRenderCache = ChatRenderCache(),
     val generation: Int = 0,
-)
+) {
+    /** First-wins name index, matching the `List.find { it.name == value }` it replaces. */
+    private fun <T> List<T>.indexFirstByName(name: (T) -> String?): Map<String, T> {
+        val map = HashMap<String, T>(size)
+        for (item in this) {
+            val key = name(item) ?: continue
+            map.putIfAbsent(key, item)
+        }
+        return map
+    }
+
+    val thirdPartyEmotesByName: Map<String, Emote> by lazy(LazyThreadSafetyMode.NONE) {
+        thirdPartyEmotes.indexFirstByName { it.name }
+    }
+
+    val localTwitchEmotesById: Map<String, TwitchEmote> by lazy(LazyThreadSafetyMode.NONE) {
+        localTwitchEmotes.indexFirstByName { it.id }
+    }
+
+    val stvUsersById: Map<String, STVUser> by lazy(LazyThreadSafetyMode.NONE) {
+        stvUsers.indexFirstByName { it.userId }
+    }
+
+    val stvBadgesById: Map<String, STVBadge> by lazy(LazyThreadSafetyMode.NONE) {
+        stvBadges.indexFirstByName { it.id }
+    }
+
+    val namePaintsById: Map<String, NamePaint> by lazy(LazyThreadSafetyMode.NONE) {
+        namePaints.indexFirstByName { it.id }
+    }
+
+    val channelBadgesByKey: Map<String, TwitchBadge> by lazy(LazyThreadSafetyMode.NONE) {
+        badgeIndex(channelBadges)
+    }
+
+    val globalBadgesByKey: Map<String, TwitchBadge> by lazy(LazyThreadSafetyMode.NONE) {
+        badgeIndex(globalBadges)
+    }
+
+    val cheerEmotesByName: Map<String, List<CheerEmote>> by lazy(LazyThreadSafetyMode.NONE) {
+        val map = HashMap<String, MutableList<CheerEmote>>()
+        for (emote in cheerEmotes) {
+            map.getOrPut(emote.name.lowercase()) { ArrayList() }.add(emote)
+        }
+        map
+    }
+
+    val personalEmotesByName: Map<String, Map<String, Emote>> by lazy(LazyThreadSafetyMode.NONE) {
+        personalEmoteSets.mapValues { (_, list) -> list.indexFirstByName { it.name } }
+    }
+
+    private fun badgeIndex(badges: List<TwitchBadge>): Map<String, TwitchBadge> {
+        val map = HashMap<String, TwitchBadge>(badges.size)
+        for (badge in badges) {
+            map.putIfAbsent(badgeKey(badge.setId, badge.version), badge)
+        }
+        return map
+    }
+
+    companion object {
+        fun badgeKey(setId: String?, version: String?): String = "$setId\u0000$version"
+    }
+}

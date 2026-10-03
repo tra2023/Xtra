@@ -10,6 +10,7 @@ import com.github.andreyasadchy.xtra.model.chat.ChatToken
 import com.github.andreyasadchy.xtra.model.chat.NamePaint
 import com.github.andreyasadchy.xtra.model.chat.STVUser
 import com.github.andreyasadchy.xtra.util.TwitchFormats
+import com.github.andreyasadchy.xtra.util.chat.ChatMessageFormatter.WEB_URL
 import com.github.andreyasadchy.xtra.util.formatGroupedCount
 import kotlin.math.abs
 import kotlin.math.floor
@@ -187,8 +188,9 @@ object ChatMessageFormatter {
             builder.text("$timestamp ", dim)
         }
         message.badges?.forEach { chatBadge ->
-            val badge = options.channelBadges.find { it.setId == chatBadge.setId && it.version == chatBadge.version }
-                ?: options.globalBadges.find { it.setId == chatBadge.setId && it.version == chatBadge.version }
+            val badgeKey = ChatRenderOptions.badgeKey(chatBadge.setId, chatBadge.version)
+            val badge = options.channelBadgesByKey[badgeKey]
+                ?: options.globalBadgesByKey[badgeKey]
             if (badge != null) {
                 builder.image(
                     ChatImage(
@@ -205,10 +207,10 @@ object ChatMessageFormatter {
             }
         }
         val stvUser = if ((options.showSTVBadges || options.showNamePaints || options.showPersonalEmotes) && !message.userId.isNullOrBlank()) {
-            options.stvUsers.find { it.userId == message.userId }
+            options.stvUsersById[message.userId]
         } else null
         if (options.showSTVBadges && !message.userId.isNullOrBlank()) {
-            val badge = stvUser?.badgeId?.let { badgeId -> options.stvBadges.find { it.id == badgeId } }
+            val badge = stvUser?.badgeId?.let { badgeId -> options.stvBadgesById[badgeId] }
             if (badge != null) {
                 builder.image(
                     ChatImage(
@@ -231,7 +233,7 @@ object ChatMessageFormatter {
             val color = usernameColor(message, options)
             userColor = color
             val paint = if (options.showNamePaints && !message.userId.isNullOrBlank()) {
-                stvUser?.paintId?.let { paintId -> options.namePaints.find { it.id == paintId } }
+                stvUser?.paintId?.let { paintId -> options.namePaintsById[paintId] }
             } else null
             if (paint != null && supportsPaint(paint)) {
                 builder.paintedName(userName, color, options.useBoldNames, paint)
@@ -276,7 +278,7 @@ object ChatMessageFormatter {
         var wasMentioned = false
         try {
             val twitchEmotes = message.emotes?.map { emote ->
-                val local = emote.id?.let { id -> options.localTwitchEmotes.find { it.id == id } }
+                val local = emote.id?.let { id -> options.localTwitchEmotesById[id] }
                 TwitchEmoteRef(
                     id = emote.id,
                     begin = codePointOffset(text, emote.begin),
@@ -286,7 +288,7 @@ object ChatMessageFormatter {
                 )
             }?.sortedBy { it.begin }?.toMutableList() ?: mutableListOf()
             val personalEmotes = if (options.showPersonalEmotes) {
-                stvUser?.emoteSetId?.let { setId -> options.personalEmoteSets[setId] }
+                stvUser?.emoteSetId?.let { setId -> options.personalEmotesByName[setId] }
             } else null
             var previousImage: ChatImage? = null
             var index = 0
@@ -303,7 +305,7 @@ object ChatMessageFormatter {
                     val bitsName = value.substringBeforeLast(bitsCount)
                     val cheerEmote = if (bitsCount.isEmpty()) null else {
                         val bits = bitsCount.toIntOrNull()
-                        if (bits == null) null else options.cheerEmotes.findLast { it.name.equals(bitsName, true) && it.minBits <= bits }
+                        if (bits == null) null else options.cheerEmotesByName[bitsName.lowercase()]?.findLast { it.minBits <= bits }
                     }
                     if (cheerEmote != null) {
                         builder.image(
@@ -326,8 +328,8 @@ object ChatMessageFormatter {
                     }
                 }
                 if (!handled) {
-                    val emote = personalEmotes?.find { it.name == value }
-                        ?: options.thirdPartyEmotes.find { it.name == value }
+                    val emote = personalEmotes?.get(value)
+                        ?: options.thirdPartyEmotesByName[value]
                     if (emote != null) {
                         val overlay = previousImage
                         val image = ChatImage(
@@ -384,7 +386,8 @@ object ChatMessageFormatter {
                         handled = true
                     }
                 }
-                if (!handled && WEB_URL.matches(value)) {
+                // Cheap precheck before the URL regex; most chat words are neither emotes nor links.
+                if (!handled && looksLikeUrl(value) && WEB_URL.matches(value)) {
                     builder.link(value, if (value.startsWith("http")) value else "https://$value")
                     if (separator) {
                         builder.text(" ")
@@ -413,6 +416,13 @@ object ChatMessageFormatter {
             return EmoteResult(TokenBuilder().apply { text(text, plainColor) }, false)
         }
         return EmoteResult(builder, wasMentioned)
+    }
+
+    /** Fast reject for the [WEB_URL] regex: a link needs a scheme or a dotted host. */
+    private fun looksLikeUrl(value: String): Boolean {
+        if (value.length < 4) return false
+        if (value.startsWith("http") || value.startsWith("ftp")) return true
+        return value.indexOf('.') >= 0
     }
 
     private fun rewardImage(reward: ChannelPointReward?): ChatImage = ChatImage(

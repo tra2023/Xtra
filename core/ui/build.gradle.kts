@@ -5,6 +5,10 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+composeCompiler {
+    stabilityConfigurationFiles.add(layout.projectDirectory.file("compose-stability.conf"))
+}
+
 kotlin {
     android {
         namespace = "com.github.andreyasadchy.xtra.ui"

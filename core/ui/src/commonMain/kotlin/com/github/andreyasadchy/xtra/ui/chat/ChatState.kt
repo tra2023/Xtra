@@ -1,7 +1,6 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
@@ -40,8 +39,16 @@ class ChatState(
             cache = renderCache,
         )
     )
-    /** Compose-visible row list of the dialog. */
-    val messages = mutableStateListOf<ChatMessage>()
+    /**
+     * Compose-visible row list of the dialog.
+     *
+     * Kept as an immutable snapshot (`mutableStateOf`) rather than a `SnapshotStateList`: reading a
+     * list element inside a row's composition would subscribe that row to every list mutation, so
+     * each appended/trimmed message re-composed and re-formatted every visible row. With a plain
+     * list only the call site that reads [messages] re-composes.
+     */
+    var messages by mutableStateOf<List<ChatMessage>>(emptyList())
+        private set
 
     /**
      * The selected row, mirrored by every list instance. Changing it selects the row across all
@@ -63,33 +70,34 @@ class ChatState(
         selectedMessage = message
     }
 
-    fun setMessages(list: List<ChatMessage>) {
-        messages.clear()
-        messages.addAll(list)
+    fun replaceMessages(list: List<ChatMessage>) {
+        renderCache.messageContents.clear()
+        messages = list.toList()
     }
 
     fun appendMessage(message: ChatMessage) {
-        messages.add(message)
+        messages = messages + message
     }
 
     fun prependMessages(list: List<ChatMessage>, limit: Int) {
-        var index = 0
-        while (messages.size < limit && index < list.size) {
-            messages.add(index, list[index])
-            index++
+        val room = (limit - messages.size).coerceAtLeast(0)
+        if (room > 0) {
+            messages = list.take(room) + messages
         }
     }
 
     fun removeMessages(size: Int) {
-        repeat(size) {
-            if (messages.isNotEmpty()) {
-                messages.removeAt(0)
-            }
+        if (size > 0) {
+            val dropped = messages.take(size)
+            messages = messages.drop(size)
+            // Keep the formatted-content cache bounded to the message window.
+            dropped.forEach { renderCache.messageContents.remove(it.key) }
         }
     }
 
     /** Re-runs the parser for every row, e.g. after emotes, badges or name paints loaded. */
     fun refresh() {
+        renderCache.messageContents.clear()
         generationState.value++
     }
 }

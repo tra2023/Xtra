@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 
 // Mirrors app colors.xml (values/colors.xml) + Base*Theme styles so Compose
@@ -60,28 +61,32 @@ fun XtraTheme(
     blue: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        !darkTheme -> lightColorScheme(primary = Accent)
-        amoled -> darkColorScheme(
-            primary = Color.White,
-            onPrimary = Color.Black,
-            background = Color.Black,
-            surface = Color.Black,
-            surfaceContainerLowest = Color.Black,
-            surfaceContainerLow = Color.Black,
-            surfaceContainer = AmoledSurfaceContainer,
-        )
-        blue -> darkColorScheme(
-            primary = PrimaryBlue,
-            background = BlueBackground,
-            surface = BlueBackground,
-            surfaceContainerLowest = BlueContainerLowest,
-            surfaceContainerLow = BlueContainerLow,
-            surfaceContainer = BlueContainer,
-            surfaceContainerHigh = BlueContainerHigh,
-            surfaceContainerHighest = BlueContainerHighest,
-        )
-        else -> darkColorScheme(primary = PrimaryBlue)
+    // ColorScheme has no structural equals, so recreating it on every recomposition would
+    // invalidate every composable reading MaterialTheme.colorScheme. Keep one instance per flag set.
+    val colorScheme = remember(darkTheme, amoled, blue) {
+        when {
+            !darkTheme -> lightColorScheme(primary = Accent)
+            amoled -> darkColorScheme(
+                primary = Color.White,
+                onPrimary = Color.Black,
+                background = Color.Black,
+                surface = Color.Black,
+                surfaceContainerLowest = Color.Black,
+                surfaceContainerLow = Color.Black,
+                surfaceContainer = AmoledSurfaceContainer,
+            )
+            blue -> darkColorScheme(
+                primary = PrimaryBlue,
+                background = BlueBackground,
+                surface = BlueBackground,
+                surfaceContainerLowest = BlueContainerLowest,
+                surfaceContainerLow = BlueContainerLow,
+                surfaceContainer = BlueContainer,
+                surfaceContainerHigh = BlueContainerHigh,
+                surfaceContainerHighest = BlueContainerHighest,
+            )
+            else -> darkColorScheme(primary = PrimaryBlue)
+        }
     }
     MaterialTheme(colorScheme = colorScheme, content = content)
 }

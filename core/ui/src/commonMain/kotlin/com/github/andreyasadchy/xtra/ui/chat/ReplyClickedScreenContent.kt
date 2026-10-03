@@ -39,7 +39,8 @@ fun ReplyClickedScreenContent(
     }
     LaunchedEffect(messages.size) {
         messages.indexOf(selected).takeIf { it != -1 }?.let {
-            listState.scrollToItem(it)
+            // The chat list is reversed (newest first), so the layout index is mirrored.
+            listState.scrollToItem(messages.lastIndex - it)
         }
     }
     val settings = LocalXtraSettings.current
@@ -47,7 +48,8 @@ fun ReplyClickedScreenContent(
     MessageThreadScreen(
         header = null,
         messages = messages,
-        options = state.options.copy(generation = state.generation),
+        options = state.options,
+        generation = state.generation,
         listState = listState,
         style = state.messageStyle,
         selectedMessage = selected,
