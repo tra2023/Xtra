@@ -3,11 +3,8 @@ package com.github.andreyasadchy.xtra.ui.main
 import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Context.CONNECTIVITY_SERVICE
 import android.content.Intent
 import android.content.pm.PackageInstaller
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.widget.Toast
 import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
@@ -30,6 +27,7 @@ import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.repository.OfflineVideosRepository
+import com.github.andreyasadchy.xtra.repository.saved.DownloadNetworkPolicy
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.repository.XtraHttpClient
 import com.github.andreyasadchy.xtra.repository.getBytesOrNull
@@ -436,39 +434,9 @@ class MainViewModel(
     fun downloadStream(filesDir: String, id: String?, title: String?, createdAt: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, downloadPath: String, quality: String, downloadChat: Boolean, downloadChatEmotes: Boolean, wifiOnly: Boolean) {
         viewModelScope.launch {
             if (!channelLogin.isNullOrBlank()) {
-                val downloadedThumbnail = id.takeIf { !it.isNullOrBlank() }?.let { id ->
-                    thumbnail.takeIf { !it.isNullOrBlank() }?.let { url ->
-                        File(filesDir, "thumbnails").mkdir()
-                        val path = filesDir + File.separator + "thumbnails" + File.separator + id
-                        viewModelScope.launch(Dispatchers.IO) {
-                            try {
-                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
-                            } catch (e: Exception) {
-
-                            }
-                        }
-                        path
-                    }
-                }
-                val downloadedLogo = channelId.takeIf { !it.isNullOrBlank() }?.let { id ->
-                    channelImage.takeIf { !it.isNullOrBlank() }?.let { url ->
-                        File(filesDir, "profile_pics").mkdir()
-                        val path = filesDir + File.separator + "profile_pics" + File.separator + id
-                        viewModelScope.launch(Dispatchers.IO) {
-                            try {
-                                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
-                            } catch (e: Exception) {
-
-                            }
-                        }
-                        path
-                    }
-                }
-                val waitForWifi = if (wifiOnly) {
-                    val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                    networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-                } else false
+                val downloadedThumbnail = downloadImage(filesDir, id, thumbnail, "thumbnails")
+            val downloadedLogo = downloadImage(filesDir, channelId, channelImage, "profile_pics")
+            val waitForWifi = if (wifiOnly) DownloadNetworkPolicy.isOnCellular(applicationContext) else false
                 val videoId = offlineVideosRepository.save(
                     OfflineVideo(
                         name = title,
@@ -503,39 +471,9 @@ class MainViewModel(
 
     fun downloadVideo(filesDir: String, id: String?, title: String?, createdAt: String?, type: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, url: String, downloadPath: String, quality: String, from: Long, to: Long, downloadChat: Boolean, downloadChatEmotes: Boolean, playlistToFile: Boolean, wifiOnly: Boolean) {
         viewModelScope.launch {
-            val downloadedThumbnail = id.takeIf { !it.isNullOrBlank() }?.let { id ->
-                thumbnail.takeIf { !it.isNullOrBlank() }?.let { url ->
-                    File(filesDir, "thumbnails").mkdir()
-                    val path = filesDir + File.separator + "thumbnails" + File.separator + id
-                    viewModelScope.launch(Dispatchers.IO) {
-                        try {
-                            xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
-                        } catch (e: Exception) {
-
-                        }
-                    }
-                    path
-                }
-            }
-            val downloadedLogo = channelId.takeIf { !it.isNullOrBlank() }?.let { id ->
-                channelImage.takeIf { !it.isNullOrBlank() }?.let { url ->
-                    File(filesDir, "profile_pics").mkdir()
-                    val path = filesDir + File.separator + "profile_pics" + File.separator + id
-                    viewModelScope.launch(Dispatchers.IO) {
-                        try {
-                            xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
-                        } catch (e: Exception) {
-
-                        }
-                    }
-                    path
-                }
-            }
-            val waitForWifi = if (wifiOnly) {
-                val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-            } else false
+            val downloadedThumbnail = downloadImage(filesDir, id, thumbnail, "thumbnails")
+            val downloadedLogo = downloadImage(filesDir, channelId, channelImage, "profile_pics")
+            val waitForWifi = if (wifiOnly) DownloadNetworkPolicy.isOnCellular(applicationContext) else false
             val videoId = offlineVideosRepository.save(
                 OfflineVideo(
                     sourceUrl = url,
@@ -574,39 +512,9 @@ class MainViewModel(
 
     fun downloadClip(filesDir: String, clipId: String?, title: String?, createdAt: String?, durationSeconds: Int?, videoId: String?, videoOffsetSeconds: Int?, videoCreatedAt: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, thumbnail: String?, gameId: String?, gameSlug: String?, gameName: String?, url: String, downloadPath: String, quality: String, downloadChat: Boolean, downloadChatEmotes: Boolean, wifiOnly: Boolean) {
         viewModelScope.launch {
-            val downloadedThumbnail = clipId.takeIf { !it.isNullOrBlank() }?.let { id ->
-                thumbnail.takeIf { !it.isNullOrBlank() }?.let { url ->
-                    File(filesDir, "thumbnails").mkdir()
-                    val path = filesDir + File.separator + "thumbnails" + File.separator + id
-                    viewModelScope.launch(Dispatchers.IO) {
-                        try {
-                            xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
-                        } catch (e: Exception) {
-
-                        }
-                    }
-                    path
-                }
-            }
-            val downloadedLogo = channelId.takeIf { !it.isNullOrBlank() }?.let { id ->
-                channelImage.takeIf { !it.isNullOrBlank() }?.let { url ->
-                    File(filesDir, "profile_pics").mkdir()
-                    val path = filesDir + File.separator + "profile_pics" + File.separator + id
-                    viewModelScope.launch(Dispatchers.IO) {
-                        try {
-                            xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
-                        } catch (e: Exception) {
-
-                        }
-                    }
-                    path
-                }
-            }
-            val waitForWifi = if (wifiOnly) {
-                val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-            } else false
+            val downloadedThumbnail = downloadImage(filesDir, clipId, thumbnail, "thumbnails")
+            val downloadedLogo = downloadImage(filesDir, channelId, channelImage, "profile_pics")
+            val waitForWifi = if (wifiOnly) DownloadNetworkPolicy.isOnCellular(applicationContext) else false
             val videoId = offlineVideosRepository.save(
                 OfflineVideo(
                     sourceUrl = url,
@@ -695,6 +603,27 @@ class MainViewModel(
             }
         }
         TwitchApiHelper.checkedValidation = true
+    }
+
+    /**
+     * Downloads a thumbnail or channel logo into `filesDir/<subdirectory>/<id>` and returns the
+     * destination path immediately, writing the bytes in the background — the same shape the three
+     * download entry points each had inline. The path is returned even if the write later fails, so
+     * the queued [OfflineVideo] still points at a stable location.
+     */
+    private fun downloadImage(filesDir: String, id: String?, url: String?, subdirectory: String): String? {
+        if (id.isNullOrBlank()) return null
+        if (url.isNullOrBlank()) return null
+        File(filesDir, subdirectory).mkdir()
+        val path = filesDir + File.separator + subdirectory + File.separator + id
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                xtraHttpClient.getBytesOrNull(url)?.let { bytes -> FileOutputStream(path).use { it.write(bytes) } }
+            } catch (e: Exception) {
+
+            }
+        }
+        return path
     }
 
     fun checkUpdates(url: String, lastChecked: Long) {
