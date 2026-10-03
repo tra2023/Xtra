@@ -85,7 +85,12 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
     private var messagingEnabled = false
     // Set when a message arrives while the list is at the bottom; the Compose side performs the
     // actual scroll once the new row is part of the list, so it does not race the update.
+    // The index/size snapshot below is taken when the flag is armed: at scroll time the effect
+    // only snaps if the list has not moved up beyond what the arrived messages explain, so a
+    // scroll that runs late (after the user flung upward) can never yank them back down.
     private var shouldAutoScroll = false
+    private var autoScrollIndex = 0
+    private var autoScrollSize = 0
     private val composerState = ChatComposerState()
 
     private var autoCompleteAdapter: AutoCompleteAdapter<Any>? = null
@@ -98,9 +103,6 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
 
     private val messageDialog: MessageClickedDialog?
         get() = childFragmentManager.findFragmentByTag("messageDialog") as? MessageClickedDialog
-
-    private val replyDialog: ReplyClickedDialog?
-        get() = childFragmentManager.findFragmentByTag("replyDialog") as? ReplyClickedDialog
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentChatBinding.inflate(inflater, container, false)
@@ -141,9 +143,16 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             XtraTheme(themeId = theme) {
                                 val dragged by chatListState.interactionSource.collectIsDraggedAsState()
                                 LaunchedEffect(dragged) { isChatTouched = dragged }
-                                // The list is reversed (newest at the bottom), so there are newer
-                                // messages below while the user can still scroll backwards.
-                                val canScrollDown by remember { derivedStateOf { chatListState.canScrollBackward } }
+                                // The list is reversed (newest at the bottom, index 0), so the user
+                                // can scroll down to newer messages while firstVisibleItemIndex > 1.
+                                // Use the item index instead of canScrollBackward: the latter also
+                                // flips on a few px of scroll offset (image loading, layout jitter),
+                                // which would spuriously disable auto-scroll and flash the button.
+                                // The > 1 threshold mirrors isAtBottom (index <= 1 counts as at the
+                                // bottom): every auto-scrolled message transiently pushes the index
+                                // to 1, and showing/hiding the button on each of those would churn
+                                // two extra layout passes per message in a busy chat.
+                                val canScrollDown by remember { derivedStateOf { chatListState.firstVisibleItemIndex > 1 } }
                                 LaunchedEffect(canScrollDown) {
                                     btnDown.isVisible = canScrollDown
                                     if (canScrollDown && showChatStatus && chatStatus.isGone) {
@@ -152,10 +161,25 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                     }
                                 }
                                 // Scroll to the newest row only after it is part of the list.
+                                // The interaction is re-checked here, not just when the message
+                                // arrived: the user may have grabbed the list in between, and the
+                                // pending scroll must never yank them back down mid-gesture.
+                                // Skipping while the list is moving also matters: scrollToItem
+                                // takes the scroll mutex with uninterruptible priority, so a busy
+                                // chat snapping on every message would starve the user's own drag
+                                // and pin them at the bottom. Finally, the position is verified:
+                                // if the first visible row moved up by more than the messages that
+                                // arrived since arming, the user scrolled away and the snap is
+                                // dropped. A skipped request simply dies; the next arriving
+                                // message re-arms it if still at the bottom.
                                 LaunchedEffect(state.messages) {
                                     if (shouldAutoScroll) {
                                         shouldAutoScroll = false
-                                        chatListState.scrollToItem(0)
+                                        val grown = chatListState.firstVisibleItemIndex - autoScrollIndex
+                                        val arrived = (chatState?.messages?.size ?: 0) - autoScrollSize
+                                        if (!isChatTouched && !chatListState.isScrollInProgress && grown <= arrived + 1) {
+                                            chatListState.scrollToItem(0)
+                                        }
                                     }
                                 }
                                 // Stable row callbacks: recreating them on every message would
@@ -462,7 +486,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                             "ACTIVE" -> {
                                                 pollLayout.visibility = View.VISIBLE
                                                 pollTitle.text = getString(R.string.poll_title, poll.title)
-                                                pollChoices.text = poll.choices?.joinToString("\n") {
+                                                pollChoices.text = poll.choices?.joinToString("\n") { it ->
                                                     getString(
                                                         R.string.poll_choice,
                                                         (((it.totalVotes ?: 0).toLong() * 100.0) / max((poll.totalVotes ?: 0), 1)).roundToInt(),
@@ -476,7 +500,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                                 pollLayout.visibility = View.VISIBLE
                                                 pollTitle.text = getString(R.string.poll_title, poll.title)
                                                 val winningTotal = poll.choices?.maxOfOrNull { it.totalVotes ?: 0 } ?: 0
-                                                pollChoices.text = poll.choices?.joinToString("\n") {
+                                                pollChoices.text = poll.choices?.joinToString("\n") { it ->
                                                     getString(
                                                         if (winningTotal == it.totalVotes) {
                                                             R.string.poll_choice_winner
@@ -547,7 +571,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                                 predictionLayout.visibility = View.VISIBLE
                                                 predictionTitle.text = getString(R.string.prediction_title, prediction.title)
                                                 val totalPoints = prediction.outcomes?.sumOf { it.totalPoints?.toLong() ?: 0 } ?: 0
-                                                predictionOutcomes.text = prediction.outcomes?.joinToString("\n") {
+                                                predictionOutcomes.text = prediction.outcomes?.joinToString("\n") { it ->
                                                     getString(
                                                         R.string.prediction_outcome,
                                                         (((it.totalPoints ?: 0).toLong() * 100.0) / max(totalPoints, 1)).roundToInt(),
@@ -562,7 +586,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                                 predictionLayout.visibility = View.VISIBLE
                                                 predictionTitle.text = getString(R.string.prediction_title, prediction.title)
                                                 val totalPoints = prediction.outcomes?.sumOf { it.totalPoints?.toLong() ?: 0 } ?: 0
-                                                predictionOutcomes.text = prediction.outcomes?.joinToString("\n") {
+                                                predictionOutcomes.text = prediction.outcomes?.joinToString("\n") { it ->
                                                     getString(
                                                         R.string.prediction_outcome,
                                                         (((it.totalPoints ?: 0).toLong() * 100.0) / max(totalPoints, 1)).roundToInt(),
@@ -582,7 +606,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                                 predictionTitle.text = getString(R.string.prediction_title, prediction.title)
                                                 val resolved = prediction.status == "RESOLVED" || prediction.status == "RESOLVE_PENDING"
                                                 val totalPoints = prediction.outcomes?.sumOf { it.totalPoints?.toLong() ?: 0 } ?: 0
-                                                predictionOutcomes.text = prediction.outcomes?.joinToString("\n") {
+                                                predictionOutcomes.text = prediction.outcomes?.joinToString("\n") { it ->
                                                     getString(
                                                         if (resolved && prediction.winningOutcomeId != null && prediction.winningOutcomeId == it.id) {
                                                             R.string.prediction_outcome_winner
@@ -658,13 +682,10 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             viewModel.newMessage.collect { result ->
                                 val message = result.first
                                 val removeCount = result.third
-                                val atBottom = !isChatTouched && !chatListState.canScrollBackward
+                                updateAutoScroll()
                                 chatState?.appendMessage(message)
                                 if (removeCount > 0) {
                                     chatState?.removeMessages(removeCount)
-                                }
-                                if (atBottom) {
-                                    shouldAutoScroll = true
                                 }
                             }
                         }
@@ -673,11 +694,8 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
                             viewModel.addMessages.collect { result ->
                                 val messages = result.first
-                                val atBottom = !isChatTouched && !chatListState.canScrollBackward
+                                updateAutoScroll()
                                 chatState?.prependMessages(messages, messageLimit())
-                                if (atBottom) {
-                                    shouldAutoScroll = true
-                                }
                             }
                         }
                     }
@@ -730,7 +748,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             val channelLogin = args.getString(KEY_CHANNEL_LOGIN)
             if (args.getBoolean(KEY_IS_LIVE)) {
                 viewModel.startLive(
-                    requireContext().prefs().getString(C.CHAT_RECENT_MESSAGES_URL, "https://recent-messages.robotty.de/api/v2/recent-messages/\$channel"),
+                    requireContext().prefs().getString(C.CHAT_RECENT_MESSAGES_URL,
+                        $$"https://recent-messages.robotty.de/api/v2/recent-messages/$channel"
+                    ),
                     channelId,
                     channelLogin,
                     args.getString(KEY_CHANNEL_NAME),
@@ -789,7 +809,9 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             viewModel.startLiveChat(requireArguments().getString(KEY_CHANNEL_ID), channelLogin)
             if (requireContext().prefs().getBoolean(C.CHAT_RECENT, true)) {
                 viewModel.loadRecentMessages(
-                    requireContext().prefs().getString(C.CHAT_RECENT_MESSAGES_URL, "https://recent-messages.robotty.de/api/v2/recent-messages/\$channel"),
+                    requireContext().prefs().getString(C.CHAT_RECENT_MESSAGES_URL,
+                        $$"https://recent-messages.robotty.de/api/v2/recent-messages/$channel"
+                    ),
                     channelLogin,
                 )
             }
@@ -852,11 +874,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
      */
     private fun sendOnEnterListener(onSend: () -> Boolean): View.OnKeyListener =
         View.OnKeyListener { _, keyCode, event ->
-            if (ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) {
-                onSend()
-            } else {
-                false
-            }
+            ChatInput.shouldSendOnKey(event.action, keyCode, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER) && onSend()
         }
 
     /**
@@ -873,7 +891,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
             (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editText.windowToken, 0)
             editText.clearFocus()
             toggleEmoteMenu(false)
-            // A send always ends the reply, whether or not the draft had anything in it.
+            // A send always ends the reply, whether the draft had anything in it.
 
             composerState.onSent()
 
@@ -980,9 +998,40 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
         binding.editText.clearFocus()
     }
 
+    /**
+     * The list is reversed (newest at index 0 at the bottom). The user counts as "at the bottom"
+     * while the bottom row is visible, tolerating one not-yet-scrolled row and ignoring a few px
+     * of scroll offset. A strict `!canScrollBackward` check flips on any pixel jitter (emote/image
+     * loading, layout changes) and during an in-progress auto-scroll, which spuriously disables
+     * auto-scroll and leaves the scroll-down button visible. A pending auto-scroll also counts as
+     * at the bottom, so a burst of messages cannot cancel the in-flight scroll and then get lost.
+     */
+    private fun isAtBottom(): Boolean {
+        if (isChatTouched) return false
+        if (shouldAutoScroll) return true
+        return chatListState.firstVisibleItemIndex <= 1
+    }
+
+    /**
+     * Evaluates [isAtBottom] for an arriving batch and maintains [shouldAutoScroll]. Assigned,
+     * not just set: the moment the user grabs the list this disarms the pending snap, so a busy
+     * chat stops fighting the drag instead of pinning them at the bottom with back-to-back
+     * snaps. When arming, the current position is snapshotted so the scroll effect can tell a
+     * burst backlog (position explained by new rows) apart from the user scrolling away.
+     */
+    private fun updateAutoScroll() {
+        val atBottom = isAtBottom()
+        if (atBottom && !shouldAutoScroll) {
+            autoScrollIndex = chatListState.firstVisibleItemIndex
+            autoScrollSize = chatState?.messages?.size ?: 0
+        }
+        shouldAutoScroll = atBottom
+    }
+
     fun scrollToBottom() {
         val state = chatState ?: return
         if (!isAdded) return
+        shouldAutoScroll = false
         viewLifecycleOwner.lifecycleScope.launch {
             if (state.messages.isNotEmpty()) {
                 // The list is reversed, so index 0 is the newest message at the bottom.
@@ -1021,7 +1070,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                 showReplyIndicator(true)
                 replyText.text = composerState.replyLabel.orEmpty()
                 replyClose.setOnClickListener {
-                    // Back to a plain message: the reply is cancelled, so send forgets its id.
+                    // Back to a plain message: the reply is canceled, so send forgets its id.
                     showReplyIndicator(false)
                     send.setOnClickListener { sendMessage() }
                     editText.setOnKeyListener(sendOnEnterListener { sendMessage() })

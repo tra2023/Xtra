@@ -1,6 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.chat
 
 import android.content.ContentResolver
+import android.net.Uri
 import android.util.Base64
 import android.util.JsonReader
 import android.util.JsonToken
@@ -8,14 +9,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.andreyasadchy.xtra.model.chat.Badge
 import com.github.andreyasadchy.xtra.model.chat.ChannelPointReward
-import android.net.Uri
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
 import com.github.andreyasadchy.xtra.model.chat.ChatSystemStrings
-import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
-import com.github.andreyasadchy.xtra.settings.AuthConfig
-import com.github.andreyasadchy.xtra.settings.XtraSettings
-import com.github.andreyasadchy.xtra.util.TwitchFormats
-import java.io.InputStream
 import com.github.andreyasadchy.xtra.model.chat.Chatter
 import com.github.andreyasadchy.xtra.model.chat.CheerEmote
 import com.github.andreyasadchy.xtra.model.chat.Emote
@@ -33,7 +28,11 @@ import com.github.andreyasadchy.xtra.model.chat.VideoChatMessage
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
+import com.github.andreyasadchy.xtra.repository.SharedAuthHeaders
+import com.github.andreyasadchy.xtra.settings.AuthConfig
+import com.github.andreyasadchy.xtra.settings.XtraSettings
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.TwitchFormats
 import com.github.andreyasadchy.xtra.util.chat.ChatReadIRCSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatReadWebSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatReplayManager
@@ -59,6 +58,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.util.Timer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.DeflaterOutputStream
@@ -974,20 +974,24 @@ class ChatViewModel(
     }
 
     suspend fun onMessage(message: ChatMessage) {
-        synchronized(chatMessages) {
+        // The backing list must always be trimmed to messageLimit, whether or not anyone is
+        // collecting. Previously it was only trimmed when there was no subscriber, so with an
+        // active chat the list grew unbounded and removeCount grew 1, 2, 3, ... The UI applies
+        // append + drop(removeCount), which then shrinks its list to zero: the chat goes blank
+        // and every further message (append 1 + drop N) keeps it blank.
+        val emitTriple = synchronized(chatMessages) {
             chatMessages.add(message)
-            val removeCount = if (chatMessages.size > messageLimit) {
-                chatMessages.size - messageLimit
-            } else 0
+            val removeCount = (chatMessages.size - messageLimit).coerceAtLeast(0)
+            if (removeCount > 0) {
+                chatMessages.subList(0, removeCount).clear()
+            }
             if (newMessage.subscriptionCount.value > 0) {
                 Triple(message, chatMessages.lastIndex, removeCount)
             } else {
-                if (removeCount > 0) {
-                    chatMessages.subList(0, removeCount).clear()
-                }
                 null
             }
-        }?.let {
+        }
+        emitTriple?.let {
             newMessage.emit(it)
         }
     }

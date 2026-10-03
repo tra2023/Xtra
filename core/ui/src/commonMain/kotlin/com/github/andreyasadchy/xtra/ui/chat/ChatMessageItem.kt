@@ -281,6 +281,9 @@ private fun inlineChatImage(
 /**
  * Draws an emote/badge and, on top of it, its zero-width overlay emotes. `LayerDrawable` used to
  * do this in the View renderer.
+ *
+ * The crossfade is off on purpose: these are tiny, usually cached images, and the fade would
+ * replay (with its per-frame invalidation) every time a row scrolls back into view.
  */
 @Composable
 private fun chatImageLayers(
@@ -295,6 +298,7 @@ private fun chatImageLayers(
         contentScale = ContentScale.Fit,
         httpHeaders = if (image.thirdParty) thirdPartyHeaders else null,
         modifier = Modifier.fillMaxSize(),
+        crossfade = false,
         animate = style.animateGifs,
     )
     image.overlay?.let { overlay ->
@@ -402,6 +406,7 @@ private fun paintedNameImage(
                 contentScale = ContentScale.Crop,
                 httpHeaders = thirdPartyHeaders,
                 modifier = Modifier.fillMaxSize().graphicsLayer { blendMode = BlendMode.SrcIn },
+                crossfade = false,
             )
         }
     }
