@@ -29,10 +29,10 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.VideoQuality
 import com.github.andreyasadchy.xtra.ui.common.IntegrityDialog
-import com.github.andreyasadchy.xtra.ui.download.DownloadViewModel.Companion.DownloadViewModelFactory
+import com.github.andreyasadchy.xtra.ui.download.DownloadViewModelFactory
 import com.github.andreyasadchy.xtra.ui.downloads.DownloadForm
 import com.github.andreyasadchy.xtra.ui.downloads.DownloadFormLabels
-import com.github.andreyasadchy.xtra.ui.downloads.DownloadFormState
+import com.github.andreyasadchy.xtra.model.ui.DownloadFormState
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.theme.XtraTheme
 import com.github.andreyasadchy.xtra.util.C

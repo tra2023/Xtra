@@ -55,21 +55,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.github.andreyasadchy.xtra.model.ui.DownloadFormState
 import com.github.andreyasadchy.xtra.ui.XtraAsyncImage
 
-data class DownloadFormState(
-    val initialized: Boolean = false,
-    val quality: Int = 0,
-    val from: String = "",
-    val to: String = "",
-    val fromError: String? = null,
-    val toError: String? = null,
-    val location: Int = 0,
-    val storage: Int = 0,
-    val directory: String? = null,
-    val downloadChat: Boolean = false,
-    val downloadChatEmotes: Boolean = false,
-)
 
 data class DownloadFormLabels(
     val quality: String,

@@ -1,19 +1,15 @@
 package com.github.andreyasadchy.xtra.ui.download
 
-import android.content.Context
 import android.util.Base64
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.github.andreyasadchy.xtra.XtraApp
+import com.github.andreyasadchy.xtra.model.ui.DownloadFormState
 import com.github.andreyasadchy.xtra.model.VideoQuality
 import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.repository.XtraHttpClient
 import com.github.andreyasadchy.xtra.repository.getStringOrNull
 import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.TwitchApiDefaults
 import com.github.andreyasadchy.xtra.util.VideoQualityUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -23,8 +19,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONException
+
+/**
+ * Resolves the quality list offered by the download dialog. Lives in `:core:database`'s Android
+ * source set because parsing the IVS session data needs `android.util.Base64` and `org.json`; the
+ * Android host keeps the `ViewModelProvider.Factory`.
+ */
 class DownloadViewModel(
-    private val applicationContext: Context,
     private val xtraHttpClient: XtraHttpClient,
     private val playerRepository: PlayerRepository,
 ) : ViewModel() {
@@ -36,11 +37,11 @@ class DownloadViewModel(
     val dismiss = MutableStateFlow(false)
     var backupQualities: List<String>? = null
     var selectedQuality: String? = null
-    private val _form = MutableStateFlow(com.github.andreyasadchy.xtra.ui.downloads.DownloadFormState())
-    val form: StateFlow<com.github.andreyasadchy.xtra.ui.downloads.DownloadFormState> = _form
+    private val _form = MutableStateFlow(DownloadFormState())
+    val form: StateFlow<DownloadFormState> = _form
     var sharedPath: String? = null
 
-    fun updateForm(state: com.github.andreyasadchy.xtra.ui.downloads.DownloadFormState) {
+    fun updateForm(state: DownloadFormState) {
         _form.value = state
     }
 
@@ -199,7 +200,7 @@ class DownloadViewModel(
                             _qualities.value = VideoQualityUtils.buildQualities(list, alwaysAddAudioOnly = false)
                         } else {
                             if (!animatedPreviewUrl.isNullOrBlank()) {
-                                val list = (backupQualities ?: TwitchApiHelper.defaultQualityList).map { quality ->
+                                val list = (backupQualities ?: TwitchApiDefaults.defaultQualityList).map { quality ->
                                     val split = quality.split("p")
                                     val resolution = split.getOrNull(0)?.takeWhile { it.isDigit() }?.toIntOrNull()
                                     val frameRate = split.getOrNull(1)?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 30
@@ -255,16 +256,6 @@ class DownloadViewModel(
                         }
                     }
                 }
-            }
-        }
-    }
-
-    companion object {
-        val DownloadViewModelFactory = viewModelFactory {
-            initializer {
-                val application = (this[APPLICATION_KEY] as XtraApp)
-                val xtraModule = application.xtraModule
-                DownloadViewModel(application.applicationContext, xtraModule.xtraHttpClient, xtraModule.playerRepository)
             }
         }
     }
