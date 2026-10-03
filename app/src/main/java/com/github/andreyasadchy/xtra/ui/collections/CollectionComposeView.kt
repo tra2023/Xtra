@@ -1,15 +1,11 @@
 package com.github.andreyasadchy.xtra.ui.collections
 
 import android.content.Context
-import android.view.ViewGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.key
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.res.use
@@ -20,21 +16,6 @@ import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.getThemeId
 import com.github.andreyasadchy.xtra.util.prefs
 import com.google.android.material.shape.ShapeAppearanceModel
-
-fun ViewGroup.collectionComposeView(): ComposeView = ComposeView(context).apply {
-    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-    setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)
-}
-
-fun <T> ComposeView.bindCollection(item: T?, content: @Composable (T) -> Unit) {
-    setContent {
-        CollectionTheme(context) {
-            key(item) {
-                if (item != null) content(item)
-            }
-        }
-    }
-}
 
 fun Context.collectionName(name: String?, login: String?): String? =
     if (name != null && login != null && !login.equals(name, true)) {

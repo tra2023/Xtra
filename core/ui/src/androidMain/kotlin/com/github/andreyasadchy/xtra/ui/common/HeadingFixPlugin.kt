@@ -1,4 +1,4 @@
-package com.github.andreyasadchy.xtra.util
+package com.github.andreyasadchy.xtra.ui.common
 
 import io.noties.markwon.AbstractMarkwonPlugin
 import io.noties.markwon.core.CorePlugin

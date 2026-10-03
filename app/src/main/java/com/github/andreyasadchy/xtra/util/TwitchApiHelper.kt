@@ -16,8 +16,6 @@ object TwitchApiHelper {
     val defaultQualityList: List<String> get() = TwitchApiDefaults.defaultQualityList
     val vodDomains: List<String> get() = TwitchApiDefaults.vodDomains
 
-    fun getGameBoxArt(url: String?): String? = TwitchImageUrls.getGameBoxArt(url)
-
     fun getType(context: Context, type: String?): String? {
         return when (type?.lowercase()) {
             "archive" -> context.getString(R.string.video_type_archive)
@@ -48,12 +46,6 @@ object TwitchApiHelper {
             clearText = context.getString(R.string.chat_clear),
         )
     }
-
-    fun getMinutesLeft(hour: Int, minute: Int): Int =
-        TwitchFormats.minutesLeft(hour, minute)
-
-    fun getTimestamp(input: Long, timestampFormat: String?): String? =
-        TwitchFormats.formatTimestampMillis(input, timestampFormat)
 
     fun formatCount(count: Int, compact: Boolean): String =
         TwitchFormats.formatCount(count, compact)

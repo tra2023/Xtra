@@ -19,6 +19,9 @@ kotlin {
             // `isKeyboardShown`): they poke at ViewPager2/RecyclerView internals.
             implementation(libs.recyclerview)
             implementation(libs.viewpager2)
+            // MarkdownText hosts Markwon in an AndroidView; there is no Compose equivalent.
+            implementation(libs.markwon.core)
+            implementation(libs.markwon.linkify)
         }
         commonMain.dependencies {
             implementation(project(":core:models"))

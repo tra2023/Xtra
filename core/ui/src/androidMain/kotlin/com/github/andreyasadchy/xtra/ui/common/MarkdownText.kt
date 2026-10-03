@@ -15,7 +15,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
 import io.noties.markwon.linkify.LinkifyPlugin
-import com.github.andreyasadchy.xtra.util.HeadingFixPlugin
 
 /**
  * Renders Markdown with Markwon inside a Compose screen.
